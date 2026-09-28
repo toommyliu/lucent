@@ -1,6 +1,6 @@
 import {
-  BrowserView,
-  type BrowserViewConstructorOptions,
+  WebContentsView,
+  type WebContentsViewConstructorOptions,
   type LoadFileOptions,
   type WebContents,
 } from "electron";
@@ -10,9 +10,16 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
+import { electronRendererRegistry } from "./ElectronRendererRegistry";
 import type { ElectronWindowOpenRequestHandler } from "./ElectronWindow";
 
-export type ElectronGameViewHandle = BrowserView;
+export interface ElectronGameViewHandle {
+  readonly native: WebContentsView;
+  readonly webContents: WebContents;
+  readonly getBounds: WebContentsView["getBounds"];
+  readonly setBounds: WebContentsView["setBounds"];
+  readonly setBackgroundColor: WebContentsView["setBackgroundColor"];
+}
 
 export class ElectronGameViewCreateError extends Schema.TaggedError<ElectronGameViewCreateError>()(
   "ElectronGameViewCreateError",
@@ -37,7 +44,7 @@ export class ElectronGameViewLoadError extends Schema.TaggedError<ElectronGameVi
 
 export interface ElectronGameViewShape {
   readonly create: (
-    options: BrowserViewConstructorOptions,
+    options: WebContentsViewConstructorOptions,
     onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
   ) => Effect.Effect<ElectronGameViewHandle, ElectronGameViewCreateError>;
   readonly loadFile: (
@@ -67,23 +74,24 @@ const denyRendererWindowOpen = (
   });
 };
 
-const retainWebContentsAfterDestroy = (view: BrowserView): void => {
-  Object.defineProperty(view, "webContents", {
-    value: view.webContents,
-    enumerable: true,
-  });
-};
-
 const create: ElectronGameViewShape["create"] = (
   options,
   onWindowOpenRequest,
 ) =>
   Effect.try({
     try: () => {
-      const view = new BrowserView(options);
-      retainWebContentsAfterDestroy(view);
+      const view = new WebContentsView(options);
       denyRendererWindowOpen(view.webContents, onWindowOpenRequest);
-      return view;
+      const webContents = view.webContents;
+      electronRendererRegistry.register(webContents);
+      return {
+        native: view,
+        // The native view clears its accessor after close; retain the contents for cleanup observers.
+        webContents,
+        getBounds: () => view.getBounds(),
+        setBounds: (bounds) => view.setBounds(bounds),
+        setBackgroundColor: (color) => view.setBackgroundColor(color),
+      };
     },
     catch: (cause) => new ElectronGameViewCreateError({ cause }),
   });
@@ -115,12 +123,7 @@ const destroy: ElectronGameViewShape["destroy"] = (view) => {
     return;
   }
 
-  const webContents = view.webContents as WebContents & {
-    readonly destroy: () => void;
-  };
-  try {
-    webContents.destroy();
-  } catch {}
+  view.webContents.close({ waitForBeforeUnload: false });
 };
 
 export const layer = Layer.succeed(

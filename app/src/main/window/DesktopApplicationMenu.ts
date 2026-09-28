@@ -1,6 +1,6 @@
 import * as Cause from "effect/Cause";
 import {
-  BrowserWindow,
+  BaseWindow,
   Menu,
   app,
   session,
@@ -74,14 +74,6 @@ const reloadContents = (target: WebContents, bypassCache: boolean): void => {
   }
 };
 
-const removeRendererWindowMenu = (rendererId: number): void => {
-  const contents = webContents.fromId(rendererId);
-  if (contents === undefined || contents.isDestroyed()) {
-    return;
-  }
-  BrowserWindow.fromWebContents(contents)?.setMenu(null);
-};
-
 const makeDesktopApplicationMenu = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
   const chromiumPerformanceRecording =
@@ -96,6 +88,10 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const isDarwin = env.platform === "darwin";
+  const removeRendererWindowMenu = (rendererId: number) =>
+    windows
+      .getNativeWindowId(rendererId)
+      .pipe(Effect.map((id) => BaseWindow.fromId(id)?.setMenu(null)));
 
   const logMenuFailure = (operation: string, cause: unknown): void => {
     void runPromise(
@@ -127,8 +123,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       if (target.isDevToolsOpened()) {
         target.closeDevTools();
       } else {
-        // Docked DevTools are painted below BrowserViews, so they must use a
-        // separate window for game hosts.
+        // Keep DevTools separate from the game host's native child views.
         target.openDevTools({ mode: "detach" });
       }
     } catch (cause) {
@@ -618,7 +613,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     );
     if (!isDarwin) {
       for (const rendererId of yield* windows.getRendererIds("about")) {
-        removeRendererWindowMenu(rendererId);
+        yield* removeRendererWindowMenu(rendererId);
       }
     }
   }).pipe(
@@ -638,11 +633,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     function* () {
       if (!isDarwin) {
         const unsubscribeWindows = yield* windows.onCreated((event) =>
-          Effect.sync(() => {
-            if (event.kind === "about") {
-              removeRendererWindowMenu(event.rendererId);
-            }
-          }),
+          event.kind === "about"
+            ? removeRendererWindowMenu(event.rendererId).pipe(
+                Effect.catch(() => Effect.void),
+              )
+            : Effect.void,
         );
         yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
       }

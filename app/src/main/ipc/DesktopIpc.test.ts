@@ -11,7 +11,7 @@ import {
   makeDesktopIpc,
   makeDesktopIpcMethod,
   type DesktopIpcMain,
-  type DesktopIpcWindow,
+  type DesktopIpcWebContents,
 } from "./DesktopIpc";
 import {
   DesktopIpcSenders,
@@ -97,111 +97,89 @@ describe("DesktopIpc", () => {
       }).pipe(Effect.provideService(DesktopIpcSenders, senders)),
   );
 
-  it.effect("continues delivery after a destroyed-window race", () =>
+  it.effect("continues delivery after a destroyed-renderer race", () =>
     Effect.gen(function* () {
       const { main } = makeIpcMain();
       const delivered: string[] = [];
       let destroyed = false;
-      const racedWindow: DesktopIpcWindow = {
+      const raced: DesktopIpcWebContents = {
         isDestroyed: () => destroyed,
-        webContents: {
-          isDestroyed: () => destroyed,
-          send: () => {
-            destroyed = true;
-            throw new Error("Window was destroyed during delivery.");
-          },
+        send: () => {
+          destroyed = true;
+          throw new Error("Renderer closed during delivery.");
         },
       };
-      const receivingWindow: DesktopIpcWindow = {
+      const receiving: DesktopIpcWebContents = {
         isDestroyed: () => false,
-        webContents: {
-          isDestroyed: () => false,
-          send: (_channel, payload) => {
-            delivered.push(String(payload));
-          },
+        send: (_channel, payload) => {
+          delivered.push(String(payload));
         },
       };
       const ipc = makeDesktopIpc(main, {
-        getAllWindows: () => [racedWindow, receivingWindow],
+        getAllWebContents: () => [raced, receiving],
+        fromId: () => undefined,
       });
-
       yield* ipc.sendToAll(eventDescriptor, "hello");
-
       expect(delivered).toEqual(["hello"]);
     }),
   );
 
   it.effect(
-    "reports unexpected delivery failures after attempting every recipient",
+    "reports unexpected failures after attempting every recipient",
     () =>
       Effect.gen(function* () {
         const { main } = makeIpcMain();
         const delivered: string[] = [];
-        const failingWindow: DesktopIpcWindow = {
+        const failing: DesktopIpcWebContents = {
           isDestroyed: () => false,
-          webContents: {
-            isDestroyed: () => false,
-            send: () => {
-              throw new Error("Unexpected IPC transport failure.");
-            },
+          send: () => {
+            throw new Error("Unexpected IPC transport failure.");
           },
         };
-        const receivingWindow: DesktopIpcWindow = {
+        const receiving: DesktopIpcWebContents = {
           isDestroyed: () => false,
-          webContents: {
-            isDestroyed: () => false,
-            send: (_channel, payload) => {
-              delivered.push(String(payload));
-            },
+          send: (_channel, payload) => {
+            delivered.push(String(payload));
           },
         };
         const ipc = makeDesktopIpc(main, {
-          getAllWindows: () => [failingWindow, receivingWindow],
+          getAllWebContents: () => [failing, receiving],
+          fromId: () => undefined,
         });
-
         const exit = yield* Effect.exit(
           ipc.sendToAll(eventDescriptor, "hello"),
         );
-
         expect(Exit.isFailure(exit)).toBe(true);
-        if (Exit.isFailure(exit)) {
+        if (Exit.isFailure(exit))
           expect(Cause.squash(exit.cause)).toMatchObject({
             message: "Unexpected IPC transport failure.",
           });
-        }
         expect(delivered).toEqual(["hello"]);
       }),
   );
 
-  it.effect("delivers events to hosted views and renderer ids", () =>
+  it.effect("broadcasts to owned detached views and targets renderer ids", () =>
     Effect.gen(function* () {
       const { main } = makeIpcMain();
       const delivered: string[] = [];
-      const hostedContents = {
+      const view: DesktopIpcWebContents = {
         isDestroyed: () => false,
-        send: (_channel: string, payload: unknown) => {
+        send: (_channel, payload) => {
           delivered.push(`view:${String(payload)}`);
         },
       };
-      const hostWindow: DesktopIpcWindow = {
-        getBrowserViews: () => [{ webContents: hostedContents }],
+      const host: DesktopIpcWebContents = {
         isDestroyed: () => false,
-        webContents: {
-          isDestroyed: () => false,
-          send: (_channel, payload) => {
-            delivered.push(`host:${String(payload)}`);
-          },
+        send: (_channel, payload) => {
+          delivered.push(`host:${String(payload)}`);
         },
       };
-      const ipc = makeDesktopIpc(
-        main,
-        { getAllWindows: () => [hostWindow] },
-        { fromId: (id) => (id === 42 ? hostedContents : undefined) },
-      );
-
+      const ipc = makeDesktopIpc(main, {
+        getAllWebContents: () => [host, view],
+        fromId: (id) => (id === 42 ? view : undefined),
+      });
       yield* ipc.sendToAll(eventDescriptor, "all");
       yield* ipc.sendToRendererIds([42, 404], eventDescriptor, "target");
-
       expect(delivered).toEqual(["host:all", "view:all", "view:target"]);
     }),
   );

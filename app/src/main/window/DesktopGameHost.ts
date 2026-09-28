@@ -14,7 +14,7 @@ import { GameViewsIpc } from "../../shared/ipc";
 import type { ElectronGameViewHandle } from "../electron/ElectronGameView";
 import {
   isElectronWindowUsable,
-  type ElectronWindowHandle,
+  type ElectronNativeWindowHandle,
 } from "../electron/ElectronWindow";
 import { focusedGameViewBounds, gridGameViewBounds } from "./GameViewLayout";
 import {
@@ -36,7 +36,7 @@ export interface DesktopGameViewRecord {
   gameViewName?: string;
   gameViewPhase: GameViewSession["phase"];
   generation: number;
-  readonly hostWindow: ElectronWindowHandle;
+  readonly hostWindow: ElectronNativeWindowHandle;
   readonly kind: "game";
   loggedInUsername?: string;
   readonly ownerId?: DesktopWindowInstanceId;
@@ -67,7 +67,7 @@ export interface DesktopGameHostRecord {
   stackedGameViewId?: DesktopWindowInstanceId;
   stopObservingShortcutInput: () => void;
   tabMenuOpen: boolean;
-  readonly window: ElectronWindowHandle;
+  readonly window: ElectronNativeWindowHandle;
 }
 
 interface DesktopGameHostsOptions {
@@ -244,7 +244,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       host.groupControlsView,
       gameGroupControlsBounds(width, height, topInset),
     );
-    host.window.setTopBrowserView(host.groupControlsView);
+    host.window.contentView.addChildView(host.groupControlsView.native);
   };
 
   const applyHostViewLayout = (
@@ -259,7 +259,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       x: 0,
       y: 0,
     });
-    host.window.setTopBrowserView(host.hostView);
+    host.window.contentView.addChildView(host.hostView.native);
   };
 
   const applyLayout = (host: DesktopGameHostRecord): void => {
@@ -275,7 +275,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       if (selected !== undefined) {
         setGameViewBounds(selected.gameView, bounds);
         if (host.stackedGameViewId !== host.selectedId) {
-          host.window.setTopBrowserView(selected.gameView);
+          host.window.contentView.addChildView(selected.gameView.native);
           host.stackedGameViewId = host.selectedId;
         }
       }
@@ -464,9 +464,9 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     if (host.groupControlsOpen === open) return;
     if (open && host.tabMenuOpen) setTabMenuOpen(host, false);
     if (open) {
-      host.window.addBrowserView(host.groupControlsView);
+      host.window.contentView.addChildView(host.groupControlsView.native);
     } else {
-      host.window.removeBrowserView(host.groupControlsView);
+      host.window.contentView.removeChildView(host.groupControlsView.native);
     }
     host.groupControlsOpen = open;
     if (!open) delete host.stackedGameViewId;
