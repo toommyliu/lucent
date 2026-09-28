@@ -5,6 +5,11 @@ import { installConsoleForwarder } from "./consoleForwarder";
 import { installLoaderGrabberBridge } from "./loaderGrabberBridge";
 import { installPacketsBridge } from "./packetsBridge";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
+import { mountRufflePlayer } from "./ruffle";
+
+void mountRufflePlayer().catch((cause) => {
+  console.error("[ruffle] failed to start the game", cause);
+});
 
 const desktop = selectDesktopBridge(window.desktop, "game");
 

@@ -6,6 +6,7 @@ import { app } from "electron";
 import appBranding from "../../../appBranding.json";
 import { parseCliOptions, type CliOptions } from "../cli";
 import { type DesktopEnvironmentConfig } from "./DesktopEnvironment";
+import { registerRuffleAssetScheme } from "../ruffle/RuffleAssets";
 
 export interface MainProcessBootstrap {
   readonly cliOptions: CliOptions;
@@ -75,10 +76,19 @@ const resolveEnvironmentConfig = (
   };
 };
 
+const keepBackgroundGamesRunning = (): void => {
+  app.commandLine.appendSwitch("disable-renderer-backgrounding");
+  app.commandLine.appendSwitch("disable-background-timer-throttling");
+  app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+};
+
 export const prepareMainProcess = (): MainProcessBootstrap => {
   process.env["ELECTRON_DISABLE_SECURITY_WARNINGS"] = "true";
 
   const cliOptions = parseCliOptions(process.argv);
   const envConfig = resolveEnvironmentConfig(cliOptions);
+  registerRuffleAssetScheme();
+  app.commandLine.appendSwitch("ignore-gpu-blocklist");
+  keepBackgroundGamesRunning();
   return { cliOptions, envConfig };
 };

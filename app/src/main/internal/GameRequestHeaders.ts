@@ -17,3 +17,37 @@ export const getGameRequestHeaders = (
   "X-Requested-With": "ShockwaveFlash/32.0.0.371",
   artixmode: "launcher",
 });
+
+const ARTIX_HOSTNAME = /(^|\.)(aq\.com|aqworlds\.com|artix\.com)$/i;
+
+const isHeaderMissingFromLauncher = (name: string): boolean =>
+  name.startsWith("sec-ch-ua") || name === "priority";
+
+const isHeaderRewrittenForLauncher = (name: string): boolean =>
+  name === "accept-encoding" || name === "origin";
+
+const launcherSendsOrigin = (method: string): boolean =>
+  method !== "GET" && method !== "HEAD";
+
+export const applyLauncherHeaders = (
+  headers: Record<string, string>,
+  method: string,
+  url: string,
+): void => {
+  const target = new URL(url);
+  if (!ARTIX_HOSTNAME.test(target.hostname)) return;
+
+  for (const name of Object.keys(headers)) {
+    const normalized = name.toLowerCase();
+    if (
+      isHeaderMissingFromLauncher(normalized) ||
+      isHeaderRewrittenForLauncher(normalized)
+    ) {
+      delete headers[name];
+    }
+  }
+  headers["Accept-Encoding"] = "gzip, deflate, br";
+  if (launcherSendsOrigin(method)) {
+    headers["Origin"] = target.origin;
+  }
+};
