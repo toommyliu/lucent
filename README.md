@@ -4,7 +4,7 @@
   <p>
     Automation for the rest of us.
     <br />
-    AQW automation for macOS, Windows, and Linux.
+    AQW automation for macOS, Windows, and Linux (no Flash required.)
   </p>
   <p>
     <a href="https://uselucent.vercel.app">Website</a> ·
@@ -12,11 +12,6 @@
     <a href="https://uselucent.vercel.app/guides">Documentation</a>
   </p>
 </div>
-
-> [!NOTE]
-> Lucent currently requires a compatible Pepper Flash plugin. Follow the
-> [installation guide](https://uselucent.vercel.app/guides/installation) before
-> opening the app.
 
 ## Disclaimer
 
