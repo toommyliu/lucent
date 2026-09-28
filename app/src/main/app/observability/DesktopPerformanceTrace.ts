@@ -3,6 +3,12 @@ import { cpus, totalmem } from "os";
 import { join } from "path";
 
 import type { ProcessMetric } from "electron";
+import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
+import * as Exit from "effect/Exit";
+import * as Schedule from "effect/Schedule";
+import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -177,7 +183,7 @@ interface ActivePerformanceTrace {
   readonly samples: PerformanceTraceSample[];
   readonly startedAt: string;
   readonly startedAtMs: number;
-  readonly timer: NodeJS.Timeout;
+  readonly scope: Scope.Closeable;
 }
 
 const roundMetric = (value: number): number =>
@@ -437,9 +443,8 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
   const electronApp = yield* ElectronApp;
   const env = yield* DesktopEnvironment;
   const stateChanges = makeListenerRegistry<DesktopPerformanceTraceState>();
-  const context = yield* Effect.context<never>();
-  const runPromise = Effect.runPromiseWith(context);
-  const runSync = Effect.runSyncWith(context);
+  const scope = yield* Effect.scope;
+  const operationGate = yield* Semaphore.make(1);
   const tracesDir = join(env.appDataDir, PERFORMANCE_TRACE_DIRECTORY_NAME);
   let state: DesktopPerformanceTraceState = { status: "idle" };
   let activeTrace: ActivePerformanceTrace | undefined;
@@ -451,29 +456,24 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
     yield* stateChanges.publish(nextState);
   });
 
-  const captureSample = (): void => {
-    const current = activeTrace;
-    if (current === undefined) {
-      return;
-    }
-
-    try {
-      const metrics = runSync(electronApp.getAppMetrics);
+  const captureSample = Effect.fn("DesktopPerformanceTrace.captureSample")(
+    function* (current: ActivePerformanceTrace) {
+      const metrics = yield* electronApp.getAppMetrics;
+      const now = yield* Clock.currentTimeMillis;
       current.samples.push({
-        elapsedMs: Math.max(0, Date.now() - current.startedAtMs),
+        elapsedMs: Math.max(0, now - current.startedAtMs),
         processes: metrics.map(normalizePerformanceTraceMetric),
       });
-    } catch (cause) {
-      void runPromise(
-        Effect.logWarning("Failed to capture performance trace sample").pipe(
-          Effect.annotateLogs({
-            component: "performance-trace",
-            data: { cause },
-          }),
-        ),
-      );
-    }
-  };
+    },
+    Effect.catchCause((cause) =>
+      Cause.hasInterrupts(cause)
+        ? Effect.failCause(cause)
+        : Effect.logWarning(
+            "Failed to capture performance trace sample",
+            cause,
+          ).pipe(Effect.annotateLogs({ component: "performance-trace" })),
+    ),
+  );
 
   const start: DesktopPerformanceTraceShape["start"] = Effect.gen(function* () {
     if (state.status !== "idle") {
@@ -485,20 +485,22 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
     const appVersion = yield* electronApp.getVersion;
     // Electron reports zero CPU on the first read, so prime its interval counters.
     yield* electronApp.getAppMetrics;
-    const startedAtMs = Date.now();
+    const startedAtMs = yield* Clock.currentTimeMillis;
     const startedAt = new Date(startedAtMs).toISOString();
-    const timer = setInterval(
-      captureSample,
-      PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS,
-    );
-    timer.unref?.();
-    activeTrace = {
+    const current: ActivePerformanceTrace = {
       appVersion,
       samples: [],
       startedAt,
       startedAtMs,
-      timer,
+      scope: yield* Scope.fork(scope),
     };
+    activeTrace = current;
+    yield* captureSample(current).pipe(
+      Effect.repeat(Schedule.spaced(PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS)),
+      Effect.delay(PERFORMANCE_TRACE_SAMPLE_INTERVAL_MS),
+      Effect.interruptible,
+      Effect.forkIn(current.scope),
+    );
     yield* setState({ startedAt, status: "recording" });
     yield* Effect.logInfo("Performance trace recording started").pipe(
       Effect.annotateLogs({
@@ -517,19 +519,22 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
       return undefined;
     }
 
-    clearInterval(current.timer);
     activeTrace = undefined;
+    yield* Scope.close(current.scope, Exit.void);
     yield* setState({ startedAt: current.startedAt, status: "saving" });
 
     if (current.samples.length === 0) {
       const metrics = yield* electronApp.getAppMetrics;
       current.samples.push({
-        elapsedMs: Math.max(0, Date.now() - current.startedAtMs),
+        elapsedMs: Math.max(
+          0,
+          (yield* Clock.currentTimeMillis) - current.startedAtMs,
+        ),
         processes: metrics.map(normalizePerformanceTraceMetric),
       });
     }
 
-    const endedAtMs = Date.now();
+    const endedAtMs = yield* Clock.currentTimeMillis;
     const endedAt = new Date(endedAtMs).toISOString();
     const cpuList = cpus();
     const document = createPerformanceTraceDocument({
@@ -587,9 +592,9 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
   });
 
   yield* Effect.addFinalizer(() =>
-    Effect.sync(() => {
+    Effect.gen(function* () {
       if (activeTrace !== undefined) {
-        clearInterval(activeTrace.timer);
+        yield* Scope.close(activeTrace.scope, Exit.void);
         activeTrace = undefined;
       }
     }),
@@ -598,8 +603,8 @@ const makeDesktopPerformanceTrace = Effect.gen(function* () {
   return DesktopPerformanceTrace.of({
     getState: Effect.sync(() => state),
     onChanged: stateChanges.subscribe,
-    start,
-    stop,
+    start: operationGate.withPermits(1)(Effect.uninterruptible(start)),
+    stop: operationGate.withPermits(1)(Effect.uninterruptible(stop)),
   });
 });
 

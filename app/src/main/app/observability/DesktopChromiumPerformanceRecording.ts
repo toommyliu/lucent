@@ -3,6 +3,11 @@ import { cpus, totalmem } from "os";
 import { basename, join } from "path";
 
 import type { TraceConfig } from "electron";
+import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
+import * as Exit from "effect/Exit";
+import * as Schedule from "effect/Schedule";
+import * as Scope from "effect/Scope";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -252,7 +257,6 @@ interface ChromiumPerformanceManifest {
 interface ActiveChromiumPerformanceRecording {
   readonly availableCategoriesAtStart: readonly string[];
   readonly heapCheckpoints: ChromiumHeapCheckpoint[];
-  rendererHeapSamplePromise: Promise<void> | null;
   readonly rendererHeapSamples: ChromiumRendererHeapSample[];
   readonly resourceSamples: ChromiumResourceSample[];
   readonly sessionPath: string;
@@ -263,16 +267,10 @@ interface ActiveChromiumPerformanceRecording {
   segmentStartedAt: string;
   segmentStartedAtMs: number;
   readonly segments: ChromiumTraceSegment[];
-  timers: ChromiumPerformanceRecordingTimers | null;
+  readonly scope: Scope.Closeable;
   readonly metadata: ChromiumPerformanceMetadata;
   readonly warnedKeys: Set<string>;
   readonly warnings: string[];
-}
-
-interface ChromiumPerformanceRecordingTimers {
-  readonly rendererHeap: NodeJS.Timeout;
-  readonly resources: NodeJS.Timeout;
-  readonly segment: NodeJS.Timeout;
 }
 
 class ChromiumPerformanceArtifactError extends Schema.TaggedError<ChromiumPerformanceArtifactError>()(
@@ -332,19 +330,6 @@ const sessionDirectoryName = (startedAt: string): string =>
 const isDefined = <Value>(value: Value | undefined): value is Value =>
   value !== undefined;
 
-/** Stops all periodic work owned by an active recording. */
-const clearRecordingTimers = (
-  current: ActiveChromiumPerformanceRecording,
-): void => {
-  if (current.timers === null) {
-    return;
-  }
-  clearInterval(current.timers.rendererHeap);
-  clearInterval(current.timers.resources);
-  clearInterval(current.timers.segment);
-  current.timers = null;
-};
-
 const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   const chromium = yield* ElectronChromiumPerformance;
   const electronApp = yield* ElectronApp;
@@ -353,9 +338,8 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   const operationGate = yield* Semaphore.make(1);
   const stateChanges =
     makeListenerRegistry<DesktopChromiumPerformanceRecordingState>();
-  const context = yield* Effect.context<never>();
-  const runPromise = Effect.runPromiseWith(context);
-  const runSync = Effect.runSyncWith(context);
+  const scope = yield* Effect.scope;
+  const heapSampleGate = yield* Semaphore.make(1);
   const recordingsRoot = join(
     env.appDataDir,
     PERFORMANCE_RECORDINGS_DIRECTORY_NAME,
@@ -478,36 +462,34 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     };
   });
 
-  const captureResourceSample = (): void => {
-    const current = activeRecording;
-    if (
-      current === undefined ||
-      (state.status !== "recording" && state.status !== "snapshotting")
-    ) {
-      return;
-    }
-
-    try {
-      const metrics = runSync(electronApp.getAppMetrics);
-      const mainV8Heap = runSync(chromium.getMainHeapUsage);
-      const capturedAtMs = Date.now();
+  const captureResourceSample = Effect.fn(
+    "DesktopChromiumPerformanceRecording.captureResourceSample",
+  )(
+    function* (current: ActiveChromiumPerformanceRecording) {
+      const metrics = yield* electronApp.getAppMetrics;
+      const mainV8Heap = yield* chromium.getMainHeapUsage;
+      const capturedAtMs = yield* Clock.currentTimeMillis;
       current.resourceSamples.push({
         capturedAt: new Date(capturedAtMs).toISOString(),
         elapsedMs: Math.max(0, capturedAtMs - current.startedAtMs),
         mainV8Heap,
         processes: metrics.map(normalizePerformanceTraceMetric),
       });
-    } catch (cause) {
-      void runPromise(
-        recordWarning(
-          current,
-          "resource-sample",
-          "Failed to capture a Chromium recording resource sample",
-          cause,
+    },
+    (effect, current) =>
+      effect.pipe(
+        Effect.catchCause((cause) =>
+          Cause.hasInterrupts(cause)
+            ? Effect.failCause(cause)
+            : recordWarning(
+                current,
+                "resource-sample",
+                "Failed to capture a Chromium recording resource sample",
+                cause,
+              ),
         ),
-      ).catch(() => undefined);
-    }
-  };
+      ),
+  );
 
   const captureRendererHeapSample = Effect.fn(
     "DesktopChromiumPerformanceRecording.captureRendererHeapSample",
@@ -539,7 +521,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
                 ).pipe(Effect.as(undefined)),
               ),
             );
-          const capturedAtMs = Date.now();
+          const capturedAtMs = yield* Clock.currentTimeMillis;
           return {
             ...metadata,
             capturedAt: new Date(capturedAtMs).toISOString(),
@@ -560,36 +542,6 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     }
   });
 
-  const startRendererHeapSample = (): void => {
-    const current = activeRecording;
-    if (
-      current === undefined ||
-      state.status !== "recording" ||
-      current.rendererHeapSamplePromise !== null
-    ) {
-      return;
-    }
-
-    const samplePromise = runPromise(captureRendererHeapSample(current))
-      .catch((cause) =>
-        runPromise(
-          recordWarning(
-            current,
-            "renderer-heap-sample",
-            "Failed to capture renderer V8 heap usage",
-            cause,
-          ),
-        ).catch(() => undefined),
-      )
-      .then(() => undefined)
-      .finally(() => {
-        if (current.rendererHeapSamplePromise === samplePromise) {
-          current.rendererHeapSamplePromise = null;
-        }
-      });
-    current.rendererHeapSamplePromise = samplePromise;
-  };
-
   const closeTraceSegment = Effect.fn(
     "DesktopChromiumPerformanceRecording.closeTraceSegment",
   )(function* (
@@ -600,7 +552,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       return;
     }
 
-    const endedAtMs = Date.now();
+    const endedAtMs = yield* Clock.currentTimeMillis;
     const endedAt = new Date(endedAtMs).toISOString();
     const index = current.segments.length;
     const requestedFilePath = join(
@@ -622,7 +574,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   const startTraceSegment = Effect.fn(
     "DesktopChromiumPerformanceRecording.startTraceSegment",
   )(function* (current: ActiveChromiumPerformanceRecording) {
-    const segmentStartedAtMs = Date.now();
+    const segmentStartedAtMs = yield* Clock.currentTimeMillis;
     const segmentStartedAt = new Date(segmentStartedAtMs).toISOString();
     yield* chromium.startRecording(current.traceConfig);
     current.segmentStartedAt = segmentStartedAt;
@@ -663,59 +615,72 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       return;
     }
 
-    const durationMs = Math.max(0, Date.now() - current.segmentStartedAtMs);
+    const durationMs = Math.max(
+      0,
+      (yield* Clock.currentTimeMillis) - current.segmentStartedAtMs,
+    );
     const reason = chromiumTraceRotationReason(durationMs);
     if (reason !== null) {
       yield* rotateTraceSegment(current, reason);
     }
   });
 
-  const rotateExpiredTraceSegmentInBackground = (): void => {
-    const current = activeRecording;
-    if (current === undefined) {
-      return;
-    }
-
-    void runPromise(
-      operationGate
-        .withPermitsIfAvailable(1)(rotateExpiredTraceSegment())
-        .pipe(
-          Effect.catch((cause) =>
-            recordWarning(
-              current,
-              "trace-rotation",
-              "Failed to rotate the Chromium trace segment",
-              cause,
-            ),
-          ),
+  const installSamplers = Effect.fn(
+    "DesktopChromiumPerformanceRecording.installSamplers",
+  )(function* (current: ActiveChromiumPerformanceRecording) {
+    yield* captureResourceSample(current).pipe(
+      Effect.repeat(Schedule.spaced(CHROMIUM_RESOURCE_SAMPLE_INTERVAL_MS)),
+      Effect.interruptible,
+      Effect.forkIn(current.scope),
+    );
+    yield* heapSampleGate
+      .withPermits(1)(captureRendererHeapSample(current))
+      .pipe(
+        Effect.catchCause((cause) =>
+          Cause.hasInterrupts(cause)
+            ? Effect.failCause(cause)
+            : recordWarning(
+                current,
+                "renderer-heap-sample",
+                "Failed to capture renderer V8 heap usage",
+                cause,
+              ),
         ),
-    ).catch(() => undefined);
-  };
-
-  const installTimers = (current: ActiveChromiumPerformanceRecording): void => {
-    const resources = setInterval(
-      captureResourceSample,
-      CHROMIUM_RESOURCE_SAMPLE_INTERVAL_MS,
-    );
-    const rendererHeap = setInterval(
-      startRendererHeapSample,
-      CHROMIUM_RENDERER_HEAP_SAMPLE_INTERVAL_MS,
-    );
-    const segment = setInterval(
-      rotateExpiredTraceSegmentInBackground,
-      CHROMIUM_TRACE_SEGMENT_CHECK_INTERVAL_MS,
-    );
-    resources.unref?.();
-    rendererHeap.unref?.();
-    segment.unref?.();
-    current.timers = { rendererHeap, resources, segment };
-  };
+        Effect.repeat(
+          Schedule.spaced(CHROMIUM_RENDERER_HEAP_SAMPLE_INTERVAL_MS),
+        ),
+        Effect.interruptible,
+        Effect.forkIn(current.scope),
+      );
+    yield* operationGate
+      .withPermitsIfAvailable(1)(
+        Effect.uninterruptible(rotateExpiredTraceSegment()),
+      )
+      .pipe(
+        Effect.catchCause((cause) =>
+          Cause.hasInterrupts(cause)
+            ? Effect.failCause(cause)
+            : recordWarning(
+                current,
+                "trace-rotation",
+                "Failed to rotate the Chromium trace segment",
+                cause,
+              ),
+        ),
+        Effect.repeat(
+          Schedule.spaced(CHROMIUM_TRACE_SEGMENT_CHECK_INTERVAL_MS),
+        ),
+        Effect.delay(CHROMIUM_TRACE_SEGMENT_CHECK_INTERVAL_MS),
+        Effect.interruptible,
+        Effect.forkIn(current.scope),
+      );
+  });
 
   const initializeRecording = Effect.gen(function* () {
     yield* electronApp.getAppMetrics;
     const appVersion = yield* electronApp.getVersion;
     const availableCategoriesAtStart = yield* chromium.getCategories;
-    const startedAtMs = Date.now();
+    const startedAtMs = yield* Clock.currentTimeMillis;
     const startedAt = new Date(startedAtMs).toISOString();
     const sessionPath = join(recordingsRoot, sessionDirectoryName(startedAt));
     yield* createRecordingDirectory(recordingsRoot, sessionPath);
@@ -744,7 +709,6 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
         },
         totalSystemMemoryBytes: totalmem(),
       },
-      rendererHeapSamplePromise: null,
       rendererHeapSamples: [],
       resourceSamples: [],
       segments: [],
@@ -753,7 +717,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       sessionPath,
       startedAt,
       startedAtMs,
-      timers: null,
+      scope: yield* Scope.fork(scope),
       traceActive: false,
       traceConfig,
       warnedKeys: new Set(),
@@ -765,9 +729,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     current.traceActive = true;
     yield* writeManifest(current, "recording");
     yield* setState({ startedAt, status: "recording" });
-    installTimers(current);
-    captureResourceSample();
-    startRendererHeapSample();
+    yield* installSamplers(current);
     yield* Effect.logInfo("Chromium performance recording started").pipe(
       Effect.annotateLogs({
         component: "chromium-performance-recording",
@@ -783,30 +745,32 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     Effect.mapError(
       (cause) => new DesktopChromiumPerformanceRecordingStartError({ cause }),
     ),
-    Effect.catch((error) => {
-      const current = activeRecording;
-      if (current !== undefined) {
-        clearRecordingTimers(current);
-      }
-      const stopTrace =
-        current !== undefined && current.traceActive
-          ? chromium
-              .stopRecording(
-                join(current.sessionPath, chromiumTraceSegmentFileName(0)),
-              )
-              .pipe(Effect.catch(() => Effect.void))
-          : Effect.void;
-      return stopTrace.pipe(
-        Effect.andThen(chromium.releaseRendererDebuggers),
-        Effect.tap(() =>
-          Effect.sync(() => {
-            activeRecording = undefined;
-          }),
-        ),
-        Effect.andThen(setState({ status: "idle" })),
-        Effect.andThen(Effect.fail(error)),
-      );
-    }),
+    Effect.catch(
+      Effect.fn(function* (error) {
+        const current = activeRecording;
+        if (current !== undefined) {
+          yield* Scope.close(current.scope, Exit.void);
+        }
+        const stopTrace =
+          current !== undefined && current.traceActive
+            ? chromium
+                .stopRecording(
+                  join(current.sessionPath, chromiumTraceSegmentFileName(0)),
+                )
+                .pipe(Effect.catch(() => Effect.void))
+            : Effect.void;
+        return yield* stopTrace.pipe(
+          Effect.andThen(chromium.releaseRendererDebuggers),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              activeRecording = undefined;
+            }),
+          ),
+          Effect.andThen(setState({ status: "idle" })),
+          Effect.andThen(Effect.fail(error)),
+        );
+      }),
+    ),
   );
 
   const startInternal = Effect.gen(function* () {
@@ -819,7 +783,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   });
 
   const start: DesktopChromiumPerformanceRecordingShape["start"] =
-    operationGate.withPermits(1)(startInternal);
+    operationGate.withPermits(1)(Effect.uninterruptible(startInternal));
 
   const snapshotArtifact = <Error>(input: {
     readonly effect: Effect.Effect<void, Error>;
@@ -848,10 +812,6 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
 
     const current = activeRecording;
     yield* setState({ startedAt: current.startedAt, status: "snapshotting" });
-    const pendingRendererHeapSample = current.rendererHeapSamplePromise;
-    if (pendingRendererHeapSample !== null) {
-      yield* Effect.promise(() => pendingRendererHeapSample);
-    }
 
     const checkpointStartedAt = new Date().toISOString();
     const checkpointIndex = current.heapCheckpoints.length;
@@ -957,7 +917,9 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   );
 
   const captureHeapSnapshot: DesktopChromiumPerformanceRecordingShape["captureHeapSnapshot"] =
-    operationGate.withPermits(1)(captureHeapSnapshotInternal);
+    operationGate.withPermits(1)(
+      heapSampleGate.withPermits(1)(captureHeapSnapshotInternal),
+    );
 
   const stopInternal = Effect.gen(function* () {
     const current = activeRecording;
@@ -965,12 +927,8 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       return undefined;
     }
 
-    clearRecordingTimers(current);
+    yield* Scope.close(current.scope, Exit.void);
     yield* setState({ startedAt: current.startedAt, status: "saving" });
-    const pendingRendererHeapSample = current.rendererHeapSamplePromise;
-    if (pendingRendererHeapSample !== null) {
-      yield* Effect.promise(() => pendingRendererHeapSample);
-    }
 
     if (current.traceActive) {
       yield* closeTraceSegment(current, "stop").pipe(
@@ -992,7 +950,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
     }
     yield* chromium.releaseRendererDebuggers;
 
-    const endedAtMs = Date.now();
+    const endedAtMs = yield* Clock.currentTimeMillis;
     const endedAt = new Date(endedAtMs).toISOString();
     const resources: ChromiumPerformanceResourcesDocument = {
       mainResourceSampleIntervalMs: CHROMIUM_RESOURCE_SAMPLE_INTERVAL_MS,
@@ -1033,21 +991,23 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
           sessionPath: activeRecording?.sessionPath ?? recordingsRoot,
         }),
     ),
-    Effect.catch((error) => {
-      const current = activeRecording;
-      if (current !== undefined) {
-        clearRecordingTimers(current);
-      }
-      activeRecording = undefined;
-      return chromium.releaseRendererDebuggers.pipe(
-        Effect.andThen(setState({ status: "idle" })),
-        Effect.andThen(Effect.fail(error)),
-      );
-    }),
+    Effect.catch(
+      Effect.fn(function* (error) {
+        const current = activeRecording;
+        if (current !== undefined) {
+          yield* Scope.close(current.scope, Exit.void);
+        }
+        activeRecording = undefined;
+        return yield* chromium.releaseRendererDebuggers.pipe(
+          Effect.andThen(setState({ status: "idle" })),
+          Effect.andThen(Effect.fail(error)),
+        );
+      }),
+    ),
   );
 
   const stop: DesktopChromiumPerformanceRecordingShape["stop"] =
-    operationGate.withPermits(1)(stopInternal);
+    operationGate.withPermits(1)(Effect.uninterruptible(stopInternal));
 
   yield* Effect.addFinalizer(() =>
     Effect.gen(function* () {
@@ -1055,7 +1015,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
       if (current === undefined) {
         return;
       }
-      clearRecordingTimers(current);
+      yield* Scope.close(current.scope, Exit.void);
       if (current.traceActive) {
         const filePath = join(
           current.sessionPath,
