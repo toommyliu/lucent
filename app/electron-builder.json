@@ -24,10 +24,9 @@
       {
         "from": "../assets",
         "to": "assets",
-        "filter": ["**/*", "!icons{,/**/*}", "!pepflashplayer.dll", "!icon.png", "!icon-dev.png", "!icon.ico"]
+        "filter": ["**/*", "!icons{,/**/*}", "!icon.png", "!icon-dev.png", "!icon.ico"]
       }
     ],
-    "asar": false,
     "target": {
       "target": "dmg",
       "arch": ["universal"]
@@ -40,11 +39,10 @@
       {
         "from": "../assets",
         "to": "assets",
-        "filter": ["**/*", "!icons{,/**/*}", "!PepperFlashPlayer.plugin", "!icon.png", "!icon-dev.png", "!icon.ico"]
+        "filter": ["**/*", "!icons{,/**/*}", "!icon.png", "!icon-dev.png", "!icon.ico"]
       }
     ],
     "icon": "../assets/icon.ico",
-    "asar": false,
     "target": {
       "target": "zip",
       "arch": ["x64"]
@@ -59,14 +57,11 @@
         "filter": [
           "**/*",
           "!icons{,/**/*}",
-          "!PepperFlashPlayer.plugin",
-          "!pepflashplayer.dll",
           "!icon-dev.png",
           "!icon.ico"
         ]
       }
     ],
-    "asar": false,
     "target": [
       {
         "target": "AppImage",
