@@ -1,3 +1,4 @@
+import * as Cause from "effect/Cause";
 import {
   BrowserWindow,
   Menu,
@@ -20,7 +21,6 @@ import {
   type DesktopChromiumPerformanceRecordingState,
 } from "../app/observability/DesktopChromiumPerformanceRecording";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopObservability } from "../app/observability/DesktopObservability";
 import {
   DesktopPerformanceTrace,
   type DesktopPerformanceTraceState,
@@ -88,7 +88,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     yield* DesktopChromiumPerformanceRecording;
   const dialog = yield* ElectronDialog;
   const env = yield* DesktopEnvironment;
-  const observability = yield* DesktopObservability;
   const performanceTrace = yield* DesktopPerformanceTrace;
   const settings = yield* DesktopSettings;
   const shell = yield* ElectronShell;
@@ -100,10 +99,15 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
 
   const logMenuFailure = (operation: string, cause: unknown): void => {
     void runPromise(
-      observability.warn("menu", "Application menu action failed", {
-        operation,
-        cause,
-      }),
+      Effect.logWarning("Application menu action failed").pipe(
+        Effect.annotateLogs({
+          component: "menu",
+          data: {
+            operation,
+            cause,
+          },
+        }),
+      ),
     );
   };
 
@@ -200,13 +204,12 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   ) =>
     Effect.gen(function* () {
       const starting = operation === "start";
-      yield* observability.error(
-        "performance-trace",
+      yield* Effect.logError(
         starting
           ? "Failed to start performance trace"
           : "Failed to save performance trace",
-        cause,
-      );
+        Cause.fail(cause),
+      ).pipe(Effect.annotateLogs({ component: "performance-trace" }));
       yield* dialog.showMessageBox({
         type: "warning",
         title: starting
@@ -263,10 +266,8 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
           message: "Unable to start the Chromium performance recording.",
         },
       } as const;
-      yield* observability.error(
-        "chromium-performance-recording",
-        copy[operation].message,
-        cause,
+      yield* Effect.logError(copy[operation].message, Cause.fail(cause)).pipe(
+        Effect.annotateLogs({ component: "chromium-performance-recording" }),
       );
       yield* dialog.showMessageBox({
         type: "warning",
@@ -384,8 +385,8 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       clearAppData.pipe(
         Effect.flatMap(() => showDataClearResult("succeeded")),
         Effect.catch((cause) =>
-          observability
-            .error("menu", "Failed to clear app data", cause)
+          Effect.logError("Failed to clear app data", Cause.fail(cause))
+            .pipe(Effect.annotateLogs({ component: "menu" }))
             .pipe(Effect.flatMap(() => showDataClearResult("failed"))),
         ),
       ),
@@ -622,9 +623,14 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     }
   }).pipe(
     Effect.catch((cause) =>
-      observability.warn("menu", "Failed to rebuild application menu", {
-        cause,
-      }),
+      Effect.logWarning("Failed to rebuild application menu").pipe(
+        Effect.annotateLogs({
+          component: "menu",
+          data: {
+            cause,
+          },
+        }),
+      ),
     ),
   );
 

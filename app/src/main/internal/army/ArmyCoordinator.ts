@@ -12,10 +12,6 @@ import {
   type ArmyProgressResult,
   type ArmySessionPayload,
 } from "@lucent/core/army";
-import {
-  DesktopObservability,
-  type DesktopObservabilityShape,
-} from "../../app/observability/DesktopObservability";
 
 export const ARMY_START_TIMEOUT_MS = 120_000;
 export const ARMY_SYNC_TIMEOUT_MS = 10 * 60_000;
@@ -365,13 +361,6 @@ const sameSignature = (left: StepSignature, right: StepSignature): boolean =>
 const signatureDescription = (signature: StepSignature): string =>
   `${signature.kind} ${signature.label}`;
 
-type ArmyObservability = Pick<DesktopObservabilityShape, "info" | "warn">;
-
-const noOpObservability: ArmyObservability = {
-  info: () => Effect.void,
-  warn: () => Effect.void,
-};
-
 const rosterSnapshot = (session: ArmySessionState) =>
   session.players.map((playerName) => ({
     playerName,
@@ -407,13 +396,11 @@ const lastCompletedStep = (session: ArmySessionState): number | null =>
 const isNormalSessionEnd = (cause: ArmySessionEndCause): boolean =>
   cause.kind === "application-quit" || cause.kind === "participant-left";
 
-// A slow filesystem must not delay roster gates or session-end notifications.
-const writeLifecycleLog = (log: Effect.Effect<void>): Effect.Effect<void> =>
-  log.pipe(Effect.forkDetach, Effect.asVoid);
-
-export const makeArmyCoordinator = (
-  observability: ArmyObservability = noOpObservability,
-): Effect.Effect<ArmyCoordinatorShape, never, Scope.Scope> =>
+export const makeArmyCoordinator = (): Effect.Effect<
+  ArmyCoordinatorShape,
+  never,
+  Scope.Scope
+> =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make(initialState);
     const sessionEndedListeners = new Set<
@@ -509,8 +496,12 @@ export const makeArmyCoordinator = (
             : { checkpoints: checkpointSnapshot(removed) }),
         };
         const writeEndLog = isNormalSessionEnd(cause)
-          ? observability.info("army", "Army session ended", logData)
-          : observability.warn("army", "Army session ended", logData);
+          ? Effect.logInfo("Army session ended").pipe(
+              Effect.annotateLogs({ component: "army", data: logData }),
+            )
+          : Effect.logWarning("Army session ended").pipe(
+              Effect.annotateLogs({ component: "army", data: logData }),
+            );
         yield* publishSessionEnded({
           participantIds: [...removed.participants.values()].map(
             (participant) => participant.id,
@@ -518,7 +509,7 @@ export const makeArmyCoordinator = (
           reason: cause.reason,
           sessionId,
         });
-        yield* writeLifecycleLog(writeEndLog);
+        yield* writeEndLog;
       });
 
     const abortParticipant: ArmyCoordinatorShape["abortParticipant"] = (
@@ -729,12 +720,15 @@ export const makeArmyCoordinator = (
         if (outcome.type === "reject") return yield* outcome.error;
         if (outcome.activated) {
           yield* Deferred.succeed(outcome.session.startGate, undefined);
-          yield* writeLifecycleLog(
-            observability.info("army", "Army session started", {
-              configName: outcome.session.configName,
-              room: outcome.session.room,
-              roster: rosterSnapshot(outcome.session),
-              sessionId: outcome.session.sessionId,
+          yield* Effect.logInfo("Army session started").pipe(
+            Effect.annotateLogs({
+              component: "army",
+              data: {
+                configName: outcome.session.configName,
+                room: outcome.session.room,
+                roster: rosterSnapshot(outcome.session),
+                sessionId: outcome.session.sessionId,
+              },
             }),
           );
         }
@@ -1253,10 +1247,4 @@ export const makeArmyCoordinator = (
     return service;
   });
 
-export const layer = Layer.effect(
-  ArmyCoordinator,
-  Effect.gen(function* () {
-    const observability = yield* DesktopObservability;
-    return yield* makeArmyCoordinator(observability);
-  }),
-);
+export const layer = Layer.effect(ArmyCoordinator, makeArmyCoordinator());

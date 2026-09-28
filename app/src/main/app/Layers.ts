@@ -1,7 +1,4 @@
-import * as Cause from "effect/Cause";
-import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopGameRendererRecovery from "./DesktopGameRendererRecovery";
@@ -62,35 +59,6 @@ export const makeDesktopLayer = (
   const observabilityLayer = DesktopObservability.layer.pipe(
     Layer.provideMerge(environmentLayer),
   );
-  const effectLoggerLayer =
-    envConfig.debug === true
-      ? Logger.layer(
-          [
-            DesktopObservability.DesktopObservability.pipe(
-              Effect.map((observability) =>
-                Logger.make<unknown, void>((options) => {
-                  if (options.fiber.currentSpan !== undefined) {
-                    return;
-                  }
-                  observability.recordUnsafe({
-                    ...(options.cause.reasons.length === 0
-                      ? {}
-                      : { cause: Cause.pretty(options.cause) }),
-                    component: "effect",
-                    event: "log",
-                    data: {
-                      fiberId: options.fiber.id,
-                      level: options.logLevel,
-                      message: options.message,
-                    },
-                  });
-                }),
-              ),
-            ),
-          ],
-          { mergeWithExisting: true },
-        ).pipe(Layer.provide(observabilityLayer))
-      : Layer.empty;
   const effectTracingLayer =
     envConfig.debug === true
       ? DesktopEffectTracing.layer.pipe(Layer.provide(observabilityLayer))
@@ -335,7 +303,6 @@ export const makeDesktopLayer = (
     armyLayer,
     ipcSendersLayer,
     electronLayer,
-    effectLoggerLayer,
     effectTracingLayer,
     environmentLayer,
     accountsLayer,
@@ -359,5 +326,8 @@ export const makeDesktopLayer = (
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,
-  ).pipe(Layer.provideMerge(NodeFileSystem.layer));
+  ).pipe(
+    Layer.provideMerge(NodeFileSystem.layer),
+    Layer.provideMerge(observabilityLayer),
+  );
 };
