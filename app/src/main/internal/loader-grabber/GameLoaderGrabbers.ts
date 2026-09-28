@@ -15,7 +15,6 @@ import type {
   LoaderGrabberGrabRequest,
   LoaderGrabberLoadRequest,
 } from "../../../shared/loader-grabber";
-import { createRandomId } from "../../../shared/randomId";
 import { DesktopIpc } from "../../ipc/DesktopIpc";
 import { DesktopWindows } from "../../window/DesktopWindows";
 
@@ -102,7 +101,7 @@ export const makeGameLoaderGrabbers = Effect.gen(function* () {
       });
     }
 
-    const requestId = createRandomId("loader-grabber");
+    const requestId = `loader-grabber-${crypto.randomUUID()}`;
     const gate = yield* Deferred.make<
       LoaderGrabberOutcome,
       LoaderGrabberRequestError
