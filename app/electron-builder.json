@@ -1,7 +1,7 @@
 {
   "appId": "com.app.lucent",
   "productName": "Lucent",
-  "electronVersion": "11.5.0",
+  "electronVersion": "44.4.5",
   "electronLanguages": ["en-US"],
   "npmRebuild": false,
   "directories": {

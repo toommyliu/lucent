@@ -26,7 +26,7 @@ export interface ElectronWindowWebContents {
   readonly on: WebContents["on"];
   readonly openDevTools: (options?: { readonly mode?: string }) => void;
   readonly send: WebContents["send"];
-  readonly setWindowOpenHandler?: (
+  readonly setWindowOpenHandler: (
     handler: (details: { readonly url: string }) => { readonly action: "deny" },
   ) => void;
 }
@@ -107,17 +107,9 @@ const denyRendererWindowOpen = (
   window: ElectronWindowHandle,
   onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
 ): void => {
-  if (window.webContents.setWindowOpenHandler !== undefined) {
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      onWindowOpenRequest?.(url);
-      return { action: "deny" };
-    });
-    return;
-  }
-
-  window.webContents.on("new-window", (event, url) => {
-    event.preventDefault();
+  window.webContents.setWindowOpenHandler(({ url }) => {
     onWindowOpenRequest?.(url);
+    return { action: "deny" };
   });
 };
 

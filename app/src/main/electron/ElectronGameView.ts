@@ -61,9 +61,16 @@ const denyRendererWindowOpen = (
   webContents: WebContents,
   onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
 ): void => {
-  webContents.on("new-window", (event, url) => {
-    event.preventDefault();
+  webContents.setWindowOpenHandler(({ url }) => {
     onWindowOpenRequest?.(url);
+    return { action: "deny" };
+  });
+};
+
+const retainWebContentsAfterDestroy = (view: BrowserView): void => {
+  Object.defineProperty(view, "webContents", {
+    value: view.webContents,
+    enumerable: true,
   });
 };
 
@@ -74,6 +81,7 @@ const create: ElectronGameViewShape["create"] = (
   Effect.try({
     try: () => {
       const view = new BrowserView(options);
+      retainWebContentsAfterDestroy(view);
       denyRendererWindowOpen(view.webContents, onWindowOpenRequest);
       return view;
     },
@@ -87,13 +95,7 @@ const loadFile: ElectronGameViewShape["loadFile"] = (view, path, options) =>
   });
 
 const onFocus: ElectronGameViewShape["onFocus"] = (view, listener) => {
-  // Electron 11 emits this event at runtime but omits it from the public
-  // WebContents overloads. Keep the compatibility cast inside this adapter.
-  const webContents = view.webContents as unknown as {
-    readonly isDestroyed: () => boolean;
-    readonly on: (event: "focus", listener: () => void) => void;
-    readonly removeListener: (event: "focus", listener: () => void) => void;
-  };
+  const webContents = view.webContents;
   webContents.on("focus", listener);
 
   let observing = true;
@@ -113,8 +115,6 @@ const destroy: ElectronGameViewShape["destroy"] = (view) => {
     return;
   }
 
-  // Electron 11 exposes this teardown hook at runtime but omits it from the
-  // public WebContents type. Keep the compatibility cast inside this adapter.
   const webContents = view.webContents as WebContents & {
     readonly destroy: () => void;
   };

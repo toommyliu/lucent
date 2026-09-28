@@ -391,27 +391,6 @@ export const makeDesktopGameRendererRecovery = (
           })
           .catch(() => undefined);
       };
-      const handlePluginCrashed = (
-        _event: ElectronEvent,
-        name: string,
-        version: string,
-      ): void => {
-        if (appIsQuitting) return;
-
-        const current = recoverableCrashes.get(contents.id);
-        if (current?.type !== "renderer") {
-          recoverableCrashes.set(
-            contents.id,
-            current ?? {
-              name,
-              scriptWasRunning: hasActiveExecution(contents.id),
-              type: "plugin",
-              version,
-            },
-          );
-        }
-        startCrashRecovery();
-      };
       const handleRenderProcessGone = (
         _event: ElectronEvent,
         details: RenderProcessGoneDetails,
@@ -448,7 +427,6 @@ export const makeDesktopGameRendererRecovery = (
         intentionalRendererCrashes.delete(contents.id);
         contents.removeListener("responsive", handleResponsive);
         contents.removeListener("unresponsive", handleUnresponsive);
-        contents.removeListener("plugin-crashed", handlePluginCrashed);
         contents.removeListener("render-process-gone", handleRenderProcessGone);
         contents.removeListener("did-start-loading", handleDidStartLoading);
         contents.removeListener("destroyed", cleanup);
@@ -457,7 +435,6 @@ export const makeDesktopGameRendererRecovery = (
 
       contents.on("responsive", handleResponsive);
       contents.on("unresponsive", handleUnresponsive);
-      contents.on("plugin-crashed", handlePluginCrashed);
       contents.on("render-process-gone", handleRenderProcessGone);
       contents.on("did-start-loading", handleDidStartLoading);
       contents.once("destroyed", cleanup);

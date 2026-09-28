@@ -22,6 +22,7 @@ allowBuilds:
   sharp: true
 
 overrides:
+  "caniuse-lite": "^1.0.30001812"
   "@tanstack/solid-virtual": "3.13.24"
   "effect": "4.0.0-rc.112"
   "@effect/platform-node": "4.0.0-rc.112"
