@@ -44,6 +44,10 @@ export interface ElectronChromiumPerformanceShape {
     readonly string[],
     ElectronChromiumPerformanceError
   >;
+  readonly getTraceBufferUsage: Effect.Effect<
+    { readonly percentage: number; readonly value: number },
+    ElectronChromiumPerformanceError
+  >;
   readonly getMainHeapUsage: Effect.Effect<ElectronMainHeapUsage>;
   readonly getRendererHeapUsage: (
     rendererId: number,
@@ -109,6 +113,7 @@ export const decodeElectronRendererHeapUsage = (
 };
 
 const makeElectronChromiumPerformance = Effect.gen(function* () {
+  let traceBufferUsagePending = false;
   const attachedRendererDebuggers = new Set<number>();
   const rendererHeapUsageRequests = new Map<
     number,
@@ -200,6 +205,31 @@ const makeElectronChromiumPerformance = Effect.gen(function* () {
           cause,
           operation: "get-categories",
         }),
+    }),
+    getTraceBufferUsage: Effect.suspend(() => {
+      if (traceBufferUsagePending) {
+        return Effect.fail(
+          new ElectronChromiumPerformanceError({
+            cause: new Error("A trace buffer usage request is still pending"),
+            operation: "get-trace-buffer-usage",
+          }),
+        );
+      }
+      return Effect.tryPromise({
+        try: async () => {
+          traceBufferUsagePending = true;
+          try {
+            return await contentTracing.getTraceBufferUsage();
+          } finally {
+            traceBufferUsagePending = false;
+          }
+        },
+        catch: (cause) =>
+          new ElectronChromiumPerformanceError({
+            cause,
+            operation: "get-trace-buffer-usage",
+          }),
+      });
     }),
     getMainHeapUsage: Effect.sync(() => {
       const usage = process.memoryUsage();
