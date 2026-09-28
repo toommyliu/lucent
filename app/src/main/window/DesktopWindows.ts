@@ -2,7 +2,6 @@ import { randomBytes } from "crypto";
 import { join } from "path";
 
 import {
-  screen,
   type WebContentsViewConstructorOptions,
   type BrowserWindowConstructorOptions,
   type Event as ElectronEvent,
@@ -54,6 +53,7 @@ import {
   type ElectronWindowHandle,
   type ElectronNativeWindowHandle,
 } from "../electron/ElectronWindow";
+import { resolvePlacementWorkArea } from "../electron/windowPlacement";
 import { RuffleSocketProxy } from "../ruffle/RuffleSocketProxy";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import {
@@ -331,9 +331,7 @@ const resolveTileBounds = (
     return undefined;
   }
 
-  const workArea = screen.getDisplayNearestPoint(
-    screen.getCursorScreenPoint(),
-  ).workArea;
+  const workArea = resolvePlacementWorkArea();
   const { columns, rows } = gridForTilePlacement(normalizedTile);
   const column = normalizedTile.index % columns;
   const row = Math.floor(normalizedTile.index / columns);

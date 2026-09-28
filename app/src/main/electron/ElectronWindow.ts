@@ -3,7 +3,6 @@ import {
   BaseWindow,
   type BaseWindowConstructorOptions,
   type LoadFileOptions,
-  screen,
   type BrowserWindowConstructorOptions,
   type WebContents,
 } from "electron";
@@ -19,6 +18,7 @@ export {
 } from "./windowUsability";
 import { isElectronWindowUsable } from "./windowUsability";
 import { electronRendererRegistry } from "./ElectronRendererRegistry";
+import { resolvePlacementWorkArea } from "./windowPlacement";
 
 export interface ElectronWindowWebContents {
   readonly focus: WebContents["focus"];
@@ -141,9 +141,7 @@ const makeCenteredOptions = <Options extends ElectronHostWindowCreateOptions>(
     return options;
   }
 
-  const bounds = screen.getDisplayNearestPoint(
-    screen.getCursorScreenPoint(),
-  ).workArea;
+  const bounds = resolvePlacementWorkArea();
   return {
     ...options,
     x: Math.round(bounds.x + (bounds.width - options.width) / 2),
