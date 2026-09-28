@@ -1,33 +1,48 @@
 import { mkdtemp, rm, stat, truncate, utimes, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, resolve as resolvePath } from "path";
-import { EventEmitter } from "events";
-import type { Worker } from "worker_threads";
+import { Worker } from "node:worker_threads";
+import { build } from "esbuild";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Result from "effect/Result";
+import * as TestClock from "effect/testing/TestClock";
+import { vi } from "vitest";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+} from "@effect/vitest";
 
-import { makeScriptFileResolver, ScriptFileWorkerClient } from "./ScriptFiles";
-import { processScriptFile } from "./ScriptFileWorker";
+import { makeScriptFileResolver, makeScriptFileWorker } from "./ScriptFiles";
+import { processScriptFile } from "./ScriptFileAnalysis";
 import type { ScriptFileAnalysisResolution } from "./ScriptFileWorkerProtocol";
 import { SCRIPT_FILE_MAX_BYTES } from "../../scripting/ScriptLimits";
 
 const tempDirectories = new Set<string>();
 
-class FakeWorker extends EventEmitter {
-  readonly messages: unknown[] = [];
-
-  postMessage(message: unknown): void {
-    this.messages.push(message);
-  }
-
-  terminate(): Promise<number> {
-    return Promise.resolve(0);
-  }
-
-  unref(): this {
-    return this;
-  }
-}
+let workerDirectory: string;
+let workerPath: string;
+beforeAll(async () => {
+  workerDirectory = await mkdtemp(join(tmpdir(), "lucent-script-worker-"));
+  workerPath = join(workerDirectory, "worker.cjs");
+  await build({
+    entryPoints: [join(import.meta.dirname, "ScriptFileWorker.ts")],
+    outfile: workerPath,
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node24",
+    logLevel: "silent",
+  });
+});
+afterAll(async () => {
+  await rm(workerDirectory, { recursive: true, force: true });
+});
 
 const makeTempDirectory = async (): Promise<string> => {
   const path = await mkdtemp(join(tmpdir(), "lucent-script-files-"));
@@ -116,40 +131,118 @@ describe("script file processing", () => {
 });
 
 describe("ScriptFiles service", () => {
-  it("continues queued requests with a fresh worker after an active failure", async () => {
-    const workers: FakeWorker[] = [];
-    const client = new ScriptFileWorkerClient(() => {
-      const worker = new FakeWorker();
-      workers.push(worker);
-      return worker as unknown as Worker;
-    });
+  it.effect("decodes script analysis from the bundled RPC worker", () =>
+    Effect.gen(function* () {
+      const directory = yield* Effect.promise(makeTempDirectory);
+      const path = join(directory, "rpc.js");
+      yield* Effect.promise(() =>
+        writeFile(path, "module.exports = function* run() {};"),
+      );
+      const resolve = yield* makeScriptFileWorker(() => new Worker(workerPath));
+      expect(yield* resolve(path)).toMatchObject({
+        status: "found",
+        analysis: {
+          file: { path, name: "rpc.js", inputs: null },
+          requirements: [],
+        },
+      });
+    }),
+  );
 
-    const first = client.resolve("/scripts/slow.js");
-    const firstFailure = expect(first).rejects.toThrow("worker crashed");
-    const second = client.resolve("/scripts/healthy.js");
+  it.effect(
+    "continues queued requests with a fresh RPC worker after a crash",
+    () =>
+      Effect.gen(function* () {
+        const workers: Worker[] = [];
+        const resolve = yield* makeScriptFileWorker(() => {
+          const worker =
+            workers.length === 0
+              ? new Worker("throw new Error('worker crashed')", { eval: true })
+              : new Worker(workerPath);
+          workers.push(worker);
+          return worker;
+        });
+        const first = yield* resolve("/scripts/crash.js").pipe(
+          Effect.result,
+          Effect.forkScoped,
+        );
+        const second = yield* resolve("/scripts/missing.js").pipe(
+          Effect.forkScoped,
+        );
+        expect(Result.isFailure(yield* Fiber.join(first))).toBe(true);
+        expect(yield* Fiber.join(second)).toEqual({
+          status: "missing",
+          path: "/scripts/missing.js",
+        });
+        expect(workers).toHaveLength(2);
+      }),
+  );
 
-    workers[0]?.emit("error", new Error("worker crashed"));
-    await firstFailure;
+  it.effect(
+    "terminates a CPU-bound worker at the deadline and services the next request",
+    () =>
+      Effect.gen(function* () {
+        const ready = new Int32Array(new SharedArrayBuffer(4));
+        const workers: Worker[] = [];
+        const resolve = yield* makeScriptFileWorker(() => {
+          const worker =
+            workers.length === 0
+              ? new Worker(
+                  "const { workerData } = require('node:worker_threads'); Atomics.store(new Int32Array(workerData), 0, 1); while (true) {}",
+                  { eval: true, workerData: ready.buffer },
+                )
+              : new Worker(workerPath);
+          workers.push(worker);
+          return worker;
+        });
+        const first = yield* resolve("/scripts/slow.js").pipe(
+          Effect.flip,
+          Effect.forkScoped,
+        );
+        const second = yield* resolve("/scripts/missing.js").pipe(
+          Effect.forkScoped,
+        );
+        yield* Effect.promise(() =>
+          vi.waitFor(() => expect(Atomics.load(ready, 0)).toBe(1)),
+        );
+        yield* TestClock.adjust(10_000);
+        expect((yield* Fiber.join(first)).message).toContain(
+          "timed out after 10000 ms",
+        );
+        expect(yield* Fiber.join(second)).toEqual({
+          status: "missing",
+          path: "/scripts/missing.js",
+        });
+        expect(workers).toHaveLength(2);
+        expect(workers[0]!.threadId).toBe(-1);
+      }),
+  );
 
-    expect(workers).toHaveLength(2);
-    const secondRequest = workers[1]?.messages[0] as
-      | { readonly id: number }
-      | undefined;
-    expect(secondRequest).toBeDefined();
-    workers[1]?.emit("message", {
-      id: secondRequest?.id,
-      resolution: {
-        status: "missing",
-        path: "/scripts/healthy.js",
-      },
-    });
-
-    await expect(second).resolves.toEqual({
-      status: "missing",
-      path: "/scripts/healthy.js",
-    });
-    await client.close();
-  });
+  it.effect(
+    "rejects overload without growing the worker pool and cancels its active worker",
+    () =>
+      Effect.gen(function* () {
+        const workers: Worker[] = [];
+        const resolve = yield* makeScriptFileWorker(() => {
+          const worker = new Worker("while (true) {}", { eval: true });
+          workers.push(worker);
+          return worker;
+        });
+        const pending = yield* Effect.forEach(
+          Array.from({ length: 64 }, (_, i) => `/scripts/${i}.js`),
+          (path) => resolve(path).pipe(Effect.forkScoped),
+        );
+        yield* Effect.promise(() =>
+          vi.waitFor(() => expect(workers).toHaveLength(1)),
+        );
+        expect(
+          (yield* resolve("/scripts/overflow.js").pipe(Effect.flip)).message,
+        ).toBe("Script file worker queue is full.");
+        yield* Fiber.interruptAll(pending);
+        expect(workers).toHaveLength(1);
+        expect(workers[0]!.threadId).toBe(-1);
+      }),
+  );
 
   it("coalesces concurrent requests for the same normalized path", async () => {
     let calls = 0;
@@ -196,3 +289,28 @@ describe("ScriptFiles service", () => {
     });
   });
 });
+
+it.effect("replaces an idle worker before accepting the next request", () =>
+  Effect.gen(function* () {
+    const workers: Worker[] = [];
+    const resolve = yield* makeScriptFileWorker(() => {
+      const worker = new Worker(workerPath);
+      workers.push(worker);
+      return worker;
+    });
+    const directory = yield* Effect.promise(makeTempDirectory);
+    const path = join(directory, "valid.js");
+    yield* Effect.promise(() =>
+      writeFile(path, "module.exports = function* run() {};"),
+    );
+    expect((yield* resolve(path)).status).toBe("found");
+    yield* Effect.promise(() => workers[0]!.terminate());
+    expect(workers[0]!.threadId).toBe(-1);
+    const second = yield* resolve(path).pipe(Effect.result);
+    expect(second).toMatchObject({
+      _tag: "Success",
+      success: { status: "found" },
+    });
+    expect(workers).toHaveLength(2);
+  }),
+);
