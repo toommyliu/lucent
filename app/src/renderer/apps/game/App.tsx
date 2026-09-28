@@ -162,7 +162,6 @@ import {
   topNavOptionCommandIds,
   windowCommandIds,
 } from "./TopNav";
-import { createRandomId } from "../../../shared/randomId";
 import { createHotkeyStatus, HotkeyStatus } from "./HotkeyStatus";
 import { ScriptDialogHost } from "./ScriptDialogHost";
 import {
@@ -2885,7 +2884,7 @@ export function App(props: {
 
   scriptQueue = makeScriptQueue({
     confirmStandaloneReplacement: confirmQueueStandaloneReplacement,
-    createId: createRandomId,
+    createId: (prefix) => `${prefix}-${crypto.randomUUID()}`,
     isRunnerActive: () =>
       runtime.runPromise(
         Effect.gen(function* () {

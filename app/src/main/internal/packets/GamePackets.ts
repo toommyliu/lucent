@@ -16,7 +16,6 @@ import type {
   PacketSendPayload,
   PacketsStatusPayload,
 } from "../../../shared/packets";
-import { createRandomId } from "../../../shared/randomId";
 import { DesktopIpc } from "../../ipc/DesktopIpc";
 import { DesktopWindows } from "../../window/DesktopWindows";
 
@@ -134,7 +133,7 @@ export const makeGamePackets = Effect.gen(function* () {
         });
       }
 
-      const requestId = createRandomId("packets");
+      const requestId = `packets-${crypto.randomUUID()}`;
       const gate = yield* Deferred.make<PacketsOutcome, PacketsRequestError>();
       pendingRequests.set(requestId, {
         gameRendererId,

@@ -18,7 +18,6 @@ import {
   type FollowerCommandResponse,
   type FollowerPlayers,
 } from "../../../shared/ipc/follower";
-import { createRandomId } from "../../../shared/randomId";
 import { DesktopIpc } from "../../ipc/DesktopIpc";
 import { DesktopWindows } from "../../window/DesktopWindows";
 
@@ -199,7 +198,7 @@ export const makeGameFollowers = Effect.gen(function* () {
       });
     }
 
-    const requestId = createRandomId("follower-command");
+    const requestId = `follower-command-${crypto.randomUUID()}`;
     const gate = yield* Deferred.make<
       FollowerCommandOutcome,
       GameFollowerRequestError

@@ -13,7 +13,6 @@ import {
   EnvironmentIpc,
   type EnvironmentBoostDiscovery,
 } from "../../../shared/ipc/environment";
-import { createRandomId } from "../../../shared/randomId";
 import { DesktopIpc } from "../../ipc/DesktopIpc";
 import { DesktopWindows } from "../../window/DesktopWindows";
 
@@ -164,7 +163,7 @@ export const makeGameEnvironments = Effect.gen(function* () {
         return emptyBoostDiscovery();
       }
 
-      const requestId = createRandomId("environment-boost-fetch");
+      const requestId = `environment-boost-fetch-${crypto.randomUUID()}`;
       const gate = yield* Deferred.make<EnvironmentBoostDiscovery>();
       pendingBoostFetches.set(requestId, {
         gameRendererId,
@@ -205,7 +204,7 @@ export const makeGameEnvironments = Effect.gen(function* () {
         return [];
       }
 
-      const requestId = createRandomId("environment-boost-withdraw");
+      const requestId = `environment-boost-withdraw-${crypto.randomUUID()}`;
       const gate = yield* Deferred.make<readonly number[]>();
       pendingBoostWithdrawals.set(requestId, {
         gameRendererId,
