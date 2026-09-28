@@ -49,16 +49,12 @@ describe("resolvePlacementWorkArea", () => {
       getBounds: () => ({ x: 2200, y: 200, width: 1024, height: 768 }),
     };
 
-    expect(resolvePlacementWorkArea()).toEqual(
-      electronMock.secondary.workArea,
-    );
+    expect(resolvePlacementWorkArea()).toEqual(electronMock.secondary.workArea);
   });
 
   it("uses the cursor's display when no window is focused", () => {
     electronMock.cursor = { x: 2500, y: 100 };
 
-    expect(resolvePlacementWorkArea()).toEqual(
-      electronMock.secondary.workArea,
-    );
+    expect(resolvePlacementWorkArea()).toEqual(electronMock.secondary.workArea);
   });
 });
