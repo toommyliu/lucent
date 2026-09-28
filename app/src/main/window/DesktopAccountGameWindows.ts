@@ -87,7 +87,9 @@ export const layer = Layer.effect(
           ...(options?.name === undefined
             ? {}
             : { gameViewName: options.name }),
-          ...(options?.tile === undefined ? {} : { tile: options.tile }),
+          ...(options?.gameViewLayout === undefined
+            ? {}
+            : { gameViewLayout: options.gameViewLayout }),
           ...(onCreated === undefined
             ? {}
             : {

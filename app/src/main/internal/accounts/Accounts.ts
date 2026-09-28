@@ -581,7 +581,9 @@ export const makeAccounts = Effect.gen(function* () {
           ...(request.windowTarget === undefined
             ? {}
             : { windowTarget: request.windowTarget }),
-          ...(request.tiling === undefined ? {} : { tile: request.tiling }),
+          ...(request.gameViewLayout === undefined
+            ? {}
+            : { gameViewLayout: request.gameViewLayout }),
           onCreated: (event) =>
             Effect.gen(function* () {
               gameWindowId = event.gameWindowId;
