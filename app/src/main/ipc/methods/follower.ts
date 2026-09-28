@@ -18,7 +18,7 @@ export class FollowerOwnerError extends Schema.TaggedError<FollowerOwnerError>()
   },
 ) {
   override get message(): string {
-    return `Follower window has no owning game: ${this.rendererId}`;
+    return "This window is no longer linked to a game. Reopen it from the game.";
   }
 }
 
