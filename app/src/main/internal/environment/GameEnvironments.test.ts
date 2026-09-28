@@ -1,101 +1,103 @@
-import { addEnvironmentItem } from "@lucent/core/environment";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import { TestClock } from "effect/testing";
 
-import { DesktopIpc } from "../../ipc/DesktopIpc";
+import type { EnvironmentBoostDiscovery } from "../../../shared/environmentBoosts";
+import { DesktopWindows } from "../../window/DesktopWindows";
+import { GameRendererRpc } from "../game-renderer/GameRendererRpc";
 import {
-  DesktopWindows,
-  type DesktopWindowRendererUnavailableEvent,
-} from "../../window/DesktopWindows";
+  makeTestGameRenderer,
+  TEST_GAME_RENDERER_ID,
+  type GameRendererRpcHandlerMap,
+} from "../game-renderer/GameRendererRpcTesting";
 import { makeGameEnvironments } from "./GameEnvironments";
 
+const emptyDiscovery: EnvironmentBoostDiscovery = {
+  bank: [],
+  bankLoaded: false,
+  inventory: [],
+};
+
+const makeEnvironments = Effect.fn(function* (
+  handlers: Partial<GameRendererRpcHandlerMap> = {},
+) {
+  const game = yield* makeTestGameRenderer(handlers);
+  const environments = yield* makeGameEnvironments.pipe(
+    Effect.provideService(DesktopWindows, game.windows),
+    Effect.provideService(GameRendererRpc, game.rpc),
+  );
+  return { environments, game };
+});
+
 describe("GameEnvironments", () => {
+  it.effect("returns boosts discovered by the game renderer", () =>
+    Effect.gen(function* () {
+      const discovery: EnvironmentBoostDiscovery = {
+        bank: [{ itemId: 3, name: "Gold Boost", quantity: 1 }],
+        bankLoaded: true,
+        inventory: [],
+      };
+      const { environments, game } = yield* makeEnvironments({
+        EnvironmentFetchBoosts: () => Effect.succeed(discovery),
+      });
+      yield* game.ready;
+
+      expect(yield* environments.fetchBoosts(TEST_GAME_RENDERER_ID)).toEqual(
+        discovery,
+      );
+    }),
+  );
+
   it.effect(
-    "preserves state and settles transient work when the game reloads or becomes unavailable",
+    "falls back to empty boosts when the game renderer is unavailable",
     () =>
       Effect.gen(function* () {
-        let reload: (() => Effect.Effect<void, unknown>) | undefined;
-        let unavailable: (() => Effect.Effect<void, unknown>) | undefined;
-        const ipc = DesktopIpc.of({
-          handle: () => Effect.void,
-          sendToAll: () => Effect.void,
-          sendToRendererIds: () => Effect.void,
-        });
-        const windows = {
-          isRendererReady: () => Effect.succeed(true),
-          onClosed: () => Effect.succeed(() => undefined),
-          onRendererDestroyed: () => Effect.succeed(() => undefined),
-          onRendererUnavailable: (
-            listener: (
-              event: DesktopWindowRendererUnavailableEvent,
-            ) => Effect.Effect<void, unknown>,
-          ) =>
-            Effect.sync(() => {
-              unavailable = () =>
-                listener({
-                  failure: {
-                    type: "render-process-gone",
-                    reason: "crashed",
-                  },
-                  rendererId: 42,
-                  id: "game-42",
-                  kind: "game",
-                });
-              return () => {
-                unavailable = undefined;
-              };
-            }),
-          onRendererReloaded: (
-            listener: (event: {
-              readonly rendererId: number;
-              readonly generation: number;
-              readonly id: string;
-              readonly kind: "game";
-            }) => Effect.Effect<void, unknown>,
-          ) =>
-            Effect.sync(() => {
-              reload = () =>
-                listener({
-                  rendererId: 42,
-                  generation: 2,
-                  id: "game-42",
-                  kind: "game",
-                });
-              return () => {
-                reload = undefined;
-              };
-            }),
-        } as unknown as DesktopWindows["Service"];
-        const environments = yield* makeGameEnvironments.pipe(
-          Effect.provideService(DesktopIpc, ipc),
-          Effect.provideService(DesktopWindows, windows),
-        );
+        const { environments } = yield* makeEnvironments();
 
-        yield* environments.update(42, (state) =>
-          addEnvironmentItem(state, "Potion"),
+        expect(yield* environments.fetchBoosts(TEST_GAME_RENDERER_ID)).toEqual(
+          emptyDiscovery,
         );
-        const pending = yield* Effect.forkScoped(environments.fetchBoosts(42));
-        yield* Effect.yieldNow;
-        yield* reload!();
-
-        expect(yield* Fiber.join(pending)).toEqual({
-          bank: [],
-          bankLoaded: false,
-          inventory: [],
-        });
-
-        const unavailablePending = yield* Effect.forkScoped(
-          environments.fetchBoosts(42),
-        );
-        yield* Effect.yieldNow;
-        yield* unavailable!();
-        expect(yield* Fiber.join(unavailablePending)).toEqual({
-          bank: [],
-          bankLoaded: false,
-          inventory: [],
-        });
-        expect((yield* environments.get(42)).itemNames).toEqual(["Potion"]);
+        expect(
+          yield* environments.withdrawBoosts(TEST_GAME_RENDERER_ID, [3]),
+        ).toEqual([]);
       }),
+  );
+
+  it.effect(
+    "falls back to empty boosts when the game renderer does not answer",
+    () =>
+      Effect.gen(function* () {
+        const { environments, game } = yield* makeEnvironments({
+          EnvironmentFetchBoosts: () => Effect.never,
+        });
+        yield* game.ready;
+
+        const fetch = yield* Effect.forkScoped(
+          environments.fetchBoosts(TEST_GAME_RENDERER_ID),
+        );
+        yield* TestClock.adjust("12 seconds");
+
+        expect(yield* Fiber.join(fetch)).toEqual(emptyDiscovery);
+      }),
+  );
+
+  it.effect("withdraws each requested boost once", () =>
+    Effect.gen(function* () {
+      const requested: (readonly number[])[] = [];
+      const { environments, game } = yield* makeEnvironments({
+        EnvironmentWithdrawBoosts: ({ itemIds }) =>
+          Effect.sync(() => {
+            requested.push(itemIds);
+            return itemIds;
+          }),
+      });
+      yield* game.ready;
+
+      expect(
+        yield* environments.withdrawBoosts(TEST_GAME_RENDERER_ID, [3, 2, 3, 2]),
+      ).toEqual([3, 2]);
+      expect(requested).toEqual([[3, 2]]);
+    }),
   );
 });

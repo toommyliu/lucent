@@ -7,23 +7,10 @@ import {
 import { PositiveInt } from "@lucent/core";
 import * as Schema from "effect/Schema";
 
+import { EnvironmentBoostDiscoverySchema } from "../environmentBoosts";
 import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:environment";
-export const EnvironmentBankBoostSchema = Schema.Struct({
-  itemId: PositiveInt,
-  name: Schema.String,
-  quantity: PositiveInt,
-});
-export type EnvironmentBankBoost = typeof EnvironmentBankBoostSchema.Type;
-
-export const EnvironmentBoostDiscoverySchema = Schema.Struct({
-  bank: Schema.Array(EnvironmentBankBoostSchema),
-  bankLoaded: Schema.Boolean,
-  inventory: Schema.Array(Schema.String),
-});
-export type EnvironmentBoostDiscovery =
-  typeof EnvironmentBoostDiscoverySchema.Type;
 
 export const EnvironmentIpc = {
   getState: defineInvoke({
@@ -205,38 +192,5 @@ export const EnvironmentIpc = {
     channel: `${namespace}:changed`,
     name: "environment.changed",
     payload: EnvironmentStateSchema,
-  }),
-  fetchBoostsRequest: defineEvent({
-    channel: `${namespace}:fetch-boosts-request`,
-    name: "environment.fetchBoostsRequest",
-    payload: Schema.Struct({
-      requestId: Schema.String,
-    }),
-  }),
-  fetchBoostsResponse: defineInvoke({
-    channel: `${namespace}:fetch-boosts-response`,
-    name: "environment.fetchBoostsResponse",
-    payload: Schema.Struct({
-      discovery: EnvironmentBoostDiscoverySchema,
-      requestId: Schema.String,
-    }),
-    result: Schema.Void,
-  }),
-  withdrawBoostsRequest: defineEvent({
-    channel: `${namespace}:withdraw-boosts-request`,
-    name: "environment.withdrawBoostsRequest",
-    payload: Schema.Struct({
-      itemIds: Schema.Array(PositiveInt),
-      requestId: Schema.String,
-    }),
-  }),
-  withdrawBoostsResponse: defineInvoke({
-    channel: `${namespace}:withdraw-boosts-response`,
-    name: "environment.withdrawBoostsResponse",
-    payload: Schema.Struct({
-      itemIds: Schema.Array(PositiveInt),
-      requestId: Schema.String,
-    }),
-    result: Schema.Void,
   }),
 } as const;

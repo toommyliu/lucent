@@ -82,7 +82,6 @@ export const installDesktopIpcHandlers = Effect.fn(
   yield* ipc.handle(PacketsIpcMethods.stopQueue);
   yield* ipc.handle(PacketsIpcMethods.publishCaptured);
   yield* ipc.handle(PacketsIpcMethods.publishStatus);
-  yield* ipc.handle(PacketsIpcMethods.respond);
   for (const method of SettingsIpcMethods.methods) {
     yield* ipc.handle(method);
   }

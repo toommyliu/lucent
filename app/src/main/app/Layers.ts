@@ -19,8 +19,8 @@ import * as AccountSessions from "../internal/accounts/AccountSessions";
 import * as CombatProfiles from "../internal/combat-profiles/CombatProfiles";
 import * as GameEnvironments from "../internal/environment/GameEnvironments";
 import * as GameFollowers from "../internal/follower/GameFollowers";
-import * as GameLoaderGrabbers from "../internal/loader-grabber/GameLoaderGrabbers";
 import * as GamePackets from "../internal/packets/GamePackets";
+import * as GameRendererRpc from "../internal/game-renderer/GameRendererRpc";
 import * as GitHubApiClient from "../github/GitHubApiClient";
 import * as DesktopHttpClient from "../http/DesktopHttpClient";
 import * as DesktopIpc from "../ipc/DesktopIpc";
@@ -210,14 +210,14 @@ export const makeDesktopLayer = (
       ),
     );
 
+  const gameRendererRpcLayer = GameRendererRpc.layer.pipe(
+    Layer.provideMerge(windowsLayer),
+  );
   const gameEnvironmentsLayer = GameEnvironments.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
+    Layer.provideMerge(gameRendererRpcLayer),
   );
   const gameFollowersLayer = GameFollowers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
-  );
-  const gameLoaderGrabbersLayer = GameLoaderGrabbers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
+    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, gameRendererRpcLayer)),
   );
   const gamePacketsLayer = GamePackets.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
@@ -314,8 +314,8 @@ export const makeDesktopLayer = (
     observabilityServerLayer,
     gameEnvironmentsLayer,
     gameFollowersLayer,
-    gameLoaderGrabbersLayer,
     gamePacketsLayer,
+    gameRendererRpcLayer,
     gameRendererRecoveryLayer,
     httpClientLayer,
     observabilityLayer,

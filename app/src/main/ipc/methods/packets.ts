@@ -1,6 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
+import type { RpcClientError } from "effect/unstable/rpc/RpcClientError";
 
+import { PacketsError } from "../../../shared/gameRendererRpc";
 import {
   PacketsIpc,
   type IpcEventDescriptor,
@@ -8,10 +10,10 @@ import {
 } from "../../../shared/ipc";
 import { normalizePacketQueuePayload } from "../../../shared/packets";
 import {
-  GamePackets,
-  PacketsRequestError,
-  type PacketsRequestInput,
-} from "../../internal/packets/GamePackets";
+  GameRendererRpc,
+  type GameRendererRpcClient,
+} from "../../internal/game-renderer/GameRendererRpc";
+import { GamePackets } from "../../internal/packets/GamePackets";
 import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 import type { DesktopIpcSender } from "../DesktopIpcSenders";
@@ -45,13 +47,19 @@ const resolveOwningGame = Effect.fn("desktop.ipc.packets.resolveOwningGame")(
   },
 );
 
+const PACKETS_REQUEST_TIMEOUT_MS = 5_000;
+
 const requestGame = Effect.fn("desktop.ipc.packets.requestGame")(function* (
   sender: DesktopIpcSender,
-  input: PacketsRequestInput,
+  request: (
+    client: GameRendererRpcClient,
+  ) => Effect.Effect<void, PacketsError | RpcClientError>,
 ) {
-  const packets = yield* GamePackets;
+  const rpc = yield* GameRendererRpc;
   const gameRendererId = yield* resolveOwningGame(sender);
-  yield* packets.request(gameRendererId, input);
+  yield* rpc.call(gameRendererId, request, {
+    timeout: PACKETS_REQUEST_TIMEOUT_MS,
+  });
 });
 
 const notifyPacketsWindow = Effect.fn("desktop.ipc.packets.notifyWindow")(
@@ -73,7 +81,8 @@ const notifyPacketsWindow = Effect.fn("desktop.ipc.packets.notifyWindow")(
 export const startCapture = makeDesktopIpcMethod({
   descriptor: PacketsIpc.startCapture,
   allowedSenders: ["packets"],
-  handler: (_payload, sender) => requestGame(sender, { kind: "start-capture" }),
+  handler: (_payload, sender) =>
+    requestGame(sender, (client) => client.PacketsStartCapture()),
 });
 
 export const getStatus = makeDesktopIpcMethod({
@@ -91,13 +100,15 @@ export const getStatus = makeDesktopIpcMethod({
 export const stopCapture = makeDesktopIpcMethod({
   descriptor: PacketsIpc.stopCapture,
   allowedSenders: ["packets"],
-  handler: (_payload, sender) => requestGame(sender, { kind: "stop-capture" }),
+  handler: (_payload, sender) =>
+    requestGame(sender, (client) => client.PacketsStopCapture()),
 });
 
 export const send = makeDesktopIpcMethod({
   descriptor: PacketsIpc.send,
   allowedSenders: ["packets"],
-  handler: (payload, sender) => requestGame(sender, { kind: "send", payload }),
+  handler: (payload, sender) =>
+    requestGame(sender, (client) => client.PacketsSend(payload)),
 });
 
 export const startQueue = makeDesktopIpcMethod({
@@ -107,7 +118,7 @@ export const startQueue = makeDesktopIpcMethod({
     Effect.try({
       try: () => normalizePacketQueuePayload(payload),
       catch: (cause) =>
-        new PacketsRequestError({
+        new PacketsError({
           detail:
             cause instanceof Error && cause.message !== ""
               ? cause.message
@@ -115,7 +126,7 @@ export const startQueue = makeDesktopIpcMethod({
         }),
     }).pipe(
       Effect.flatMap((normalized) =>
-        requestGame(sender, { kind: "start-queue", payload: normalized }),
+        requestGame(sender, (client) => client.PacketsStartQueue(normalized)),
       ),
     ),
 });
@@ -123,7 +134,8 @@ export const startQueue = makeDesktopIpcMethod({
 export const stopQueue = makeDesktopIpcMethod({
   descriptor: PacketsIpc.stopQueue,
   allowedSenders: ["packets"],
-  handler: (_payload, sender) => requestGame(sender, { kind: "stop-queue" }),
+  handler: (_payload, sender) =>
+    requestGame(sender, (client) => client.PacketsStopQueue()),
 });
 
 export const publishCaptured = makeDesktopIpcMethod({
@@ -165,17 +177,6 @@ export const publishStatus = makeDesktopIpcMethod({
   ),
 });
 
-export const respond = makeDesktopIpcMethod({
-  descriptor: PacketsIpc.respond,
-  allowedSenders: ["game"],
-  handler: Effect.fn("desktop.ipc.packets.respond")(
-    function* (response, sender) {
-      const packets = yield* GamePackets;
-      yield* packets.respond(sender.rendererId, response);
-    },
-  ),
-});
-
 export const methods = [
   getStatus,
   startCapture,
@@ -185,5 +186,4 @@ export const methods = [
   stopQueue,
   publishCaptured,
   publishStatus,
-  respond,
 ] as const;
