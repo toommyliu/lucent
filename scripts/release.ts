@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
-import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
@@ -10,7 +8,7 @@ import * as Console from "effect/Console";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { Argument, Command, Flag } from "effect/unstable/cli";
-import { ChildProcess } from "effect/unstable/process";
+import { commandOutput, runCommand as executeCommand } from "./process.mjs";
 
 import {
   findFirstStableRelease,
@@ -24,8 +22,6 @@ import {
   resolveTargetVersion,
   type StableRelease,
 } from "./release-logic";
-
-const execFileAsync = promisify(execFile);
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(SCRIPT_DIR, "..");
@@ -60,25 +56,18 @@ const toRelativePath = (path: string): string => {
   return value === "" ? "." : value.split(sep).join("/");
 };
 
-const runGit = (
-  args: ReadonlyArray<string>,
-): Effect.Effect<string, ReleaseError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const { stdout } = await execFileAsync("git", [...args], {
-        cwd: REPO_ROOT,
-        encoding: "utf8",
-        maxBuffer: 10 * 1024 * 1024,
-      });
-      // Porcelain status uses a leading space as one of its two state bytes.
-      return stdout.trimEnd();
-    },
-    catch: (cause) =>
-      new ReleaseError({
-        message: `git ${args.join(" ")} failed`,
-        cause,
-      }),
-  });
+const runGit = (args: readonly string[]) =>
+  commandOutput("git", args, {
+    cwd: REPO_ROOT,
+    maxBytes: 10 * 1024 * 1024,
+  }).pipe(
+    // Porcelain status uses a leading space as one of its two state bytes.
+    Effect.map((stdout) => stdout.trimEnd()),
+    Effect.mapError(
+      (cause) =>
+        new ReleaseError({ message: `git ${args.join(" ")} failed`, cause }),
+    ),
+  );
 
 const validateRepoRoot = (): Effect.Effect<void, ReleaseError> =>
   Effect.gen(function* () {
@@ -108,7 +97,7 @@ const validateRepoRoot = (): Effect.Effect<void, ReleaseError> =>
     }
   });
 
-const getCurrentBranch = (): Effect.Effect<string, ReleaseError> =>
+const getCurrentBranch = () =>
   runGit(["branch", "--show-current"]).pipe(
     Effect.flatMap((branch) =>
       branch === ""
@@ -130,10 +119,7 @@ const requireReleaseBranch = (branch: string) =>
         }),
       );
 
-const getLatestStableRelease = (): Effect.Effect<
-  StableRelease | null,
-  ReleaseError
-> =>
+const getLatestStableRelease = () =>
   runGit(["tag", "--merged", RELEASE_BRANCH, "--sort=-v:refname"]).pipe(
     Effect.map((output) =>
       findFirstStableRelease(
@@ -183,7 +169,7 @@ const resolveReleaseTargetVersion = (
     : Effect.fail(new ReleaseError({ message: result.message }));
 };
 
-const tagExists = (tag: string): Effect.Effect<boolean, never> =>
+const tagExists = (tag: string) =>
   runGit(["rev-parse", "--verify", "--quiet", `refs/tags/${tag}`]).pipe(
     Effect.as(true),
     Effect.orElseSucceed(() => false),
@@ -200,7 +186,7 @@ const requireNewTag = (tag: string) =>
     ),
   );
 
-const getDirtyStatus = (): Effect.Effect<ReadonlyArray<string>, ReleaseError> =>
+const getDirtyStatus = () =>
   runGit(["status", "--porcelain"]).pipe(
     Effect.map((output) =>
       output === ""
@@ -321,36 +307,15 @@ const resetInitialReleaseNotes = (): Effect.Effect<void, ReleaseError> =>
       }),
   });
 
-const runCommand = (command: string, args: ReadonlyArray<string>) =>
-  Effect.gen(function* () {
-    const child = yield* ChildProcess.make(command, args, {
-      cwd: REPO_ROOT,
-      env: process.env,
-      extendEnv: true,
-      stdin: "inherit",
-      stdout: "inherit",
-      stderr: "inherit",
-      shell: process.platform === "win32",
-      detached: false,
-      forceKillAfter: "30 seconds",
-    });
-    const exitCode = Number(yield* child.exitCode);
-
-    if (exitCode !== 0) {
-      return yield* new ReleaseError({
-        message: `${command} ${args.join(" ")} exited with code ${exitCode}`,
-      });
-    }
+const runCommand = (command: string, args: readonly string[]) =>
+  executeCommand(command, args, {
+    cwd: REPO_ROOT,
+    shell: process.platform === "win32",
+    forceKillAfter: "30 seconds",
   }).pipe(
-    Effect.mapError((cause) =>
-      cause instanceof ReleaseError
-        ? cause
-        : new ReleaseError({
-            message: `${command} failed`,
-            cause,
-          }),
+    Effect.mapError(
+      (cause) => new ReleaseError({ message: `${command} failed`, cause }),
     ),
-    Effect.scoped,
   );
 
 const printPlan = (
