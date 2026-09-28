@@ -95,6 +95,7 @@ const meta = {
   args: {
     fixture: { library, selectedProfileId: "dot-solo" },
     onCopyText: () => Promise.resolve(),
+    platform: "mac",
   },
   component: CombatProfilesView,
   globals: {

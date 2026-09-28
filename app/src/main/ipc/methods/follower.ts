@@ -116,14 +116,7 @@ export const getState = makeDesktopIpcMethod({
     function* (_payload, sender) {
       const followers = yield* GameFollowers;
       const gameRendererId = yield* resolveGameRendererId(sender);
-      return yield* followers.fetchState(gameRendererId).pipe(
-        Effect.tap((state) =>
-          notifyChanged(gameRendererId, state, sender.rendererId),
-        ),
-        Effect.catchTag("GameFollowerRequestError", () =>
-          followers.get(gameRendererId),
-        ),
-      );
+      return yield* followers.get(gameRendererId);
     },
   ),
 });
