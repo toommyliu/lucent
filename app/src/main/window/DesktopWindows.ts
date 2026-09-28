@@ -3,7 +3,7 @@ import { join } from "path";
 
 import {
   screen,
-  type BrowserViewConstructorOptions,
+  type WebContentsViewConstructorOptions,
   type BrowserWindowConstructorOptions,
   type Event as ElectronEvent,
   type RenderProcessGoneDetails,
@@ -50,7 +50,9 @@ import {
   ElectronWindow,
   isElectronWindowUsable,
   type ElectronWindowCreateOptions,
+  type ElectronHostWindowCreateOptions,
   type ElectronWindowHandle,
+  type ElectronNativeWindowHandle,
 } from "../electron/ElectronWindow";
 import { RuffleSocketProxy } from "../ruffle/RuffleSocketProxy";
 import { DesktopSettings } from "../settings/DesktopSettings";
@@ -361,14 +363,9 @@ const createRendererWebPreferences = (
   options: {
     readonly backgroundThrottling?: boolean;
     readonly gameViewLayout?: GameViewLayout;
-    readonly rendererBackgroundColor?: string;
   } = {},
 ): DesktopRendererWebPreferences => ({
   additionalArguments: [
-    // BrowserView otherwise initializes its renderer backing surface to white.
-    ...(options.rendererBackgroundColor === undefined
-      ? []
-      : [`--background-color=${options.rendererBackgroundColor}`]),
     serializeDesktopViewArgument(bridgeView),
     serializeAppearanceSnapshotArgument(snapshot),
     serializeSettingsSnapshotArgument(settings),
@@ -392,17 +389,12 @@ const createRendererWebPreferences = (
   sandbox: false,
 });
 
-const createWindowOptions = (
+const createNativeWindowOptions = (
   env: DesktopEnvironment["Service"],
   definition: DesktopWindowDefinition,
-  settings: AppSettings,
   snapshot: AppearanceSnapshot,
   bounds?: DesktopWindowBounds,
-  renderer?: {
-    readonly bridgeView: DesktopBridgeView;
-    readonly partition?: string;
-  },
-): ElectronWindowCreateOptions => {
+): ElectronHostWindowCreateOptions => {
   const width = bounds?.width ?? definition.width;
   const height = bounds?.height ?? definition.height;
   const activeBranding = env.isDev ? appBranding.dev : appBranding.production;
@@ -432,6 +424,22 @@ const createWindowOptions = (
       : {}),
     backgroundColor: snapshot.backgroundColor,
     show: false,
+  };
+};
+
+const createWindowOptions = (
+  env: DesktopEnvironment["Service"],
+  definition: DesktopWindowDefinition,
+  settings: AppSettings,
+  snapshot: AppearanceSnapshot,
+  bounds?: DesktopWindowBounds,
+  renderer?: {
+    readonly bridgeView: DesktopBridgeView;
+    readonly partition?: string;
+  },
+): ElectronWindowCreateOptions => {
+  return {
+    ...createNativeWindowOptions(env, definition, snapshot, bounds),
     webPreferences: {
       ...createRendererWebPreferences(
         env,
@@ -462,12 +470,11 @@ const createGameViewOptions = (
   snapshot: AppearanceSnapshot,
   partition: string,
   layout: GameViewLayout,
-): BrowserViewConstructorOptions => ({
+): WebContentsViewConstructorOptions => ({
   webPreferences: {
     ...createRendererWebPreferences(env, "game", settings, snapshot, {
       backgroundThrottling: false,
       gameViewLayout: layout,
-      rendererBackgroundColor: snapshot.backgroundColor,
     }),
     partition,
   },
@@ -477,7 +484,7 @@ const createGameGroupControlsViewOptions = (
   env: DesktopEnvironment["Service"],
   settings: AppSettings,
   snapshot: AppearanceSnapshot,
-): BrowserViewConstructorOptions => ({
+): WebContentsViewConstructorOptions => ({
   webPreferences: createRendererWebPreferences(
     env,
     "game-group-controls",
@@ -490,7 +497,7 @@ const createGameHostViewOptions = (
   env: DesktopEnvironment["Service"],
   settings: AppSettings,
   snapshot: AppearanceSnapshot,
-): BrowserViewConstructorOptions => ({
+): WebContentsViewConstructorOptions => ({
   webPreferences: createRendererWebPreferences(
     env,
     "game-host",
@@ -590,7 +597,7 @@ const beginRendererGeneration = (
 /** Returns the native window containing a desktop renderer. */
 const nativeWindowForRenderer = (
   record: DesktopRendererRecord,
-): ElectronWindowHandle =>
+): ElectronNativeWindowHandle =>
   isGameViewRecord(record) ? record.hostWindow : record.window;
 
 const preventWindowClose = (event: unknown): void => {
@@ -661,7 +668,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const renderers = new Map<DesktopWindowInstanceId, DesktopRendererRecord>();
   const hiddenTopLevelWindowIds = new Set<DesktopWindowInstanceId>();
   const setGameWindowTitle = (
-    window: ElectronWindowHandle,
+    window: ElectronNativeWindowHandle,
     username: string | undefined,
   ): void => {
     if (!isElectronWindowUsable(window)) return;
@@ -1065,7 +1072,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       catch: (cause) =>
         new DesktopWindowError({
           cause,
-          detail: `Failed to resolve BrowserWindow group: ${rendererId}`,
+          detail: `Failed to resolve native window: ${rendererId}`,
           id: String(rendererId),
         }),
     });
@@ -1307,7 +1314,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
     if (host !== null && isElectronWindowUsable(host.window)) {
       try {
-        host.window.removeBrowserView(record.gameView);
+        host.window.contentView.removeChildView(record.gameView.native);
       } catch {}
     }
     electronGameView.destroy(record.gameView);
@@ -1568,7 +1575,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       view.setBackgroundColor(snapshot.backgroundColor);
 
       yield* Effect.try({
-        try: () => host.window.addBrowserView(view),
+        try: () => host.window.contentView.addChildView(view.native),
         catch: (cause) =>
           new DesktopWindowError({
             cause,
@@ -1766,7 +1773,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     snapshot: AppearanceSnapshot,
     options?: DesktopWindowOpenOptions,
   ) {
-    // Auto-grid lays out BrowserViews within an Account Manager launch batch.
+    // Auto-grid lays out WebContentsViews within an Account Manager launch batch.
     const bounds = resolveTileBounds(
       usesGameViewGrid(options) ? undefined : options?.tile,
     );
@@ -1777,15 +1784,8 @@ const makeDesktopWindows = Effect.gen(function* () {
             height: definition.height + GAME_VIEW_TAB_BAR_HEIGHT,
           }
         : definition;
-    const window = yield* electronWindow.create(
-      createWindowOptions(
-        env,
-        hostDefinition,
-        bootstrapSettings,
-        snapshot,
-        bounds,
-        { bridgeView: "game-host" },
-      ),
+    const window = yield* electronWindow.createHost(
+      createNativeWindowOptions(env, hostDefinition, snapshot, bounds),
     );
     const groupControlsView = yield* electronGameView
       .create(
@@ -1799,8 +1799,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         ),
       );
     groupControlsView.setBackgroundColor("#00000000");
-    // Native BrowserViews sit above the BrowserWindow document, so the tabs
-    // and their overflow menu share one persistent view that expands on demand.
+    // The tabs and their overflow menu share one persistent view that expands on demand.
     const hostView = yield* electronGameView
       .create(createGameHostViewOptions(env, bootstrapSettings, snapshot))
       .pipe(
@@ -1813,7 +1812,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       );
     hostView.setBackgroundColor("#00000000");
     yield* Effect.try({
-      try: () => window.addBrowserView(hostView),
+      try: () => window.contentView.addChildView(hostView.native),
       catch: (cause) =>
         new DesktopWindowError({
           cause,
@@ -2277,7 +2276,9 @@ const makeDesktopWindows = Effect.gen(function* () {
                 isElectronWindowUsable(host.window) &&
                 !host.groupControlsView.webContents.isDestroyed()
               ) {
-                host.window.setTopBrowserView(host.groupControlsView);
+                host.window.contentView.addChildView(
+                  host.groupControlsView.native,
+                );
                 host.groupControlsView.webContents.focus();
               }
             }),

@@ -1,6 +1,6 @@
 import {
   app,
-  BrowserWindow,
+  BaseWindow,
   dialog,
   type MessageBoxOptions,
   type MessageBoxReturnValue,
@@ -70,7 +70,7 @@ const showMessageBox: ElectronDialogShape["showMessageBox"] = (
         return dialog.showMessageBox(options);
       }
 
-      const browserWindow = BrowserWindow.fromId(parentWindowId);
+      const browserWindow = BaseWindow.fromId(parentWindowId);
       if (browserWindow === null) {
         throw new Error(`Browser window is not open: ${parentWindowId}`);
       }
@@ -89,7 +89,7 @@ const showOpenDialog: ElectronDialogShape["showOpenDialog"] = (
         return dialog.showOpenDialog(options);
       }
 
-      const browserWindow = BrowserWindow.fromId(parentWindowId);
+      const browserWindow = BaseWindow.fromId(parentWindowId);
       if (browserWindow === null) {
         throw new Error(`Browser window is not open: ${parentWindowId}`);
       }

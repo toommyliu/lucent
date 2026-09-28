@@ -1,6 +1,6 @@
 export interface ElectronWindowUsabilityTarget {
   readonly isDestroyed: () => boolean;
-  readonly webContents: {
+  readonly webContents?: {
     readonly isDestroyed: () => boolean;
   };
 }
@@ -12,4 +12,4 @@ export const isElectronWindowUsable = <
 ): window is Window =>
   window !== undefined &&
   !window.isDestroyed() &&
-  !window.webContents.isDestroyed();
+  window.webContents?.isDestroyed() !== true;

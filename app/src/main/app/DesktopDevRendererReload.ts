@@ -1,6 +1,6 @@
 import { watchFile, unwatchFile, type Stats } from "fs";
 
-import { webContents } from "electron";
+import { electronRendererRegistry } from "../electron/ElectronRendererRegistry";
 
 import * as Effect from "effect/Effect";
 
@@ -15,10 +15,9 @@ const shouldIgnoreReloadFileChange = (
   current.mtimeMs === 0 ||
   (current.mtimeMs === previous.mtimeMs && current.size === previous.size);
 
-// The global registry includes detached BrowserViews, such as the preloaded
-// group-controls view while its popover is closed.
+// The owned registry includes detached views, such as preloaded group controls.
 const reloadOpenRendererContents = (): number =>
-  reloadUsableRendererContents(webContents.getAllWebContents());
+  reloadUsableRendererContents(electronRendererRegistry.getAllWebContents());
 
 export const installDesktopDevRendererReload = Effect.gen(function* () {
   const reloadPath = process.env["LUCENT_DEV_RENDERER_RELOAD"];
