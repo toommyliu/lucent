@@ -21,7 +21,7 @@ import {
   type ScriptPackageUpdateState,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 
 const FileHashesSchema = Schema.Record(Schema.String, Schema.String);
@@ -157,7 +157,7 @@ export const layer = Layer.effect(
   ScriptPackageState,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const statePath = join(env.appDataDir, "script-packages.json");
     const initial = yield* jsonFile.read(statePath).pipe(
       Effect.match({

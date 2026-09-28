@@ -53,7 +53,7 @@ import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
 import * as ElectronWindow from "../electron/ElectronWindow";
-import * as DesktopFileSystemNode from "../filesystem/DesktopFileSystemNode";
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 
 export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
@@ -357,5 +357,5 @@ export const makeDesktopLayer = (
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,
-  ).pipe(Layer.provideMerge(DesktopFileSystemNode.layer));
+  ).pipe(Layer.provideMerge(NodeFileSystem.layer));
 };

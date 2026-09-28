@@ -23,6 +23,7 @@
     "electron-builder": "electron-builder"
   },
   "dependencies": {
+    "@effect/platform-node": "4.0.0-rc.112",
     "@lucent/core": "workspace:*",
     "@lucent/game": "workspace:*",
     "@lucent/ui": "workspace:*",
