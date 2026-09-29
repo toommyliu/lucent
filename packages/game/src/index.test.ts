@@ -116,6 +116,7 @@ describe("game domain models", () => {
 
   it("matches monster selectors and distinguishes IDs from numeric names", () => {
     const monster = new LiveMonster({
+      aggressive: false,
       cell: "r1",
       hp: 100,
       level: 5,
@@ -141,6 +142,7 @@ describe("game domain models", () => {
 
   it("retains drop metadata when a monster snapshot is replaced", () => {
     const monster = new LiveMonster({
+      aggressive: false,
       cell: "r1",
       hp: 100,
       level: 5,
@@ -223,6 +225,7 @@ describe("game domain models", () => {
   it("orders monsters by typed priority without duplicates", () => {
     const monsters = [
       new LiveMonster({
+        aggressive: false,
         cell: "r1",
         hp: 100,
         level: 5,
@@ -236,6 +239,7 @@ describe("game domain models", () => {
         state: EntityState.Idle,
       }),
       new LiveMonster({
+        aggressive: false,
         cell: "r1",
         hp: 100,
         level: 5,

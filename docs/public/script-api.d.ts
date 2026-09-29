@@ -1477,6 +1477,7 @@ interface LiveItem extends LiveModel<ItemData> {
   toJSON(): ItemSnapshot;
 }
 interface LiveMonster extends LiveEntity<MonsterData> {
+  readonly aggressive: boolean;
   readonly drops: readonly MonsterDrop[];
   readonly level: number;
   readonly monsterId: number;
@@ -2072,6 +2073,7 @@ interface LiveEntity<State extends EntityData> extends LiveModel<State> {
   toJSON(): EntitySnapshot;
 }
 interface MonsterData extends EntityData {
+  aggressive: boolean;
   level: number;
   monsterId: number;
   monsterMapId: number;
