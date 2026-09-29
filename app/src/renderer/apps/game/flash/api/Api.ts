@@ -67,7 +67,6 @@ const makeApiServices = Effect.gen(function* () {
     drops,
     events,
     inventory,
-    map,
     monsterServices.lookup,
     player,
     players,

@@ -1,5 +1,6 @@
 import { EntityState, LiveFaction, LiveOutfit } from "@lucent/game";
 import type { BoostType, ItemQuery, LiveItem, Position } from "@lucent/game";
+import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -13,6 +14,7 @@ import {
 import { parseMapTarget } from "../domain/MapTarget";
 import type { Store } from "../state/Store";
 import type { Auth } from "./Auth";
+import { stopCombat as stopCombatControl } from "./internal/CombatControl";
 import type { Inventory } from "./Inventory";
 import type { CellPositionOptions, Map } from "./Map";
 import type { Wait } from "./Wait";
@@ -401,6 +403,65 @@ export const makePlayer = (
     return settledAtRequestedLocation;
   });
 
+  const stopCombat = stopCombatControl(bridge);
+  const waitUntilIdle = (timeout: Duration.Input) =>
+    wait.until(
+      getState().pipe(
+        Effect.flatMap((state) =>
+          state !== EntityState.Idle
+            ? Effect.succeed(false)
+            : Effect.sleep("500 millis").pipe(
+                Effect.andThen(getState()),
+                Effect.map((confirmed) => confirmed === EntityState.Idle),
+              ),
+        ),
+      ),
+      { interval: "100 millis", timeout },
+    );
+
+  const exitCombat = () =>
+    Effect.gen(function* () {
+      if ((yield* getState()) === EntityState.Idle) return true;
+      const currentCell = yield* getCell();
+      const currentPad = yield* getPad();
+      const monsterCells = new Set(
+        (yield* store.world.getMonsters).map((monster) =>
+          monster.cell.toLowerCase(),
+        ),
+      );
+      const candidateCells = (yield* map.getCells())
+        .filter((cell) => {
+          const normalized = cell.trim().toLowerCase();
+          return (
+            normalized !== "" &&
+            normalized !== "blank" &&
+            normalized !== "wait" &&
+            normalized !== currentCell.trim().toLowerCase()
+          );
+        })
+        .toSorted(
+          (left, right) =>
+            Number(monsterCells.has(left.toLowerCase())) -
+            Number(monsterCells.has(right.toLowerCase())),
+        );
+
+      for (const cell of candidateCells) {
+        yield* stopCombat;
+        if (yield* waitUntilIdle("1 second")) return true;
+        yield* jumpToCell(cell);
+        if (yield* waitUntilIdle("2 seconds")) return true;
+      }
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        yield* stopCombat;
+        yield* jumpToCell(currentCell, currentPad);
+        if (yield* waitUntilIdle("2 seconds")) return true;
+      }
+
+      yield* stopCombat;
+      return yield* waitUntilIdle("1 second");
+    });
+
   const joinMap = (target: string, options?: CellPositionOptions) =>
     Effect.gen(function* () {
       const { cell, pad } = options ?? {};
@@ -426,6 +487,7 @@ export const makePlayer = (
         return false;
       if (!(yield* wait.until(isAlive(), { timeout: "15 seconds" })))
         return false;
+      if (!(yield* exitCombat())) return false;
       const args: Parameters<Window["swf"]["player.joinMap"]> =
         cell === undefined && pad === undefined
           ? [destination.map]
@@ -516,6 +578,7 @@ export const makePlayer = (
 
   return {
     auras,
+    exitCombat,
     factions,
     get,
     getCell,
