@@ -3,6 +3,7 @@ import {
   BaseWindow,
   Menu,
   app,
+  nativeImage,
   webContents,
   type MenuItemConstructorOptions,
   type WebContents,
@@ -89,6 +90,10 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const context = yield* Effect.context<never>();
   const runPromise = Effect.runPromiseWith(context);
   const isDarwin = env.platform === "darwin";
+  const usesMenuSymbols =
+    isDarwin && Number.parseInt(process.getSystemVersion(), 10) >= 26;
+  const menuSymbol = (name: string): Pick<MenuItemConstructorOptions, "icon"> =>
+    usesMenuSymbols ? { icon: nativeImage.createMenuSymbol(name) } : {};
   const removeRendererWindowMenu = (rendererId: number) =>
     windows
       .getNativeWindowId(rendererId)
@@ -474,10 +479,12 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     const settingsMenuItem: MenuItemConstructorOptions = {
       label: "Settings",
       accelerator: isDarwin ? "Command+," : "Control+,",
+      ...menuSymbol("gearshape"),
       click: openSettings,
     };
     const aboutMenuItem: MenuItemConstructorOptions = {
       label: `About ${app.name}`,
+      ...menuSymbol("info.circle"),
       click: () => openWindow("about"),
     };
     const checkForUpdatesMenuItem: MenuItemConstructorOptions = {
