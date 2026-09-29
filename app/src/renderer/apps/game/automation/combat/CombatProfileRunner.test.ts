@@ -33,6 +33,7 @@ const makeMonster = (
   }> = {},
 ) =>
   new LiveMonster({
+    aggressive: false,
     cell: "Enter",
     hp: overrides.hp ?? 100,
     level: 1,

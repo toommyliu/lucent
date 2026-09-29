@@ -51,6 +51,7 @@ export type PlayerPayload = typeof PlayerPayload.Type;
 export const MonsterPayload = Schema.Struct({
   MonID: Schema.optionalKey(PositiveWireInt),
   MonMapID: PositiveWireInt,
+  bRed: Schema.optionalKey(WireBoolean),
   iLvl: Schema.optionalKey(WireInt),
   intHP: Schema.optionalKey(WireInt),
   intHPMax: Schema.optionalKey(WireInt),
@@ -107,6 +108,7 @@ export const toPlayer = (payload: PlayerPayload): LivePlayer => {
 
 export const toMonster = (payload: MonsterPayload): LiveMonster =>
   new LiveMonster({
+    aggressive: payload.bRed ?? false,
     cell: payload.strFrame ?? "",
     hp: payload.intHP ?? 0,
     level: payload.iLvl ?? 0,
