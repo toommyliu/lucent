@@ -37,6 +37,9 @@ importers:
       '@types/node':
         specifier: ^24.12.2
         version: 24.12.2
+      '@types/semver':
+        specifier: 7.7.1
+        version: 7.7.1
       '@typescript/native':
         specifier: npm:typescript@7.0.2
         version: typescript@7.0.2
@@ -55,6 +58,9 @@ importers:
       oxlint-tsgolint:
         specifier: 7.0.2001
         version: 7.0.2001
+      semver:
+        specifier: 7.7.4
+        version: 7.7.4
       shiki:
         specifier: ^4.3.1
         version: 4.3.1

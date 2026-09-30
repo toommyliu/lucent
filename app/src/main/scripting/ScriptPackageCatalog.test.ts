@@ -206,6 +206,37 @@ describe("discoverScriptCatalog", () => {
     });
   });
 
+  it.each([
+    [">=0.0.1 <0.1.0", "0.0.3-beta.1", "compatible"],
+    ["*", "0.0.3-beta.1", "compatible"],
+    ["^0.0.3", "0.0.3-beta.1", "compatible"],
+    [">=0.0.3", "0.0.3-beta.1", "incompatible"],
+    [">=0.0.1 <0.1.0-0", "0.1.0-beta.1", "incompatible"],
+    [">=0.0.3-beta.2 <0.1.0", "0.0.3-beta.1", "incompatible"],
+    [">=0.0.3-beta.2 <0.1.0", "0.0.3-beta.3", "compatible"],
+  ])(
+    "checks prerelease app compatibility for %s against %s",
+    async (requiredVersion, currentVersion, status) => {
+      const workspace = await makeWorkspace();
+      await write(
+        join(workspace.packagesDir, "tools", "package.json"),
+        JSON.stringify({ name: "tools", lucent: { version: requiredVersion } }),
+      );
+
+      const discovery = await discoverScriptCatalog({
+        currentVersion,
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      });
+
+      expect(discovery.packages.get("tools")?.compatibility).toEqual({
+        status,
+        currentVersion,
+        requiredVersion,
+      });
+    },
+  );
+
   it("accepts semver dependency ranges and keeps compatible cycles ready", async () => {
     const workspace = await makeWorkspace();
     const firstRoot = join(workspace.packagesDir, "first");
