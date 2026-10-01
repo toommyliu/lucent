@@ -178,7 +178,7 @@ describe("script source dependency discovery", () => {
       }),
   );
 
-  it.effect("resolves self imports and declared package dependencies", () =>
+  it.effect("resolves package scripts and imports on prerelease builds", () =>
     Effect.gen(function* () {
       const workspace = yield* Effect.promise(makeWorkspace);
       const firstRoot = join(workspace.packagesDir, "lucent-first");
@@ -191,6 +191,7 @@ describe("script source dependency discovery", () => {
               name: "@lucent/first",
               version: "1.0.0",
               lucent: {
+                version: ">=1.0.0 <2.0.0",
                 dependencies: { "@lucent/second": "^2.0.0" },
               },
             }),
@@ -208,14 +209,18 @@ describe("script source dependency discovery", () => {
           ),
           write(
             join(secondRoot, "package.json"),
-            JSON.stringify({ name: "@lucent/second", version: "2.1.0" }),
+            JSON.stringify({
+              name: "@lucent/second",
+              version: "2.1.0",
+              lucent: { version: ">=1.0.0 <2.0.0" },
+            }),
           ),
           write(join(secondRoot, "index.js"), 'exports.second = "second";'),
         ]),
       );
       const discovery = yield* Effect.promise(() =>
         discoverScriptCatalog({
-          currentVersion: "1.0.0",
+          currentVersion: "1.0.1-beta.1",
           packagesDir: workspace.packagesDir,
           scriptsDir: workspace.scriptsDir,
         }),

@@ -48,6 +48,11 @@ Start with this `package.json`:
 Use `lucent.version` to say which Lucent versions the package supports. Without
 it, Lucent cannot check compatibility.
 
+Lucent includes pre-release app versions in this check. For example,
+`>=0.0.1 <0.1.0` accepts `0.0.3-beta.1`. Explicit bounds still apply:
+`>=0.0.3` rejects `0.0.3-beta.1`, and `<0.1.0-0` excludes all `0.1.0`
+pre-releases.
+
 - `description`, `version`, and `lucent` are optional.
 - `main` defaults to `index.js`.
 

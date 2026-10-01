@@ -13,16 +13,16 @@ import { Argument, Command, Flag } from "effect/unstable/cli";
 import { ChildProcess } from "effect/unstable/process";
 
 import {
-  findFirstStableRelease,
+  findLatestRelease,
   formatReleaseTag,
-  formatVersion,
   gitCliffChangelogArgs,
+  gitCliffChangelogCommand,
   makeInitialChangelog,
-  parseStableVersion,
+  parseVersion,
   RELEASE_NOTES_PLACEHOLDER_CONTENT,
   releaseNotesAreReady,
   resolveTargetVersion,
-  type StableRelease,
+  type Release,
 } from "./release-logic";
 
 const execFileAsync = promisify(execFile);
@@ -130,15 +130,13 @@ const requireReleaseBranch = (branch: string) =>
         }),
       );
 
-const getLatestStableRelease = (): Effect.Effect<
-  StableRelease | null,
+const getLatestRelease = (): Effect.Effect<
+  Release | null,
   ReleaseError
 > =>
-  runGit(["tag", "--merged", RELEASE_BRANCH, "--sort=-v:refname"]).pipe(
+  runGit(["tag", "--merged", RELEASE_BRANCH]).pipe(
     Effect.map((output) =>
-      findFirstStableRelease(
-        output.split(/\r?\n/).map((value) => value.trim()),
-      ),
+      findLatestRelease(output.split(/\r?\n/).map((value) => value.trim())),
     ),
   );
 
@@ -165,17 +163,17 @@ const readAppPackageJson = (): Effect.Effect<AppPackageJson, ReleaseError> =>
 
 const getAppVersion = (packageJson: AppPackageJson) =>
   typeof packageJson.version === "string" &&
-  parseStableVersion(packageJson.version) !== null
+  parseVersion(packageJson.version) !== null
     ? Effect.succeed(packageJson.version)
     : Effect.fail(
         new ReleaseError({
-          message: `${toRelativePath(APP_PACKAGE_JSON_PATH)} must contain a stable semantic version`,
+          message: `${toRelativePath(APP_PACKAGE_JSON_PATH)} must contain a semantic version`,
         }),
       );
 
 const resolveReleaseTargetVersion = (
   bumpOrVersion: string,
-  latestRelease: StableRelease | null,
+  latestRelease: Release | null,
 ): Effect.Effect<string, ReleaseError> => {
   const result = resolveTargetVersion(bumpOrVersion, latestRelease);
   return result.ok
@@ -355,7 +353,7 @@ const runCommand = (command: string, args: ReadonlyArray<string>) =>
 
 const printPlan = (
   branch: string,
-  latestRelease: StableRelease | null,
+  latestRelease: Release | null,
   appVersion: string,
   targetVersion: string,
   targetTag: string,
@@ -363,7 +361,7 @@ const printPlan = (
   Effect.gen(function* () {
     yield* Console.log(`Current branch: ${branch}`);
     yield* Console.log(
-      `Latest stable release tag: ${latestRelease?.tag ?? "none (first release)"}`,
+      `Latest release tag: ${latestRelease?.tag ?? "none (first release)"}`,
     );
     yield* Console.log(`Current app/package.json version: ${appVersion}`);
     yield* Console.log(`Target version: ${targetVersion}`);
@@ -384,8 +382,7 @@ const printPlan = (
       return;
     }
 
-    const args = gitCliffChangelogArgs(targetTag);
-    yield* Console.log(`git-cliff command: git-cliff ${args.join(" ")}`);
+    yield* Console.log(`git-cliff command: ${gitCliffChangelogCommand(targetTag)}`);
   });
 
 const createReleasePr = Effect.fn("createReleasePr")(function* (
@@ -443,7 +440,7 @@ const release = (input: CliInput) =>
       }
     }
 
-    const latestRelease = yield* getLatestStableRelease();
+    const latestRelease = yield* getLatestRelease();
     const appPackageJson = yield* readAppPackageJson();
     const appVersion = yield* getAppVersion(appPackageJson);
     const targetVersion = yield* resolveReleaseTargetVersion(
@@ -453,10 +450,7 @@ const release = (input: CliInput) =>
     const targetTag = formatReleaseTag(targetVersion);
     yield* requireNewTag(targetTag);
 
-    if (
-      latestRelease !== null &&
-      appVersion !== formatVersion(latestRelease.version)
-    ) {
+    if (latestRelease !== null && appVersion !== latestRelease.version) {
       yield* Console.log(
         `Warning: app/package.json is ${appVersion} but latest release is ${latestRelease.tag}. Bumping from ${latestRelease.tag}.`,
       );
@@ -498,7 +492,9 @@ const release = (input: CliInput) =>
 
 const command = Command.make("release", {
   bumpOrVersion: Argument.string("bump-or-version").pipe(
-    Argument.withDescription("patch, minor, major, or a stable semver version"),
+    Argument.withDescription(
+      "patch, minor, major, prerelease, or a semver version",
+    ),
   ),
   dryRun: Flag.boolean("dry-run").pipe(
     Flag.withDescription("Print the release plan without writing files"),
