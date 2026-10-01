@@ -85,26 +85,33 @@ describe("game view lifecycle IPC", () => {
     }).pipe(Effect.provide(sessionsLayer)),
   );
 
-  it.effect("closes idle clients without a confirmation", () =>
-    Effect.gen(function* () {
-      const sessions = yield* AccountSessions;
-      sessions.openWindow(77, 1, 1);
-      sessions.openWindow(42, 1, 1);
-      const dependencies = Layer.mergeAll(
-        Layer.mock(ElectronDialog, {}),
-        Layer.mock(DesktopWindows, {
+  it.effect(
+    "closes the current client without confirming a running script",
+    () =>
+      Effect.gen(function* () {
+        const sessions = yield* AccountSessions;
+        sessions.openWindow(77, 1, 1);
+        sessions.openWindow(42, 1, 1);
+        sessions.applyReport(42, {
+          rendererGeneration: 1,
+          revision: 1,
+          runtime: {
+            connection: { state: "online", username: "Alice" },
+            login: { state: "idle" },
+            script: { state: "running", name: "farm.js" },
+          },
+        });
+        const dependencies = Layer.mock(DesktopWindows, {
           closeRenderer: (id) =>
             Effect.sync(() => sessions.closeWindow(id, 50)),
-        }),
-      );
-      yield* closeCurrent
-        .handler(undefined, { kind: "game", rendererId: 42 })
-        .pipe(Effect.provide(dependencies));
-      expect(
-        sessions.snapshot().map((session) => session.gameWindowId),
-      ).toEqual([77]);
-      expect(sessions.recentlyClosed(1)).toEqual([]);
-    }).pipe(Effect.provide(sessionsLayer)),
+        });
+        yield* closeCurrent
+          .handler(undefined, { kind: "game", rendererId: 42 })
+          .pipe(Effect.provide(dependencies));
+        expect(
+          sessions.snapshot().map((session) => session.gameWindowId),
+        ).toEqual([77]);
+      }).pipe(Effect.provide(sessionsLayer)),
   );
 
   it.effect(
