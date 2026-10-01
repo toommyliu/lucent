@@ -401,7 +401,6 @@ export const closeCurrent = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.closeCurrent")(
     function* (_payload, sender) {
       const windows = yield* DesktopWindows;
-      if (!(yield* confirmClose(sender.rendererId))) return;
       yield* windows.closeRenderer(sender.rendererId);
     },
   ),
