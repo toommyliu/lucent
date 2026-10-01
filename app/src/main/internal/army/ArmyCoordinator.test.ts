@@ -40,6 +40,111 @@ const makeObservability = (records: ObservabilityRecord[]) => ({
 });
 
 describe("ArmyCoordinator", () => {
+  it.effect("logs a stalled step and its recovery", () =>
+    Effect.gen(function* () {
+      const records: ObservabilityRecord[] = [];
+      const coordinator = yield* makeArmyCoordinator(
+        makeObservability(records),
+      );
+      const aliceWindow = makeParticipant();
+      const bobWindow = makeParticipant();
+      const [alice] = yield* Effect.all(
+        [
+          coordinator.join(makeConfig(["Alice", "Bob"]), "Alice", aliceWindow),
+          coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+        ],
+        { concurrency: "unbounded" },
+      );
+      const report = (window: number) =>
+        coordinator
+          .progress(alice.sessionId, window, {
+            complete: true,
+            label: "kill-temp:Drop",
+            step: 0,
+          })
+          .pipe(Effect.forkScoped);
+      const aliceWaiting = yield* report(aliceWindow);
+      yield* TestClock.adjust("90 seconds");
+      yield* Effect.yieldNow;
+
+      const stalled = records.filter(
+        (record) => record.message === "Army step stalled",
+      );
+      expect(stalled).toHaveLength(1);
+      expect(stalled[0]?.data).toMatchObject({
+        label: "kill-temp:Drop",
+        players: [
+          {
+            lastReport: { complete: true, reports: 1, step: 0 },
+            playerName: "Alice",
+          },
+          { lastReport: null, playerName: "Bob" },
+        ],
+        step: 0,
+      });
+
+      yield* report(bobWindow);
+      yield* Fiber.join(aliceWaiting);
+      yield* TestClock.adjust("15 seconds");
+      yield* Effect.yieldNow;
+      expect(
+        records.filter((record) => record.message === "Army step recovered"),
+      ).toHaveLength(1);
+    }),
+  );
+
+  it.effect(
+    "finishes timeout notifications for participants outside the checkpoint",
+    () =>
+      Effect.gen(function* () {
+        const coordinator = yield* makeArmyCoordinator();
+        const notificationStarted = yield* Deferred.make<void>();
+        const releaseNotification = yield* Deferred.make<void>();
+        const events: unknown[] = [];
+        yield* coordinator.onSessionEnded((event) =>
+          Effect.gen(function* () {
+            yield* Deferred.succeed(notificationStarted, undefined);
+            yield* Deferred.await(releaseNotification);
+            events.push(event);
+          }),
+        );
+        const aliceWindow = makeParticipant();
+        const bobWindow = makeParticipant();
+        const [alice] = yield* Effect.all(
+          [
+            coordinator.join(
+              makeConfig(["Alice", "Bob"]),
+              "Alice",
+              aliceWindow,
+            ),
+            coordinator.join(makeConfig(["Alice", "Bob"]), "Bob", bobWindow),
+          ],
+          { concurrency: "unbounded" },
+        );
+        const waiting = yield* coordinator
+          .progress(alice.sessionId, aliceWindow, {
+            complete: true,
+            label: "kill-temp:Drop",
+            step: 0,
+            timeoutMs: 1000,
+          })
+          .pipe(Effect.result, Effect.forkScoped);
+        yield* TestClock.adjust("1 second");
+        expect(yield* Deferred.isDone(notificationStarted)).toBe(true);
+        expect(waiting.pollUnsafe()).toBeUndefined();
+        yield* Deferred.succeed(releaseNotification, undefined);
+        expect(Result.isFailure(yield* Fiber.join(waiting))).toBe(true);
+        expect(events).toEqual([
+          {
+            participantIds: [aliceWindow, bobWindow],
+            reason: expect.stringContaining("missing: Bob"),
+            sessionId: alice.sessionId,
+          },
+        ]);
+        expect(yield* coordinator.getSessions()).toEqual([]);
+      }),
+  );
+
   it.effect("publishes session-ended events without an IPC dependency", () =>
     Effect.gen(function* () {
       const coordinator = yield* makeArmyCoordinator();
