@@ -1,9 +1,37 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 
 import { makeListenerRegistry } from "./ListenerRegistry";
 
 describe("ListenerRegistry", () => {
+  it.effect(
+    "delivers concurrent events without waiting for the first listener",
+    () =>
+      Effect.gen(function* () {
+        const registry = makeListenerRegistry<number>({
+          concurrency: "unbounded",
+        });
+        const released = yield* Deferred.make<void>();
+        const received: string[] = [];
+        yield* registry.subscribe((value) =>
+          Effect.gen(function* () {
+            yield* Deferred.await(released);
+            received.push(`first:${value}`);
+          }),
+        );
+        yield* registry.subscribe((value) =>
+          Effect.gen(function* () {
+            received.push(`second:${value}`);
+            yield* Deferred.succeed(released, undefined);
+          }),
+        );
+
+        yield* registry.publish(7);
+        expect(received).toEqual(["second:7", "first:7"]);
+      }),
+  );
+
   it.effect("isolates listener failures and continues publishing", () =>
     Effect.gen(function* () {
       const registry = makeListenerRegistry<number>();
@@ -35,6 +63,21 @@ describe("ListenerRegistry", () => {
       yield* registry.publish(2);
 
       expect(received).toEqual([1]);
+    }),
+  );
+
+  it.effect("awaits effect listeners and isolates their failures", () =>
+    Effect.gen(function* () {
+      const registry = makeListenerRegistry<number>();
+      const received: number[] = [];
+      yield* registry.subscribe(() => Effect.fail("subscriber failed"));
+      yield* registry.subscribe((value) =>
+        Effect.sync(() => {
+          received.push(value);
+        }),
+      );
+      yield* registry.publish(7);
+      expect(received).toEqual([7]);
     }),
   );
 });
