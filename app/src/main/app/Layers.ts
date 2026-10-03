@@ -7,7 +7,6 @@ import * as DesktopChromiumPerformanceRecording from "./observability/DesktopChr
 import * as DesktopEffectTracing from "./observability/DesktopEffectTracing";
 import * as DesktopObservability from "./observability/DesktopObservability";
 import * as DesktopObservabilityServer from "./observability/DesktopObservabilityServer";
-import * as DesktopPerformanceTrace from "./observability/DesktopPerformanceTrace";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
 import * as ArmyLoopTauntOrchestrator from "../internal/army/ArmyLoopTauntOrchestrator";
@@ -90,12 +89,6 @@ export const makeDesktopLayer = (
 
   const settingsLayer = DesktopSettings.layer.pipe(
     Layer.provideMerge(environmentLayer),
-  );
-
-  const performanceTraceLayer = DesktopPerformanceTrace.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(ElectronApp.layer, environmentLayer, observabilityLayer),
-    ),
   );
 
   const combatProfilesLayer = CombatProfiles.layer.pipe(
@@ -277,7 +270,6 @@ export const makeDesktopLayer = (
         environmentLayer,
         observabilityLayer,
         chromiumPerformanceRecordingLayer,
-        performanceTraceLayer,
         settingsLayer,
         updatesLayer,
         windowsLayer,
