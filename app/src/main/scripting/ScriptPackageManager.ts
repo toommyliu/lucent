@@ -16,11 +16,9 @@ import type {
 } from "@lucent/core/scriptPackages";
 import {
   ScriptPackageDirectorySchema,
-  ScriptPackageNameSchema,
   ScriptPackageRepositorySubdirectorySchema,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { invariant } from "../../shared/invariant";
 import {
   GitHubScriptPackageClient,
   GitHubScriptPackageClientError,
@@ -28,7 +26,6 @@ import {
 } from "./GitHubScriptPackageClient";
 import {
   inspectScriptPackageDirectory,
-  readScriptPackageManifest,
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
 import { hashDirectory } from "./ScriptPackageFileSystem";
@@ -43,7 +40,7 @@ import {
 } from "./ScriptPackageState";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 import {
-  formatScriptByteLimit,
+  formatBytes,
   SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES,
   SCRIPT_PACKAGE_ARCHIVE_PATH_MAX_BYTES,
   SCRIPT_PACKAGE_MAX_BYTES,
@@ -53,7 +50,6 @@ import {
 const decodePackageDirectory = Schema.decodeUnknownSync(
   ScriptPackageDirectorySchema,
 );
-const decodePackageName = Schema.decodeUnknownSync(ScriptPackageNameSchema);
 const decodeRepositorySubdirectory = Schema.decodeUnknownSync(
   ScriptPackageRepositorySubdirectorySchema,
 );
@@ -224,8 +220,6 @@ export const validateScriptPackageArchive = async (
       : decodeRepositorySubdirectory(options.subdirectory);
   const subdirectoryPrefix =
     subdirectory === undefined ? undefined : `${subdirectory}/`;
-  const exactPaths = new Set<string>();
-  const normalizedPaths = new Set<string>();
   const platformPaths = new Set<string>();
   let entryCount = 0;
   let extractedBytes = 0;
@@ -276,34 +270,31 @@ export const validateScriptPackageArchive = async (
         const platformPath = caseInsensitivePaths
           ? normalizedPath.toLocaleLowerCase("en-US")
           : normalizedPath;
-        if (
-          exactPaths.has(relativePath) ||
-          normalizedPaths.has(normalizedPath) ||
-          platformPaths.has(platformPath)
-        ) {
+        if (platformPaths.has(platformPath)) {
           throw new Error(
             `Archive contains a colliding path: ${relativePath}.`,
           );
         }
-        exactPaths.add(relativePath);
-        normalizedPaths.add(normalizedPath);
         platformPaths.add(platformPath);
 
         entryCount += 1;
         const size = entry.type === "Directory" ? 0 : entry.size;
-        invariant(
-          size !== undefined && Number.isSafeInteger(size) && size >= 0,
-          `Archive entry ${JSON.stringify(entry.path)} has an invalid size.`,
-        );
+        if (size === undefined || !Number.isSafeInteger(size) || size < 0) {
+          throw new Error(
+            `Archive entry ${JSON.stringify(entry.path)} has an invalid size.`,
+          );
+        }
         extractedBytes += size;
-        invariant(
-          entryCount <= SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES,
-          `Archive contains more than ${SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES} entries.`,
-        );
-        invariant(
-          extractedBytes <= SCRIPT_PACKAGE_MAX_BYTES,
-          `Archive expands beyond ${formatScriptByteLimit(SCRIPT_PACKAGE_MAX_BYTES)}.`,
-        );
+        if (entryCount > SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES) {
+          throw new Error(
+            `Archive contains more than ${SCRIPT_PACKAGE_ARCHIVE_MAX_ENTRIES} entries.`,
+          );
+        }
+        if (extractedBytes > SCRIPT_PACKAGE_MAX_BYTES) {
+          throw new Error(
+            `Archive expands beyond ${formatBytes(SCRIPT_PACKAGE_MAX_BYTES)}.`,
+          );
+        }
       } catch (cause) {
         validationError =
           cause instanceof Error
@@ -697,27 +688,6 @@ export const layer = Layer.effect(
                   ),
               });
 
-              const manifest = yield* Effect.tryPromise({
-                try: () =>
-                  readScriptPackageManifest(join(staging, "package.json")),
-                catch: (cause) =>
-                  managerError(
-                    "validate",
-                    subdirectory === undefined
-                      ? "The repository root does not contain a valid package.json."
-                      : "The selected package directory does not contain a valid package.json.",
-                    cause,
-                  ),
-              });
-              const packageName = yield* Effect.try({
-                try: () => decodePackageName(manifest.name),
-                catch: (cause) =>
-                  managerError(
-                    "validate",
-                    "The package name is not safe.",
-                    cause,
-                  ),
-              });
               const inspected = yield* Effect.tryPromise({
                 try: () => inspectScriptPackageDirectory(staging),
                 catch: (cause) =>
@@ -729,6 +699,7 @@ export const layer = Layer.effect(
                     cause,
                   ),
               });
+              const packageName = inspected.manifest.name;
               if (
                 expectedPackage !== undefined &&
                 packageName !== expectedPackage.name

@@ -4,13 +4,12 @@ import { basename } from "path";
 
 import * as Effect from "effect/Effect";
 
-import { invariant } from "../../../shared/invariant";
 import {
-  formatScriptByteLimit,
+  formatBytes,
   SCRIPT_ANALYSIS_CACHE_MAX_BYTES,
   SCRIPT_ANALYSIS_CACHE_MAX_ENTRIES,
   SCRIPT_FILE_MAX_BYTES,
-} from "../../scripting/ScriptLimits";
+} from "./ScriptLimits";
 import {
   analyzeScriptSource,
   type ScriptSourceAnalysis,
@@ -63,10 +62,11 @@ const fingerprint = (stat: Awaited<ReturnType<typeof fs.stat>>): string =>
   [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
 
 const assertFileSize = (path: string, size: number): void => {
-  invariant(
-    size <= SCRIPT_FILE_MAX_BYTES,
-    `Script file exceeds the ${formatScriptByteLimit(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
-  );
+  if (size > SCRIPT_FILE_MAX_BYTES) {
+    throw new Error(
+      `Script file exceeds the ${formatBytes(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
+    );
+  }
 };
 
 const readBoundedFile = async (path: string): Promise<Buffer> => {

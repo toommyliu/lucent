@@ -1,13 +1,11 @@
 import { promises as fs, type Dirent } from "fs";
 import { basename, extname, join, relative, resolve, sep } from "path";
 
-import * as Cache from "effect/Cache";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
-import * as Semaphore from "effect/Semaphore";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 import { satisfies, valid, validRange } from "semver";
 
 import type {
@@ -21,6 +19,7 @@ import type {
   ScriptPackageDependencyIssue,
   ScriptPackageDependencyStatus,
   ScriptPackageDirectory,
+  ScriptPackageName,
   ScriptPackageSummary,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
@@ -30,7 +29,6 @@ import {
   ScriptRelativePathSchema,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { invariant } from "../../shared/invariant";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { ElectronApp } from "../electron/ElectronApp";
 import {
@@ -42,7 +40,7 @@ import {
   sha256Revision,
 } from "./ScriptPackageFileSystem";
 import {
-  formatScriptByteLimit,
+  formatBytes,
   SCRIPT_PACKAGE_MANIFEST_MAX_BYTES,
   SCRIPT_PACKAGE_MAX_FILES,
 } from "./ScriptLimits";
@@ -126,7 +124,9 @@ export interface DiscoveredScriptPackage {
 export interface InspectedScriptPackageDirectory {
   readonly files: readonly string[];
   readonly mainPath: string | null;
-  readonly manifest: ScriptPackageManifest;
+  readonly manifest: ScriptPackageManifest & {
+    readonly name: ScriptPackageName;
+  };
 }
 
 export interface DiscoveredScriptCatalog {
@@ -203,14 +203,12 @@ export const readScriptPackageManifest = async (
   path: string,
 ): Promise<ScriptPackageManifest> => {
   const stat = await fs.lstat(path);
-  invariant(
-    stat.isFile() && !stat.isSymbolicLink(),
-    "package.json must be a file.",
-  );
-  invariant(
-    stat.size <= SCRIPT_PACKAGE_MANIFEST_MAX_BYTES,
-    `package.json exceeds the ${formatScriptByteLimit(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
-  );
+  if (!stat.isFile()) throw new Error("package.json must be a file.");
+  if (stat.size > SCRIPT_PACKAGE_MANIFEST_MAX_BYTES) {
+    throw new Error(
+      `package.json exceeds the ${formatBytes(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
+    );
+  }
 
   const record = parseManifestJson(await fs.readFile(path, "utf8"));
   const lucentVersion = optionalString(record.lucent?.version);
@@ -260,9 +258,9 @@ export const readScriptPackageManifest = async (
   };
 };
 
-const assertPackageName = (name: string): void => {
+const parsePackageName = (name: string): ScriptPackageName => {
   try {
-    decodePackageName(name);
+    return decodePackageName(name);
   } catch {
     throw new Error("The package name contains unsupported characters.");
   }
@@ -397,7 +395,7 @@ export const inspectScriptPackageDirectory = async (
   const manifest = await readScriptPackageManifest(
     join(rootPath, "package.json"),
   );
-  assertPackageName(manifest.name);
+  const name = parsePackageName(manifest.name);
   const [mainPath, inventory] = await Promise.all([
     resolveMainPath(rootPath, manifest.main),
     listRegularFilePaths(rootPath, { maxFiles: SCRIPT_PACKAGE_MAX_FILES }),
@@ -407,7 +405,7 @@ export const inspectScriptPackageDirectory = async (
       .filter((file) => isJavaScriptFile(file.relativePath))
       .map((file) => file.absolutePath),
     mainPath,
-    manifest,
+    manifest: { ...manifest, name },
   };
 };
 
@@ -1003,83 +1001,59 @@ export const layer = Layer.effect(
       env.workspaceDir,
     );
     const changes = makeListenerRegistry<ScriptCatalogChange>();
-    const scanGate = yield* Semaphore.make(1);
-    const lastScanRef = yield* Ref.make<DiscoveredScriptCatalog | null>(null);
-    const cacheKey = "catalog" as const;
-
-    const scan = scanGate.withPermits(1)(
-      Effect.gen(function* () {
-        const managedPackages = yield* state.getAll;
-        return yield* Effect.tryPromise({
-          try: async () => {
-            await Promise.all([
-              fs.mkdir(scriptsDir, { recursive: true }),
-              fs.mkdir(packagesDir, { recursive: true }),
-            ]);
-            return discoverScriptCatalog({
-              currentVersion,
-              managedPackages,
-              packagesDir,
-              scriptsDir,
-            });
-          },
-          catch: (cause) =>
-            new ScriptPackageCatalogError({ operation: "scan", cause }),
-        });
-      }).pipe(Effect.tap((discovery) => Ref.set(lastScanRef, discovery))),
-    );
-
-    const discoveryCache = yield* Cache.make<
-      typeof cacheKey,
-      DiscoveredScriptCatalog,
-      ScriptPackageCatalogError
-    >({
-      capacity: 1,
-      lookup: () => scan,
+    const discoveryRef =
+      yield* SynchronizedRef.make<DiscoveredScriptCatalog | null>(null);
+    const scan = Effect.gen(function* () {
+      const managedPackages = yield* state.getAll;
+      return yield* Effect.tryPromise({
+        try: async () => {
+          await Promise.all([
+            fs.mkdir(scriptsDir, { recursive: true }),
+            fs.mkdir(packagesDir, { recursive: true }),
+          ]);
+          return discoverScriptCatalog({
+            currentVersion,
+            managedPackages,
+            packagesDir,
+            scriptsDir,
+          });
+        },
+        catch: (cause) =>
+          new ScriptPackageCatalogError({ operation: "scan", cause }),
+      });
     });
-    // Cache owns the sole lazy scan. Only refresh below asks it to run lookup again.
-    const getDiscovery = Cache.get(discoveryCache, cacheKey);
-
-    const refreshDiscovery = Cache.refresh(discoveryCache, cacheKey).pipe(
-      Effect.catch((cause) =>
-        Effect.gen(function* () {
-          const lastScan = yield* Ref.get(lastScanRef);
-          if (lastScan === null) {
-            yield* Cache.invalidate(discoveryCache, cacheKey);
-          } else {
-            yield* Cache.set(discoveryCache, cacheKey, lastScan);
-          }
-          return yield* cause;
-        }),
+    const getDiscovery = SynchronizedRef.modifyEffect(discoveryRef, (current) =>
+      (current === null ? scan : Effect.succeed(current)).pipe(
+        Effect.map((next) => [next, next] as const),
       ),
     );
-
-    const refresh = refreshDiscovery.pipe(
-      Effect.tap((discovery) =>
-        changes.publish({ revision: discovery.catalog.revision }),
+    const refresh = SynchronizedRef.modifyEffect(discoveryRef, () =>
+      scan.pipe(Effect.map((next) => [next, next] as const)),
+    ).pipe(
+      Effect.tap((next) =>
+        changes.publish({ revision: next.catalog.revision }),
       ),
       Effect.map(catalogOverview),
     );
-
     const updateDiscovery = Effect.fn("ScriptPackageCatalog.updateDiscovery")(
       function* (
         transform: (
           current: DiscoveredScriptCatalog,
         ) => DiscoveredScriptCatalog,
       ) {
-        yield* getDiscovery;
-        return yield* scanGate.withPermits(1)(
-          Effect.gen(function* () {
-            const current = yield* Cache.get(discoveryCache, cacheKey);
-            const next = transform(current);
-            if (next !== current) {
-              yield* Cache.set(discoveryCache, cacheKey, next);
-              yield* Ref.set(lastScanRef, next);
-              yield* changes.publish({ revision: next.catalog.revision });
-            }
-            return catalogOverview(next);
-          }),
+        const [previous, next] = yield* SynchronizedRef.modifyEffect(
+          discoveryRef,
+          (current) =>
+            (current === null ? scan : Effect.succeed(current)).pipe(
+              Effect.map((previous) => {
+                const next = transform(previous);
+                return [[previous, next] as const, next] as const;
+              }),
+            ),
         );
+        if (previous !== next)
+          yield* changes.publish({ revision: next.catalog.revision });
+        return catalogOverview(next);
       },
     );
 
