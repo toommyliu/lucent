@@ -44,45 +44,7 @@ export const createDesktopIpcInvokeHandler = <
     event: Event,
   ) => Effect.Effect<Result, unknown, HandlerContext>,
   runPromise: <A, E>(effect: Effect.Effect<A, E, HandlerContext>) => Promise<A>,
-): ((
-  event: Event,
-  rawPayload: unknown,
-) => Promise<IpcInvokeEnvelope<unknown>>) => {
-  return (event, rawPayload) => {
-    const effect = Effect.gen(function* () {
-      const payload = yield* descriptor.decodePayloadEffect(rawPayload);
-      const result = yield* handler(payload, event);
-      const encoded = yield* descriptor.encodeResultEffect(result);
-      return {
-        ok: true,
-        value: encoded,
-      } satisfies IpcInvokeEnvelope<unknown>;
-    }).pipe(
-      Effect.catchCause((cause) =>
-        Effect.succeed({
-          ok: false,
-          error: bridgeError(descriptor.channel, "IPC_HANDLER_FAILED", cause),
-        } satisfies IpcInvokeEnvelope<unknown>),
-      ),
-    );
-
-    return runPromise(effect);
-  };
-};
-
-export const createObservedDesktopIpcInvokeHandler = <
-  Payload,
-  Result,
-  Event,
-  HandlerContext,
->(
-  descriptor: IpcInvokeDescriptor<Payload, Result>,
-  handler: (
-    payload: Payload,
-    event: Event,
-  ) => Effect.Effect<Result, unknown, HandlerContext>,
-  runPromise: <A, E>(effect: Effect.Effect<A, E, HandlerContext>) => Promise<A>,
-  rendererId: (event: Event) => number,
+  traceRendererId?: (event: Event) => number,
 ): ((
   event: Event,
   rawPayload: unknown,
@@ -90,62 +52,67 @@ export const createObservedDesktopIpcInvokeHandler = <
   const decodeTraceEnvelope = Schema.decodeUnknownEffect(
     DesktopIpcTraceEnvelopeSchema,
   );
+  const stage = <A, E, R>(name: string, effect: Effect.Effect<A, E, R>) =>
+    traceRendererId === undefined
+      ? effect
+      : effect.pipe(
+          Effect.withSpan(`ipc.${name} ${descriptor.name}`, undefined, {
+            captureStackTrace: false,
+          }),
+        );
+  const invoke = (event: Event, rawPayload: unknown) =>
+    Effect.gen(function* () {
+      const payload = yield* stage(
+        "decode",
+        descriptor.decodePayloadEffect(rawPayload),
+      );
+      const result = yield* stage("handler", handler(payload, event));
+      const encoded = yield* stage(
+        "encode",
+        descriptor.encodeResultEffect(result),
+      );
+      if (traceRendererId !== undefined && descriptor.trace === "full") {
+        yield* Effect.annotateCurrentSpan("ipc.result", encoded);
+      }
+      return { ok: true, value: encoded } satisfies IpcInvokeEnvelope<unknown>;
+    });
 
   return (event, rawPayload) => {
-    const effect = decodeTraceEnvelope(rawPayload).pipe(
-      Effect.flatMap(({ payload: rawIpcPayload, trace }) =>
-        Effect.gen(function* () {
-          const payload = yield* descriptor
-            .decodePayloadEffect(rawIpcPayload)
-            .pipe(
-              Effect.withSpan(`ipc.decode ${descriptor.name}`, undefined, {
-                captureStackTrace: false,
-              }),
-            );
-          const result = yield* handler(payload, event).pipe(
-            Effect.withSpan(`ipc.handler ${descriptor.name}`, undefined, {
-              captureStackTrace: false,
-            }),
+    const request =
+      traceRendererId === undefined
+        ? invoke(event, rawPayload)
+        : decodeTraceEnvelope(rawPayload).pipe(
+            Effect.flatMap(({ payload, trace }) =>
+              invoke(event, payload).pipe(
+                Effect.withSpan(
+                  `ipc.main ${descriptor.name}`,
+                  {
+                    attributes: {
+                      "ipc.channel": descriptor.channel,
+                      "ipc.name": descriptor.name,
+                      "renderer.id": traceRendererId(event),
+                      ...(descriptor.trace === "full"
+                        ? { "ipc.payload": payload }
+                        : {}),
+                    },
+                    kind: "server",
+                    parent: Tracer.externalSpan(trace),
+                  },
+                  { captureStackTrace: false },
+                ),
+              ),
+            ),
           );
-          const encoded = yield* descriptor.encodeResultEffect(result).pipe(
-            Effect.withSpan(`ipc.encode ${descriptor.name}`, undefined, {
-              captureStackTrace: false,
-            }),
-          );
-          if (descriptor.trace === "full") {
-            yield* Effect.annotateCurrentSpan("ipc.result", encoded);
-          }
-          return {
-            ok: true,
-            value: encoded,
-          } satisfies IpcInvokeEnvelope<unknown>;
-        }).pipe(
-          Effect.withSpan(
-            `ipc.main ${descriptor.name}`,
-            {
-              attributes: {
-                "ipc.channel": descriptor.channel,
-                "ipc.name": descriptor.name,
-                "renderer.id": rendererId(event),
-                ...(descriptor.trace === "full"
-                  ? { "ipc.payload": rawIpcPayload }
-                  : {}),
-              },
-              kind: "server",
-              parent: Tracer.externalSpan(trace),
-            },
-            { captureStackTrace: false },
-          ),
+
+    return runPromise(
+      request.pipe(
+        Effect.catchCause((cause) =>
+          Effect.succeed({
+            ok: false,
+            error: bridgeError(descriptor.channel, "IPC_HANDLER_FAILED", cause),
+          } satisfies IpcInvokeEnvelope<unknown>),
         ),
       ),
-      Effect.catchCause((cause) =>
-        Effect.succeed({
-          ok: false,
-          error: bridgeError(descriptor.channel, "IPC_HANDLER_FAILED", cause),
-        } satisfies IpcInvokeEnvelope<unknown>),
-      ),
     );
-
-    return runPromise(effect);
   };
 };

@@ -1,4 +1,4 @@
-import type { IpcMainInvokeEvent, WebContents } from "electron";
+import type { WebContents } from "electron";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -30,7 +30,7 @@ export class DesktopIpcSenderError extends Schema.TaggedError<DesktopIpcSenderEr
 
 export interface DesktopIpcSendersShape {
   readonly require: (
-    event: IpcMainInvokeEvent,
+    event: { readonly sender: Pick<WebContents, "id"> },
     allowedKinds: DesktopIpcSenderKinds,
   ) => Effect.Effect<DesktopIpcSender, DesktopIpcSenderError>;
 }
@@ -40,21 +40,14 @@ export class DesktopIpcSenders extends Context.Service<
   DesktopIpcSendersShape
 >()("lucent/desktop/ipc/DesktopIpcSenders") {}
 
-export interface DesktopIpcSendersOptions {
-  readonly getWebContentsId: (webContents: WebContents) => number;
-}
-
 export const makeDesktopIpcSenders = (
-  windows: DesktopWindows["Service"],
-  options: DesktopIpcSendersOptions = {
-    getWebContentsId: (webContents) => webContents.id,
-  },
+  windows: Pick<DesktopWindows["Service"], "getRendererKind">,
 ): DesktopIpcSenders["Service"] => {
   const requireSender = Effect.fn("DesktopIpcSenders.require")(function* (
-    event: IpcMainInvokeEvent,
+    event: { readonly sender: Pick<WebContents, "id"> },
     allowedKinds: DesktopIpcSenderKinds,
   ) {
-    const rendererId = options.getWebContentsId(event.sender);
+    const rendererId = event.sender.id;
     const kind = yield* windows.getRendererKind(rendererId).pipe(
       Effect.mapError(
         () =>
@@ -87,3 +80,21 @@ export const layer = Layer.effect(
     return makeDesktopIpcSenders(windows);
   }),
 );
+
+export const resolveGameRendererId = Effect.fn(
+  "DesktopIpcSenders.resolveGameRendererId",
+)(function* (sender: DesktopIpcSender) {
+  if (sender.kind === "game") return sender.rendererId;
+  const windows = yield* DesktopWindows;
+  const ownerId = yield* windows.getOwnerRendererId(sender.rendererId);
+  if (
+    ownerId === null ||
+    (yield* windows.getRendererKind(ownerId)) !== "game"
+  ) {
+    return yield* new DesktopIpcSenderError({
+      detail:
+        "This window is no longer linked to a game. Reopen it from the game.",
+    });
+  }
+  return ownerId;
+});
