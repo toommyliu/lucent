@@ -4,9 +4,8 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Ref from "effect/Ref";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as Schema from "effect/Schema";
-import * as Semaphore from "effect/Semaphore";
 
 import {
   ScriptPackageDirectorySchema,
@@ -178,8 +177,7 @@ export const layer = Layer.effect(
         cause: initial.error,
       });
     }
-    const stateRef = yield* Ref.make(initial);
-    const writeGate = yield* Semaphore.make(1);
+    const stateRef = yield* SynchronizedRef.make(initial);
 
     const persist = (state: ReadonlyMap<string, ManagedScriptPackage>) =>
       jsonFile
@@ -196,9 +194,8 @@ export const layer = Layer.effect(
         state: ReadonlyMap<string, ManagedScriptPackage>,
       ) => Map<string, ManagedScriptPackage>,
     ) =>
-      writeGate.withPermits(1)(
+      SynchronizedRef.updateEffect(stateRef, (loaded) =>
         Effect.gen(function* () {
-          const loaded = yield* Ref.get(stateRef);
           if (loaded.status === "failed") return yield* loaded.error;
           const next = update(loaded.packages);
           if (hasDuplicateMappings(next.values())) {
@@ -208,20 +205,20 @@ export const layer = Layer.effect(
             });
           }
           yield* persist(next);
-          yield* Ref.set(stateRef, { status: "loaded", packages: next });
+          return { status: "loaded", packages: next } as const;
         }),
       );
 
     return ScriptPackageState.of({
       get: (name) =>
-        Ref.get(stateRef).pipe(
+        SynchronizedRef.get(stateRef).pipe(
           Effect.map((state) => {
             if (state.status === "failed") return undefined;
             const value = state.packages.get(name);
             return value === undefined ? undefined : cloneRecord(value);
           }),
         ),
-      getAll: Ref.get(stateRef).pipe(
+      getAll: SynchronizedRef.get(stateRef).pipe(
         Effect.map((state) =>
           state.status === "failed"
             ? []

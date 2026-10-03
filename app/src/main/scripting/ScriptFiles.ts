@@ -59,7 +59,7 @@ export interface ScriptFilesShape {
 export class ScriptFiles extends Context.Service<
   ScriptFiles,
   ScriptFilesShape
->()("lucent/internal/scripting/ScriptFiles") {}
+>()("lucent/desktop/scripting/ScriptFiles") {}
 
 export const makeScriptFileWorker = Effect.fn("makeScriptFileWorker")(
   function* (
