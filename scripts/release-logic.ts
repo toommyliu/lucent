@@ -1,25 +1,18 @@
+import { parse, SemVer } from "semver";
+
 export const RELEASE_NOTES_PLACEHOLDER = "<!-- release-notes-placeholder -->";
 export const RELEASE_NOTES_PLACEHOLDER_CONTENT = `${RELEASE_NOTES_PLACEHOLDER}
 
 Write the v0.0.1 release notes here before preparing the release.
 `;
 
-const STABLE_VERSION_PATTERN =
-  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
-
 export const BUMP_KINDS = ["patch", "minor", "major"] as const;
 
 export type BumpKind = (typeof BUMP_KINDS)[number];
 
-export type Version = {
-  readonly major: number;
-  readonly minor: number;
-  readonly patch: number;
-};
-
 export type StableRelease = {
   readonly tag: string;
-  readonly version: Version;
+  readonly version: SemVer;
 };
 
 export type TargetVersionResult =
@@ -29,54 +22,21 @@ export type TargetVersionResult =
 export const isBumpKind = (value: string): value is BumpKind =>
   BUMP_KINDS.includes(value as BumpKind);
 
-export const parseStableVersion = (value: string): Version | null => {
-  const match = STABLE_VERSION_PATTERN.exec(value);
-  if (!match) {
-    return null;
-  }
-
-  const [, major, minor, patch] = match;
-  if (major === undefined || minor === undefined || patch === undefined) {
-    return null;
-  }
-
-  return {
-    major: Number(major),
-    minor: Number(minor),
-    patch: Number(patch),
-  };
+export const parseStableVersion = (value: string): SemVer | null => {
+  const version = parse(value);
+  return version !== null &&
+    version.prerelease.length === 0 &&
+    version.version === value
+    ? version
+    : null;
 };
 
-export const parseStableReleaseTag = (tag: string): Version | null =>
+export const parseStableReleaseTag = (tag: string): SemVer | null =>
   tag.startsWith("v") ? parseStableVersion(tag.slice(1)) : null;
 
-export const formatVersion = (version: Version): string =>
-  `${version.major}.${version.minor}.${version.patch}`;
+export const formatVersion = (version: SemVer): string => version.version;
 
 export const formatReleaseTag = (version: string): string => `v${version}`;
-
-const compareVersions = (left: Version, right: Version): number => {
-  if (left.major !== right.major) {
-    return left.major - right.major;
-  }
-
-  if (left.minor !== right.minor) {
-    return left.minor - right.minor;
-  }
-
-  return left.patch - right.patch;
-};
-
-const bumpVersion = (version: Version, bump: BumpKind): Version => {
-  switch (bump) {
-    case "patch":
-      return { ...version, patch: version.patch + 1 };
-    case "minor":
-      return { major: version.major, minor: version.minor + 1, patch: 0 };
-    case "major":
-      return { major: version.major + 1, minor: 0, patch: 0 };
-  }
-};
 
 export const findFirstStableRelease = (
   tags: ReadonlyArray<string>,
@@ -104,9 +64,8 @@ export const resolveTargetVersion = (
         }
       : {
           ok: true,
-          version: formatVersion(
-            bumpVersion(latestRelease.version, bumpOrVersion),
-          ),
+          version: new SemVer(latestRelease.version.version).inc(bumpOrVersion)
+            .version,
         };
   }
 
@@ -119,10 +78,7 @@ export const resolveTargetVersion = (
     };
   }
 
-  if (
-    latestRelease !== null &&
-    compareVersions(parsed, latestRelease.version) <= 0
-  ) {
+  if (latestRelease !== null && parsed.compare(latestRelease.version) <= 0) {
     return {
       ok: false,
       message: `Target version ${bumpOrVersion} must be greater than latest release ${latestRelease.tag}.`,
