@@ -3,46 +3,15 @@ import {
   type FollowerState,
 } from "@lucent/core/follower";
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 
 import { FollowerIpc } from "../../../shared/ipc";
 import { GameFollowers } from "../../internal/follower/GameFollowers";
 import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
-import type { DesktopIpcSender } from "../DesktopIpcSenders";
-
-export class FollowerOwnerError extends Schema.TaggedError<FollowerOwnerError>()(
-  "FollowerOwnerError",
-  {
-    rendererId: Schema.Int,
-  },
-) {
-  override get message(): string {
-    return "This window is no longer linked to a game. Reopen it from the game.";
-  }
-}
-
-const resolveGameRendererId = Effect.fn("desktop.ipc.follower.resolveGame")(
-  function* (sender: DesktopIpcSender) {
-    if (sender.kind === "game") {
-      return sender.rendererId;
-    }
-
-    const windows = yield* DesktopWindows;
-    const ownerRendererId = yield* windows.getOwnerRendererId(
-      sender.rendererId,
-    );
-    if (
-      ownerRendererId === null ||
-      (yield* windows.getRendererKind(ownerRendererId)) !== "game"
-    ) {
-      return yield* new FollowerOwnerError({
-        rendererId: sender.rendererId,
-      });
-    }
-    return ownerRendererId;
-  },
-);
+import {
+  resolveGameRendererId,
+  type DesktopIpcSender,
+} from "../DesktopIpcSenders";
 
 const notifyChanged = Effect.fn("desktop.ipc.follower.notifyChanged")(
   function* (

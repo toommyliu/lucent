@@ -15,10 +15,7 @@ import {
   type IpcInvokePayload,
   type IpcInvokeResult,
 } from "../../shared/ipc";
-import {
-  createDesktopIpcInvokeHandler,
-  createObservedDesktopIpcInvokeHandler,
-} from "./DesktopIpcInvoke";
+import { createDesktopIpcInvokeHandler } from "./DesktopIpcInvoke";
 import {
   type DesktopIpcSender,
   type DesktopIpcSenderKinds,
@@ -237,40 +234,19 @@ export const makeDesktopIpc = (
       const runPromise = Effect.runPromiseWith(context);
       const { descriptor } = method;
 
-      const observedHandler =
-        tracingEnabled === false
-          ? undefined
-          : createObservedDesktopIpcInvokeHandler(
-              descriptor,
-              (payload, event: IpcMainInvokeEvent) =>
-                senders
-                  .require(event, method.allowedSenders)
-                  .pipe(
-                    Effect.flatMap((sender) => method.invoke(payload, sender)),
-                  ),
-              runPromise,
-              (event: IpcMainInvokeEvent) => event.sender.id,
-            );
+      const handler = createDesktopIpcInvokeHandler(
+        descriptor,
+        (payload, event: IpcMainInvokeEvent) =>
+          senders
+            .require(event, method.allowedSenders)
+            .pipe(Effect.flatMap((sender) => method.invoke(payload, sender))),
+        runPromise,
+        tracingEnabled ? (event) => event.sender.id : undefined,
+      );
 
       yield* Effect.acquireRelease(
         Effect.try({
-          try: () =>
-            main.handle(
-              descriptor.channel,
-              observedHandler ??
-                createDesktopIpcInvokeHandler(
-                  descriptor,
-                  (payload, event) =>
-                    senders
-                      .require(event, method.allowedSenders)
-                      .pipe(
-                        Effect.flatMap((sender) =>
-                          method.invoke(payload, sender),
-                        ),
-                      ),
-                  runPromise,
-                ),
-            ),
+          try: () => main.handle(descriptor.channel, handler),
           catch: (cause) =>
             new DesktopIpcRegistrationError({
               channel: descriptor.channel,
