@@ -3,6 +3,7 @@ import { tmpdir } from "os";
 import { dirname, join } from "path";
 
 import { afterEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -22,6 +23,8 @@ import {
   type ManagedScriptPackage,
   ScriptPackageState,
 } from "./ScriptPackageState";
+
+vi.mock("electron", () => ({ app: {} }));
 
 const directories: string[] = [];
 

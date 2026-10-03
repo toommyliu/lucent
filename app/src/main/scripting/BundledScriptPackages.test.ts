@@ -3,7 +3,8 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 
-import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -28,6 +29,8 @@ import {
   ScriptPackageState,
   ScriptPackageStateError,
 } from "./ScriptPackageState";
+
+vi.mock("electron", () => ({ app: {} }));
 
 const directories: string[] = [];
 const decodeSetupState = Schema.decodeUnknownSync(

@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Logger from "effect/Logger";
 import * as Layer from "effect/Layer";
@@ -9,6 +10,8 @@ import {
   layer as desktopLifecycleLayer,
 } from "./DesktopLifecycle";
 import { DesktopObservability } from "./observability/DesktopObservability";
+
+vi.mock("electron", () => ({ app: {} }));
 
 const TEST_SIGNAL = "SIGTERM";
 type ProcessSignalListener = (signal: NodeJS.Signals) => void;
