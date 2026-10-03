@@ -21,10 +21,6 @@ import {
   type DesktopChromiumPerformanceRecordingState,
 } from "../app/observability/DesktopChromiumPerformanceRecording";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import {
-  DesktopPerformanceTrace,
-  type DesktopPerformanceTraceState,
-} from "../app/observability/DesktopPerformanceTrace";
 import { ElectronSession } from "../electron/ElectronSession";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
@@ -82,7 +78,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     yield* DesktopChromiumPerformanceRecording;
   const dialog = yield* ElectronDialog;
   const env = yield* DesktopEnvironment;
-  const performanceTrace = yield* DesktopPerformanceTrace;
   const settings = yield* DesktopSettings;
   const shell = yield* ElectronShell;
   const updates = yield* DesktopUpdates;
@@ -197,54 +192,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         ),
       ),
     ).catch((cause) => logMenuFailure("check-for-updates", cause));
-  };
-
-  const showPerformanceTraceFailure = (
-    operation: "save" | "start",
-    cause: unknown,
-  ) =>
-    Effect.gen(function* () {
-      const starting = operation === "start";
-      yield* Effect.logError(
-        starting
-          ? "Failed to start performance trace"
-          : "Failed to save performance trace",
-        Cause.fail(cause),
-      ).pipe(Effect.annotateLogs({ component: "performance-trace" }));
-      yield* dialog.showMessageBox({
-        type: "warning",
-        title: starting
-          ? "Performance Trace Not Started"
-          : "Performance Trace Not Saved",
-        message: starting
-          ? "Unable to start the performance trace."
-          : "Unable to save the performance trace.",
-        detail: "Check the logs and try again.",
-        buttons: ["Close"],
-        defaultId: 0,
-        cancelId: 0,
-      });
-    }).pipe(Effect.asVoid);
-
-  const startPerformanceTrace = (): void => {
-    void runPromise(
-      performanceTrace.start.pipe(
-        Effect.catch((cause) => showPerformanceTraceFailure("start", cause)),
-      ),
-    ).catch((cause) => logMenuFailure("start-performance-trace", cause));
-  };
-
-  const stopPerformanceTrace = (): void => {
-    void runPromise(
-      performanceTrace.stop.pipe(
-        Effect.flatMap((result) =>
-          result === undefined
-            ? Effect.void
-            : shell.showItemInFolder(result.filePath),
-        ),
-        Effect.catch((cause) => showPerformanceTraceFailure("save", cause)),
-      ),
-    ).catch((cause) => logMenuFailure("stop-performance-trace", cause));
   };
 
   const showChromiumPerformanceRecordingFailure = (
@@ -406,28 +353,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     })),
   });
 
-  const buildPerformanceTraceMenuItem = (
-    state: DesktopPerformanceTraceState,
-  ): MenuItemConstructorOptions => {
-    switch (state.status) {
-      case "idle":
-        return {
-          label: "Start Performance Trace",
-          click: startPerformanceTrace,
-        };
-      case "recording":
-        return {
-          label: "Stop and Save Performance Trace",
-          click: stopPerformanceTrace,
-        };
-      case "saving":
-        return {
-          label: "Saving Performance Trace…",
-          enabled: false,
-        };
-    }
-  };
-
   const buildChromiumPerformanceRecordingMenuItems = (
     state: DesktopChromiumPerformanceRecordingState,
   ): MenuItemConstructorOptions[] => {
@@ -473,7 +398,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
 
   const buildTemplate = (
     currentThemeMode: ThemeMode,
-    performanceTraceState: DesktopPerformanceTraceState,
     chromiumPerformanceRecordingState: DesktopChromiumPerformanceRecordingState,
   ): MenuItemConstructorOptions[] => {
     const settingsMenuItem: MenuItemConstructorOptions = {
@@ -525,7 +449,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       : [{ type: "separator" }, aboutMenuItem];
     const helpSubmenu: MenuItemConstructorOptions[] = [
       ...helpUpdateItems,
-      buildPerformanceTraceMenuItem(performanceTraceState),
       ...buildChromiumPerformanceRecordingMenuItems(
         chromiumPerformanceRecordingState,
       ),
@@ -601,14 +524,12 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
 
   const rebuild = Effect.gen(function* () {
     const current = yield* settings.get;
-    const performanceTraceState = yield* performanceTrace.getState;
     const chromiumPerformanceRecordingState =
       yield* chromiumPerformanceRecording.getState;
     Menu.setApplicationMenu(
       Menu.buildFromTemplate(
         buildTemplate(
           current.appearance.themeMode,
-          performanceTraceState,
           chromiumPerformanceRecordingState,
         ),
       ),
@@ -650,16 +571,6 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         );
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
-      const unsubscribePerformanceTrace = yield* performanceTrace.onChanged(
-        () => {
-          void runPromise(rebuild).catch((cause) =>
-            logMenuFailure("rebuild-performance-trace", cause),
-          );
-        },
-      );
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(unsubscribePerformanceTrace),
-      );
       const unsubscribeChromiumPerformanceRecording =
         yield* chromiumPerformanceRecording.onChanged(() => {
           void runPromise(rebuild).catch((cause) =>
