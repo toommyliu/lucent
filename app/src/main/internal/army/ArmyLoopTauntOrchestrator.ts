@@ -1,3 +1,4 @@
+import { makeListenerRegistry } from "../../app/ListenerRegistry";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -1861,17 +1862,7 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
     const coordinator = yield* ArmyCoordinator;
     const scope = yield* Effect.scope;
     const stateRef = yield* SynchronizedRef.make(initialState);
-    const commandListeners = new Set<
-      (event: ArmyLoopTauntCommandEvent) => Effect.Effect<void, unknown>
-    >();
-
-    const onCommand: ArmyLoopTauntOrchestratorShape["onCommand"] = (listener) =>
-      Effect.sync(() => {
-        commandListeners.add(listener);
-        return () => {
-          commandListeners.delete(listener);
-        };
-      });
+    const commandEvents = makeListenerRegistry<ArmyLoopTauntCommandEvent>();
 
     // State mutations publish effects after releasing stateRef. A newer report
     // or teardown can stale an effect before it crosses IPC.
@@ -1915,14 +1906,7 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
             Effect.flatMap((current) =>
               current === undefined
                 ? Effect.void
-                : Effect.forEach(
-                    [...commandListeners],
-                    (listener) =>
-                      listener(current).pipe(
-                        Effect.catchCause(() => Effect.void),
-                      ),
-                    { discard: true },
-                  ),
+                : commandEvents.publish(current),
             ),
           ),
         { discard: true },
@@ -2327,14 +2311,13 @@ export const makeArmyLoopTauntOrchestrator = (): Effect.Effect<
         for (const sessionId of sessions) {
           yield* endSession(sessionId, "Application is quitting");
         }
-        commandListeners.clear();
       }),
     );
 
     return ArmyLoopTauntOrchestrator.of({
       await: awaitRun,
       leave,
-      onCommand,
+      onCommand: commandEvents.subscribe,
       ready,
       register,
       report,
