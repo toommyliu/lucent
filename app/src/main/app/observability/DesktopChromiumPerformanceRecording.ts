@@ -38,14 +38,12 @@ import {
   chromiumRecordingTimestamp,
   chromiumTraceRotationReason,
   chromiumTraceSegmentFileName,
+  normalizeChromiumProcessMetric,
+  type ChromiumProcessSample,
   type ChromiumTraceRotationReason,
 } from "./ChromiumPerformanceRecordingModel";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import { makeListenerRegistry } from "../ListenerRegistry";
-import {
-  normalizePerformanceTraceMetric,
-  type PerformanceTraceProcessSample,
-} from "./DesktopPerformanceTrace";
 
 const PERFORMANCE_RECORDINGS_DIRECTORY_NAME = "chromium-performance-recordings";
 const MANIFEST_FILE_NAME = "manifest.json";
@@ -176,7 +174,7 @@ interface ChromiumResourceSample {
   readonly capturedAt: string;
   readonly elapsedMs: number;
   readonly mainV8Heap: ElectronMainHeapUsage;
-  readonly processes: readonly PerformanceTraceProcessSample[];
+  readonly processes: readonly ChromiumProcessSample[];
 }
 
 interface ChromiumRendererTargetMetadata {
@@ -477,7 +475,7 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
         capturedAt: new Date(capturedAtMs).toISOString(),
         elapsedMs: Math.max(0, capturedAtMs - current.startedAtMs),
         mainV8Heap,
-        processes: metrics.map(normalizePerformanceTraceMetric),
+        processes: metrics.map(normalizeChromiumProcessMetric),
       });
     },
     (effect, current) =>
