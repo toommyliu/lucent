@@ -1203,10 +1203,11 @@ export function App(props: {
     createSignal<GameViewPresentation>({
       active: true,
       layout: desktop.gameView.initialLayout ?? "focused",
+      tiled: desktop.gameView.initialLayout === "grid",
       windowActive: true,
     });
   const effectiveTopNavVisible = createMemo(
-    () => topNavVisible() && gameViewPresentation().layout === "focused",
+    () => topNavVisible() && !gameViewPresentation().tiled,
   );
   const hotkeyStatus = createHotkeyStatus();
   const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
