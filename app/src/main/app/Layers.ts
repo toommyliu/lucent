@@ -55,273 +55,79 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
 ) => {
-  const environmentLayer = DesktopEnvironment.layer(envConfig);
-  const observabilityLayer = DesktopObservability.layer.pipe(
-    Layer.provideMerge(environmentLayer),
+  const diagnostics = DesktopObservability.layer.pipe(
+    Layer.provideMerge(
+      Layer.mergeAll(NodeFileSystem.layer, DesktopEnvironment.layer(envConfig)),
+    ),
   );
-  const effectTracingLayer =
-    envConfig.debug === true
-      ? DesktopEffectTracing.layer.pipe(Layer.provide(observabilityLayer))
-      : Layer.empty;
-  const desktopIpcLayer =
-    envConfig.debug === true
-      ? Layer.succeed(
-          DesktopIpc.DesktopIpc,
-          DesktopIpc.makeElectronDesktopIpc(true),
-        )
-      : DesktopIpc.layer;
-  const electronChromiumPerformanceLayer = ElectronChromiumPerformance.layer;
-  const electronSessionLayer = ElectronSession.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-  const electronLayer = Layer.mergeAll(
+  const tracing = (
+    envConfig.debug === true ? DesktopEffectTracing.layer : Layer.empty
+  ).pipe(Layer.provideMerge(diagnostics));
+  const platform = Layer.mergeAll(
     DesktopLifecycle.layer,
     ElectronApp.layer,
-    electronChromiumPerformanceLayer,
+    ElectronChromiumPerformance.layer,
     ElectronDialog.layer,
     ElectronGameView.layer,
-    desktopIpcLayer,
-    electronSessionLayer,
     ElectronShell.layer,
     ElectronTheme.layer,
     ElectronWindow.layer,
-  );
-
-  const settingsLayer = DesktopSettings.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-
-  const combatProfilesLayer = CombatProfiles.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-
-  const scriptFilesLayer = ScriptFiles.layer;
-  const httpClientLayer = DesktopHttpClient.layer;
-  const scriptPackageStateLayer = ScriptPackageState.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-  const scriptPackageCatalogLayer = ScriptPackageCatalog.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        ElectronApp.layer,
-        environmentLayer,
-        scriptPackageStateLayer,
-      ),
+    Layer.succeed(
+      DesktopIpc.DesktopIpc,
+      DesktopIpc.makeElectronDesktopIpc(envConfig.debug === true),
     ),
-  );
-  const gitHubCredentialsLayer = GitHubCredentials.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-  const gitHubApiClientLayer = GitHubApiClient.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(ElectronApp.layer, httpClientLayer)),
-  );
-  const gitHubScriptPackageClientLayer = GitHubScriptPackageClient.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(gitHubApiClientLayer, gitHubCredentialsLayer),
-    ),
-  );
-  const scriptPackageManagerLayer = ScriptPackageManager.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        environmentLayer,
-        gitHubScriptPackageClientLayer,
-        scriptPackageCatalogLayer,
-        scriptPackageStateLayer,
-      ),
-    ),
-  );
-  const scriptSourceRegistryLayer = ScriptSourceRegistry.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(scriptFilesLayer, scriptPackageCatalogLayer),
-    ),
-  );
+    DesktopHttpClient.layer,
+    RuffleSocketProxy.layer,
+    AccountSessions.layer,
+    ScriptFiles.layer,
+  ).pipe(Layer.provideMerge(tracing));
 
-  const scriptingLayer = Layer.mergeAll(
-    ScriptWorkspace.layer.pipe(Layer.provideMerge(environmentLayer)),
-    gitHubCredentialsLayer,
-    gitHubScriptPackageClientLayer,
-    scriptPackageCatalogLayer,
-    scriptPackageManagerLayer,
-    scriptPackageStateLayer,
-    scriptSourceRegistryLayer,
-    ScriptInputRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
-    scriptFilesLayer,
-    DesktopScriptLibrary.layer.pipe(
-      Layer.provideMerge(
-        Layer.mergeAll(
-          ElectronDialog.layer,
-          ElectronShell.layer,
-          environmentLayer,
-          scriptFilesLayer,
-          scriptPackageCatalogLayer,
-          scriptSourceRegistryLayer,
-        ),
-      ),
-    ),
-  );
+  const storage = Layer.mergeAll(
+    DesktopSettings.layer,
+    ElectronSession.layer,
+    AccountRepository.layer,
+    AccountSettingsRepository.layer,
+    ArmyConfigRepository.layer,
+    CombatProfiles.layer,
+    GitHubCredentials.layer,
+    ScriptPackageState.layer,
+    ScriptInputRepository.layer,
+    ScriptWorkspace.layer,
+    GitHubApiClient.layer,
+  ).pipe(Layer.provideMerge(platform));
 
-  const updatesLayer = DesktopUpdates.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        ElectronApp.layer,
-        ElectronShell.layer,
-        environmentLayer,
-        gitHubApiClientLayer,
-        observabilityLayer,
-        settingsLayer,
-      ),
-    ),
-  );
+  const services = Layer.mergeAll(
+    DesktopWindows.layer,
+    AccountServers.layer,
+    ArmyCoordinator.layer,
+    DesktopUpdates.layer,
+    ScriptPackageCatalog.layer,
+    GitHubScriptPackageClient.layer,
+  ).pipe(Layer.provideMerge(storage));
 
-  const windowsLayer = DesktopWindows.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        RuffleSocketProxy.layer,
-        ElectronApp.layer,
-        ElectronGameView.layer,
-        electronSessionLayer,
-        ElectronShell.layer,
-        ElectronTheme.layer,
-        ElectronWindow.layer,
-        environmentLayer,
-        observabilityLayer,
-        settingsLayer,
-      ),
-    ),
-  );
+  const game = Layer.mergeAll(
+    DesktopAccountGameWindows.layer,
+    DesktopChromiumPerformanceRecording.layer,
+    DesktopIpcSenders.layer,
+    GameRendererRpc.layer,
+    GamePackets.layer,
+    ArmyLoopTauntOrchestrator.layer,
+    ScriptFileSystem.layer,
+    ScriptHttp.layer,
+    ScriptSourceRegistry.layer,
+    ScriptPackageManager.layer,
+  ).pipe(Layer.provideMerge(services));
 
-  const chromiumPerformanceRecordingLayer =
-    DesktopChromiumPerformanceRecording.layer.pipe(
-      Layer.provideMerge(
-        Layer.mergeAll(
-          ElectronApp.layer,
-          electronChromiumPerformanceLayer,
-          environmentLayer,
-          observabilityLayer,
-          windowsLayer,
-        ),
-      ),
-    );
-
-  const gameRendererRpcLayer = GameRendererRpc.layer.pipe(
-    Layer.provideMerge(windowsLayer),
-  );
-  const gameEnvironmentsLayer = GameEnvironments.layer.pipe(
-    Layer.provideMerge(gameRendererRpcLayer),
-  );
-  const gameFollowersLayer = GameFollowers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, gameRendererRpcLayer)),
-  );
-  const gamePacketsLayer = GamePackets.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
-  );
-  const accountRepositoryLayer = AccountRepository.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-  const accountSettingsRepositoryLayer = AccountSettingsRepository.layer.pipe(
-    Layer.provideMerge(environmentLayer),
-  );
-  const accountServersLayer = AccountServers.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(environmentLayer, observabilityLayer, httpClientLayer),
-    ),
-  );
-  const accountGameWindowsLayer = DesktopAccountGameWindows.layer.pipe(
-    Layer.provideMerge(windowsLayer),
-  );
-  const accountsLayer = Accounts.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        accountGameWindowsLayer,
-        accountRepositoryLayer,
-        accountServersLayer,
-        AccountSessions.layer,
-      ),
-    ),
-  );
-
-  const observabilityServerLayer = DesktopObservabilityServer.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(accountsLayer, observabilityLayer, windowsLayer),
-    ),
-  );
-
-  const gameRendererRecoveryLayer = DesktopGameRendererRecovery.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        accountsLayer,
-        ElectronDialog.layer,
-        observabilityLayer,
-        windowsLayer,
-      ),
-    ),
-  );
-
-  const scriptFileSystemLayer = ScriptFileSystem.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(environmentLayer, windowsLayer)),
-  );
-
-  const applicationMenuLayer = DesktopApplicationMenu.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        ElectronApp.layer,
-        ElectronDialog.layer,
-        ElectronShell.layer,
-        environmentLayer,
-        observabilityLayer,
-        chromiumPerformanceRecordingLayer,
-        settingsLayer,
-        updatesLayer,
-        windowsLayer,
-      ),
-    ),
-  );
-
-  // IPC authentication and Loop Taunt cleanup must observe the same Army
-  // session state machine, so both services share one coordinator layer.
-  const armyCoordinatorLayer = ArmyCoordinator.layer.pipe(
-    Layer.provideMerge(observabilityLayer),
-  );
-  const armyLayer = Layer.mergeAll(
-    ArmyLoopTauntOrchestrator.layer.pipe(
-      Layer.provideMerge(armyCoordinatorLayer),
-    ),
-    ArmyConfigRepository.layer.pipe(Layer.provideMerge(environmentLayer)),
-  );
-
-  const ipcSendersLayer = DesktopIpcSenders.layer.pipe(
-    Layer.provideMerge(windowsLayer),
-  );
+  const application = Layer.mergeAll(
+    Accounts.layer,
+    DesktopApplicationMenu.layer,
+    GameEnvironments.layer,
+    GameFollowers.layer,
+    DesktopScriptLibrary.layer,
+  ).pipe(Layer.provideMerge(game));
 
   return Layer.mergeAll(
-    armyLayer,
-    ipcSendersLayer,
-    electronLayer,
-    effectTracingLayer,
-    environmentLayer,
-    accountsLayer,
-    accountSettingsRepositoryLayer,
-    combatProfilesLayer,
-    chromiumPerformanceRecordingLayer,
-    observabilityServerLayer,
-    gameEnvironmentsLayer,
-    gameFollowersLayer,
-    gamePacketsLayer,
-    gameRendererRpcLayer,
-    gameRendererRecoveryLayer,
-    httpClientLayer,
-    observabilityLayer,
-    settingsLayer,
-    scriptingLayer,
-    scriptFileSystemLayer,
-    ScriptHttp.layer.pipe(
-      Layer.provideMerge(Layer.mergeAll(httpClientLayer, windowsLayer)),
-    ),
-    updatesLayer,
-    windowsLayer,
-    applicationMenuLayer,
-  ).pipe(
-    Layer.provideMerge(NodeFileSystem.layer),
-    Layer.provideMerge(observabilityLayer),
-  );
+    DesktopObservabilityServer.layer,
+    DesktopGameRendererRecovery.layer,
+  ).pipe(Layer.provideMerge(application));
 };

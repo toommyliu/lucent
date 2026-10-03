@@ -44,7 +44,6 @@ const makeHarness = (flushCompletes: boolean) => {
     }),
   });
   const app = ElectronApp.of({
-    appendCommandLineSwitch: () => Effect.void,
     exit: (code) =>
       Effect.sync(() => {
         events.push(`exit:${code}`);
@@ -52,7 +51,6 @@ const makeHarness = (flushCompletes: boolean) => {
       }),
     getAppMetrics: Effect.succeed([]),
     getVersion: Effect.succeed("1.0.0"),
-    isPackaged: Effect.succeed(false),
     on: () => Effect.succeed(() => undefined),
     quit: Effect.void,
     relaunch: Effect.void,

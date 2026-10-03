@@ -133,11 +133,9 @@ const makeUpdatesHarness = (options: {
       updatePreferences: () => Effect.succeed(settings),
     });
     const app = ElectronApp.of({
-      appendCommandLineSwitch: () => Effect.void,
       exit: () => Effect.void,
       getAppMetrics: Effect.succeed([]),
       getVersion: Effect.succeed(options.currentVersion),
-      isPackaged: Effect.succeed(false),
       on: () => Effect.succeed(() => undefined),
       relaunch: Effect.void,
       quit: Effect.void,
