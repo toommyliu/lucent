@@ -3,6 +3,7 @@ import { tmpdir } from "os";
 import { dirname, join } from "path";
 
 import { afterEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { create as createTar } from "tar";
@@ -33,6 +34,8 @@ import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
+
+vi.mock("electron", () => ({ app: {} }));
 
 const directories: string[] = [];
 const INSTALLED_COMMIT = "1".repeat(40);
