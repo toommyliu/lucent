@@ -403,11 +403,9 @@ const makeCatalogHarness = () =>
       workspaceDir: workspace.root,
     });
     const app = ElectronApp.of({
-      appendCommandLineSwitch: () => Effect.void,
       exit: () => Effect.void,
       getAppMetrics: Effect.succeed([]),
       getVersion: Effect.succeed("1.0.0"),
-      isPackaged: Effect.succeed(false),
       on: () => Effect.succeed(() => undefined),
       quit: Effect.void,
       relaunch: Effect.void,
