@@ -39,4 +39,15 @@ module.exports = {
     ],
     "selector-disallowed-list": [/:(?:has|is|where)\(/, /&/],
   },
+  overrides: [
+    {
+      files: ["packages/ui-react/**/*.css"],
+      rules: {
+        "at-rule-disallowed-list": null,
+        "function-disallowed-list": null,
+        "property-disallowed-list": null,
+        "selector-disallowed-list": null,
+      },
+    },
+  ],
 };

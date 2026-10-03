@@ -1,0 +1,184 @@
+@layer ui.components {
+  .root {
+    --button-height: var(--control-height-md);
+    --button-padding: 10px;
+    --button-icon-size: 16px;
+
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: var(--button-height);
+    min-width: 0;
+    margin: 0;
+    padding: 0 var(--button-padding);
+    border: 0;
+    border-radius: var(--radius-control);
+    background-color: transparent;
+    color: var(--color-text);
+    cursor: var(--cursor-interactive);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body);
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    transition-property: background-color, box-shadow, color;
+    transition-duration: var(--duration-state);
+    transition-timing-function: var(--ease-out);
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &[data-disabled]:not([data-loading]) {
+      opacity: 0.5;
+    }
+
+    &:has(> .label > svg:first-child) {
+      padding-inline-start: calc(var(--button-padding) - 2px);
+    }
+
+    &:has(> .label > svg:last-child) {
+      padding-inline-end: calc(var(--button-padding) - 2px);
+    }
+  }
+
+  .root[data-size="sm"] {
+    --button-height: var(--control-height-sm);
+    --button-padding: 8px;
+    --button-icon-size: 14px;
+
+    font-size: var(--font-size-small);
+  }
+
+  .root[data-size="lg"] {
+    --button-height: var(--control-height-lg);
+    --button-padding: 12px;
+  }
+
+  .root[data-square] {
+    width: var(--button-height);
+    padding: 0;
+  }
+
+  .root[data-variant="primary"] {
+    background-color: var(--color-accent);
+    box-shadow: var(--shadow-solid);
+    color: var(--color-on-accent);
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-accent-hover);
+      }
+    }
+  }
+
+  .root[data-variant="secondary"] {
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-raised);
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-surface-hover);
+        box-shadow: var(--shadow-raised-hover);
+      }
+    }
+
+    &:active:not([data-disabled]),
+    &[data-popup-open] {
+      background-color: var(--color-surface-active);
+    }
+  }
+
+  .root[data-variant="soft"] {
+    background-color: var(--color-fill);
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-fill-hover);
+      }
+    }
+
+    &:active:not([data-disabled]),
+    &[data-popup-open] {
+      background-color: var(--color-fill-active);
+    }
+  }
+
+  .root[data-variant="ghost"] {
+    color: var(--color-text-secondary);
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-fill-hover);
+        color: var(--color-text);
+      }
+    }
+
+    &:active:not([data-disabled]),
+    &[data-popup-open] {
+      background-color: var(--color-fill-active);
+      color: var(--color-text);
+    }
+  }
+
+  .root[data-variant="danger"] {
+    background-color: var(--color-danger-solid);
+    box-shadow: var(--shadow-solid);
+    color: var(--color-on-danger);
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-danger-solid-hover);
+      }
+    }
+  }
+
+  .root[data-variant="danger-soft"] {
+    background-color: var(--color-danger-fill);
+    color: var(--color-danger-text);
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-danger-fill-hover);
+      }
+    }
+
+    &:active:not([data-disabled]),
+    &[data-popup-open] {
+      background-color: var(--color-danger-fill-active);
+    }
+  }
+
+  .label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+
+    & > svg {
+      width: var(--button-icon-size);
+      height: var(--button-icon-size);
+    }
+
+    .root[data-size="sm"] & {
+      gap: 4px;
+    }
+
+    .root[data-loading] & {
+      opacity: 0;
+    }
+  }
+
+  .spinner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

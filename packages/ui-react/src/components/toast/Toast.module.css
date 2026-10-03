@@ -1,0 +1,268 @@
+@layer ui.components {
+  .viewport {
+    --toast-inset: 16px;
+    --toast-direction: -1;
+
+    position: fixed;
+    z-index: var(--z-toast);
+    width: min(360px, calc(100vw - var(--toast-inset) * 2));
+    outline: 0;
+
+    &[data-placement^="top"] {
+      --toast-direction: 1;
+
+      top: var(--toast-inset);
+    }
+
+    &[data-placement^="bottom"] {
+      bottom: var(--toast-inset);
+    }
+
+    &[data-placement$="left"] {
+      left: var(--toast-inset);
+    }
+
+    &[data-placement$="right"] {
+      right: var(--toast-inset);
+    }
+
+    &[data-placement$="center"] {
+      right: 0;
+      left: 0;
+      margin-inline: auto;
+    }
+  }
+
+  .root {
+    --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --toast-gap: 12px;
+    --toast-peek: 12px;
+    --toast-dim: 1%;
+    --toast-scale: max(0, 1 - var(--toast-index) * 0.1);
+    --toast-calc-height: var(--toast-frontmost-height, var(--toast-height));
+    --toast-stack-y: calc(
+      var(--toast-index) * var(--toast-peek) + (1 - var(--toast-scale)) *
+        var(--toast-calc-height)
+    );
+    --toast-offset: calc(
+      var(--toast-direction) *
+        (var(--toast-offset-y) + var(--toast-index) * var(--toast-gap)) +
+        var(--toast-swipe-movement-y)
+    );
+
+    position: absolute;
+    right: 0;
+    left: 0;
+    z-index: calc(9999 - var(--toast-index));
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--toast-calc-height);
+    border-radius: var(--radius-popup);
+    background-color: color-mix(
+      in srgb,
+      var(--color-surface-overlay),
+      black calc(var(--toast-dim) * max(0, var(--toast-index)))
+    );
+    box-shadow: var(--shadow-overlay);
+    color: var(--color-text);
+    cursor: default;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body);
+    user-select: none;
+    transform: translateX(var(--toast-swipe-movement-x))
+      translateY(
+        calc(
+          var(--toast-swipe-movement-y) + var(--toast-direction) *
+            var(--toast-stack-y)
+        )
+      )
+      scale(var(--toast-scale));
+    transform-origin: 50%
+      calc(50% - var(--toast-direction) * 50% * min(var(--toast-index), 1));
+    transition:
+      transform var(--duration-slide) var(--toast-ease),
+      opacity var(--duration-slide),
+      height 150ms,
+      background-color var(--duration-slide);
+
+    [data-theme="dark"] & {
+      --toast-dim: 6%;
+    }
+
+    .viewport[data-placement^="top"] & {
+      top: 0;
+    }
+
+    .viewport[data-placement^="bottom"] & {
+      bottom: 0;
+    }
+
+    &::after {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: calc(var(--toast-gap) + 1px);
+      content: "";
+
+      .viewport[data-placement^="top"] & {
+        top: 100%;
+      }
+
+      .viewport[data-placement^="bottom"] & {
+        bottom: 100%;
+      }
+    }
+
+    &[data-limited] {
+      opacity: 0;
+    }
+
+    &[data-expanded] {
+      height: var(--toast-height);
+      background-color: var(--color-surface-overlay);
+      transform: translateX(var(--toast-swipe-movement-x))
+        translateY(var(--toast-offset));
+    }
+
+    &[data-starting-style],
+    &[data-ending-style]:not([data-limited], [data-swipe-direction]) {
+      transform: translateY(
+        calc(var(--toast-direction) * -1 * (100% + var(--toast-inset)))
+      );
+    }
+
+    &[data-ending-style] {
+      opacity: 0;
+    }
+
+    &[data-ending-style][data-swipe-direction="left"] {
+      transform: translateX(
+          calc(var(--toast-swipe-movement-x) - 100% - var(--toast-inset))
+        )
+        translateY(var(--toast-offset));
+    }
+
+    &[data-ending-style][data-swipe-direction="right"] {
+      transform: translateX(
+          calc(var(--toast-swipe-movement-x) + 100% + var(--toast-inset))
+        )
+        translateY(var(--toast-offset));
+    }
+
+    &[data-ending-style][data-swipe-direction="up"] {
+      transform: translateY(
+        calc(var(--toast-swipe-movement-y) - 100% - var(--toast-inset))
+      );
+    }
+
+    &[data-ending-style][data-swipe-direction="down"] {
+      transform: translateY(
+        calc(var(--toast-swipe-movement-y) + 100% + var(--toast-inset))
+      );
+    }
+
+    &[data-swiping] {
+      transition-property: opacity, height, background-color;
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+  }
+
+  .content {
+    --toast-line-height: calc(var(--font-size-body) * 1.4);
+
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    box-sizing: border-box;
+    padding: 12px;
+    overflow: hidden;
+    transition: opacity 250ms;
+
+    &[data-behind] {
+      opacity: 0;
+    }
+
+    &[data-behind]:not([data-expanded]) {
+      pointer-events: none;
+    }
+
+    &[data-expanded] {
+      opacity: 1;
+    }
+  }
+
+  .icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    height: var(--toast-line-height);
+    color: var(--color-text-secondary);
+
+    & > svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .root[data-type="success"] & {
+      color: var(--color-success-text);
+    }
+
+    .root[data-type="error"] & {
+      color: var(--color-danger-text);
+    }
+
+    .root[data-type="warning"] & {
+      color: var(--color-warning-text);
+    }
+
+    .root[data-type="info"] & {
+      color: var(--color-info-text);
+    }
+  }
+
+  .text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .title {
+    margin: 0;
+    font-size: var(--font-size-body);
+    font-weight: 500;
+    line-height: var(--toast-line-height);
+    overflow-wrap: break-word;
+  }
+
+  .description {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-small);
+    line-height: 1.45;
+    overflow-wrap: break-word;
+
+    &:first-child {
+      color: var(--color-text);
+      font-size: var(--font-size-body);
+      line-height: var(--toast-line-height);
+    }
+  }
+
+  .action,
+  .close {
+    flex-shrink: 0;
+    margin-block: calc(
+      (var(--toast-line-height) - var(--control-height-sm)) / 2
+    );
+  }
+
+  .close {
+    margin-inline: -4px -6px;
+  }
+}

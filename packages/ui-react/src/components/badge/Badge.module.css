@@ -1,0 +1,119 @@
+@layer ui.components {
+  .root {
+    --badge-height: 20px;
+    --badge-padding: 6px;
+    --badge-icon-size: 12px;
+
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    box-sizing: border-box;
+    height: var(--badge-height);
+    min-width: var(--badge-height);
+    margin: 0;
+    padding: 0 var(--badge-padding);
+    border: 0;
+    border-radius: var(--radius-tag);
+    background-color: var(--color-fill-active);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-small);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    vertical-align: middle;
+    white-space: nowrap;
+    transition-property: background-color, box-shadow, color;
+    transition-duration: var(--duration-state);
+    transition-timing-function: var(--ease-out);
+
+    & > svg {
+      flex-shrink: 0;
+      width: var(--badge-icon-size);
+      height: var(--badge-icon-size);
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+  }
+
+  .root[data-size="sm"] {
+    --badge-height: 18px;
+    --badge-padding: 5px;
+    --badge-icon-size: 11px;
+
+    gap: 3px;
+    font-size: var(--font-size-caption);
+  }
+
+  .root[data-variant="outline"] {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--color-border);
+  }
+
+  .root[data-variant="accent"] {
+    background-color: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+
+  .root[data-variant="success"] {
+    background-color: var(--color-success-bg);
+    color: var(--color-success-text);
+  }
+
+  .root[data-variant="warning"] {
+    background-color: var(--color-warning-bg);
+    color: var(--color-warning-text);
+  }
+
+  .root[data-variant="danger"] {
+    background-color: var(--color-danger-bg);
+    color: var(--color-danger-text);
+  }
+
+  .root[data-variant="info"] {
+    background-color: var(--color-info-bg);
+    color: var(--color-info-text);
+  }
+
+  a.root,
+  button.root {
+    cursor: var(--cursor-interactive);
+
+    @media (hover: hover) {
+      &:hover {
+        background-image: linear-gradient(
+          var(--color-fill),
+          var(--color-fill)
+        );
+      }
+
+      &[data-variant="outline"]:hover {
+        box-shadow: inset 0 0 0 1px var(--color-border-hover);
+      }
+
+      &[data-variant="accent"]:hover {
+        background-color: var(--color-accent-hover);
+        background-image: none;
+      }
+    }
+  }
+
+  .dot {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+
+    .root[data-variant="neutral"] &,
+    .root[data-variant="outline"] & {
+      background-color: var(--color-text-tertiary);
+    }
+  }
+}
