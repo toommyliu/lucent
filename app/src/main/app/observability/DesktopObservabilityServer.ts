@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { ipcMain, type IpcMainEvent } from "electron";
 import * as Context from "effect/Context";
 import * as Exit from "effect/Exit";
@@ -18,20 +17,10 @@ import {
   makeGameConsoleStore,
   sessionsFromAccountState,
 } from "./GameConsoleStore";
-
-import {
-  type SseClient,
-  publishSseEvent,
-  startDesktopObservabilityHttpServer,
-} from "./DesktopObservabilityHttp";
+import { startDesktopObservabilityHttpServer } from "./DesktopObservabilityHttp";
 
 export const DEFAULT_DESKTOP_OBSERVABILITY_PORT = 10_637;
 
-const DEFAULT_OBSERVABILITY_ASSET_ROOT = resolve(
-  __dirname,
-  "..",
-  "observability",
-);
 export interface DesktopObservabilityServerOptions {
   readonly port: number;
 }
@@ -83,17 +72,8 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
     const installScope = yield* Scope.fork(yield* Effect.scope);
     return yield* Effect.gen(function* () {
       const store = makeGameConsoleStore();
-      const consoleClients = new Set<SseClient>();
-      const traceClients = new Set<SseClient>();
-      const publishConsole = (event: string, data: unknown): void => {
-        publishSseEvent(consoleClients, event, data);
-      };
       const applyAccountState = (state: AccountManagerState): void => {
-        for (const windowState of store.updateSessions(
-          sessionsFromAccountState(state),
-        )) {
-          publishConsole("session-updated", windowState);
-        }
+        store.updateSessions(sessionsFromAccountState(state));
       };
       const run = yield* FiberSet.makeRuntime<never, void>();
       const handleRendererMessage = (
@@ -124,11 +104,10 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
                     .pipe(
                       Effect.flatMap(() =>
                         Effect.sync(() => {
-                          const row = store.appendMessage({
+                          store.appendMessage({
                             gameWindowId: rendererId,
                             message: payload.message,
                           });
-                          publishConsole("message", row);
                         }),
                       ),
                     )
@@ -145,12 +124,7 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
-          const windowState = store.openWindow(
-            event.rendererId,
-            undefined,
-            event.generation,
-          );
-          publishConsole("window-opened", windowState);
+          store.openWindow(event.rendererId, undefined, event.generation);
         });
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribeCreated));
@@ -160,11 +134,7 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
-          const windowState = store.beginWindowGeneration(
-            event.rendererId,
-            event.generation,
-          );
-          publishConsole("window-generation", windowState);
+          store.beginWindowGeneration(event.rendererId, event.generation);
         });
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribeReloaded));
@@ -174,8 +144,7 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
         }
 
         return Effect.sync(() => {
-          const windowState = store.closeWindow(event.rendererId);
-          publishConsole("window-closed", windowState);
+          store.closeWindow(event.rendererId);
         });
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribeClosed));
@@ -198,12 +167,8 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
         );
       });
 
-      const unsubscribeTraces = observability.subscribeTrace((span) => {
-        publishSseEvent(traceClients, "span", span);
-      });
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
-          unsubscribeTraces();
           ipcMain.removeListener(
             GameConsoleIpc.rendererMessage.channel,
             handleRendererMessage,
@@ -212,10 +177,6 @@ const makeDesktopObservabilityServer = Effect.gen(function* () {
       );
       const installed = yield* startDesktopObservabilityHttpServer(store, {
         port: options.port,
-        assetRoot: DEFAULT_OBSERVABILITY_ASSET_ROOT,
-        consoleClients,
-        traceClients,
-        traceSnapshot: observability.traceSnapshot,
       }).pipe(
         Effect.mapError(
           (cause) =>

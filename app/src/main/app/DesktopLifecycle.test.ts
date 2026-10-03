@@ -39,12 +39,6 @@ const makeHarness = (flushCompletes: boolean) => {
     logFilePath: "lucent.log",
     record: () => Effect.void,
     recordUnsafe: () => undefined,
-    subscribeTrace: () => () => undefined,
-    traceSnapshot: () => ({
-      recordingStartedAt: null,
-      spans: [],
-      truncated: false,
-    }),
   });
   const app = ElectronApp.of({
     exit: (code) =>
