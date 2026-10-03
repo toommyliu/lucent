@@ -114,14 +114,10 @@ describe("DesktopObservability", () => {
       const root = yield* Effect.promise(makeFixture);
       const logFilePath = join(root, "logs", "lucent.log");
       const span = traceSpan();
-      const observedSpans: DesktopTraceSpan[] = [];
 
-      const snapshot = yield* Effect.scoped(
+      yield* Effect.scoped(
         Effect.gen(function* () {
           const observability = yield* DesktopObservability;
-          const unsubscribe = observability.subscribeTrace((recordedSpan) => {
-            observedSpans.push(recordedSpan);
-          });
 
           yield* Effect.logInfo("info").pipe(
             Effect.annotateLogs({ component: "test" }),
@@ -144,21 +140,13 @@ describe("DesktopObservability", () => {
             component: "test",
             event: "diagnostic",
           });
-          unsubscribe();
 
           expect(yield* Effect.promise(() => fileExists(logFilePath))).toBe(
             false,
           );
-          return observability.traceSnapshot();
         }).pipe(Effect.provide(makeLayer(root, false))),
       );
 
-      expect(snapshot).toEqual({
-        recordingStartedAt: null,
-        spans: [],
-        truncated: false,
-      });
-      expect(observedSpans).toEqual([]);
       expect(
         yield* Effect.promise(() => readRecords(logFilePath)),
       ).toMatchObject([
@@ -227,20 +215,16 @@ describe("DesktopObservability", () => {
       }),
   );
 
-  it.effect("keeps diagnostic recording and tracing debug-only", () =>
+  it.effect("keeps diagnostic recording debug-only", () =>
     Effect.gen(function* () {
       vi.useFakeTimers();
       const root = yield* Effect.promise(makeFixture);
       const logFilePath = join(root, "logs", "lucent.log");
       const span = traceSpan();
-      const observedSpans: DesktopTraceSpan[] = [];
 
-      const snapshot = yield* Effect.scoped(
+      yield* Effect.scoped(
         Effect.gen(function* () {
           const observability = yield* DesktopObservability;
-          observability.subscribeTrace((recordedSpan) => {
-            observedSpans.push(recordedSpan);
-          });
           observability.recordUnsafe({
             component: "trace",
             event: "span.completed",
@@ -254,16 +238,9 @@ describe("DesktopObservability", () => {
           expect(yield* Effect.promise(() => fileExists(logFilePath))).toBe(
             false,
           );
-          return observability.traceSnapshot();
         }).pipe(Effect.provide(makeLayer(root, true))),
       );
 
-      expect(snapshot).toEqual({
-        recordingStartedAt: expect.any(String),
-        spans: [span],
-        truncated: false,
-      });
-      expect(observedSpans).toEqual([span]);
       expect(
         yield* Effect.promise(() => readRecords(logFilePath)),
       ).toMatchObject([

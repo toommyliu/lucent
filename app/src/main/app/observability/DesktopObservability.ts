@@ -6,20 +6,13 @@ import * as References from "effect/References";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
-import {
-  DesktopTraceSpanSchema,
-  type DesktopTraceResponse,
-  type DesktopTraceSpan,
-} from "../../../shared/ipc";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import {
   desktopLogErrorDetails,
   makeBufferedDesktopLogWriter,
 } from "./DesktopLogWriter";
-import { makeDesktopTraceBuffer } from "./DesktopTraceBuffer";
 
 export interface DesktopDiagnosticRecord {
   readonly component: string;
@@ -34,10 +27,6 @@ export interface DesktopObservabilityShape {
   readonly logFilePath: string;
   readonly record: (record: DesktopDiagnosticRecord) => Effect.Effect<void>;
   readonly recordUnsafe: (record: DesktopDiagnosticRecord) => void;
-  readonly subscribeTrace: (
-    listener: (span: DesktopTraceSpan) => void,
-  ) => () => void;
-  readonly traceSnapshot: () => DesktopTraceResponse;
 }
 
 export class DesktopObservability extends Context.Service<
@@ -54,9 +43,6 @@ const makeDesktopObservability = Effect.gen(function* () {
   const recordingStartedAt = diagnosticRecordingEnabled
     ? new Date().toISOString()
     : null;
-  const traceBuffer = makeDesktopTraceBuffer(recordingStartedAt);
-  const traceListeners = new Set<(span: DesktopTraceSpan) => void>();
-  const isDesktopTraceSpan = Schema.is(DesktopTraceSpanSchema);
 
   const logger = Logger.make<unknown, void>((options) => {
     const {
@@ -103,28 +89,7 @@ const makeDesktopObservability = Effect.gen(function* () {
               ? {}
               : { error: desktopLogErrorDetails(diagnostic.cause) }),
           });
-          if (
-            diagnostic.component === "trace" &&
-            diagnostic.event === "span.completed" &&
-            isDesktopTraceSpan(diagnostic.data)
-          ) {
-            traceBuffer.append(diagnostic.data);
-            for (const listener of traceListeners) {
-              try {
-                listener(diagnostic.data);
-              } catch {}
-            }
-          }
         };
-
-  const subscribeTrace: DesktopObservabilityShape["subscribeTrace"] = (
-    listener,
-  ) => {
-    traceListeners.add(listener);
-    return () => {
-      traceListeners.delete(listener);
-    };
-  };
 
   const record: DesktopObservabilityShape["record"] =
     diagnosticRecordingEnabled === false
@@ -212,8 +177,6 @@ const makeDesktopObservability = Effect.gen(function* () {
       logFilePath,
       record,
       recordUnsafe,
-      subscribeTrace,
-      traceSnapshot: traceBuffer.snapshot,
     }),
   ).pipe(
     Context.add(Logger.CurrentLoggers, new Set([logger, Logger.tracerLogger])),
