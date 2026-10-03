@@ -53,7 +53,6 @@ import {
   type ElectronWindowHandle,
   type ElectronNativeWindowHandle,
 } from "../electron/ElectronWindow";
-import { resolvePlacementWorkArea } from "../electron/windowPlacement";
 import { RuffleSocketProxy } from "../ruffle/RuffleSocketProxy";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import {
@@ -230,26 +229,15 @@ export class DesktopWindows extends Context.Service<
   DesktopWindowsShape
 >()("lucent/desktop/window/DesktopWindows") {}
 
-export type DesktopWindowTileAlgorithm =
-  | "auto-grid"
-  | "horizontal"
-  | "vertical";
-
-export interface DesktopWindowTilePlacement {
-  readonly algorithm: DesktopWindowTileAlgorithm;
-  readonly count: number;
-  readonly index: number;
-}
-
 export interface DesktopWindowOpenOptions {
   readonly gameHostTarget?: DesktopGameHostTarget;
+  readonly gameViewLayout?: GameViewLayout;
   readonly gameViewName?: string;
   readonly managedGameProfileKey?: string;
   readonly onCreated?: (
     event: DesktopWindowCreatedEvent,
   ) => Effect.Effect<void, unknown>;
   readonly ownerRendererId?: number;
-  readonly tile?: DesktopWindowTilePlacement;
 }
 
 export type DesktopGameHostTarget =
@@ -257,94 +245,11 @@ export type DesktopGameHostTarget =
   | { readonly kind: "game-view"; readonly rendererId: number }
   | { readonly kind: "new" };
 
-const usesGameViewGrid = (
-  options: DesktopWindowOpenOptions | undefined,
-): boolean =>
-  options?.gameHostTarget !== undefined &&
-  options.tile?.algorithm === "auto-grid";
-
-interface DesktopWindowBounds {
-  readonly height: number;
-  readonly width: number;
-  readonly x: number;
-  readonly y: number;
-}
-
 const rendererRoot = join(__dirname, "../renderer");
 const preloadPath = join(rendererRoot, "preload.js");
 
 const viewHtmlPath = (kind: DesktopBridgeView): string =>
   join(rendererRoot, kind, "index.html");
-
-const normalizeTilePlacement = (
-  tile: DesktopWindowTilePlacement | undefined,
-): DesktopWindowTilePlacement | undefined => {
-  if (
-    tile === undefined ||
-    !Number.isSafeInteger(tile.index) ||
-    !Number.isSafeInteger(tile.count) ||
-    tile.index < 0 ||
-    tile.count <= 1 ||
-    tile.index >= tile.count
-  ) {
-    return undefined;
-  }
-
-  return tile;
-};
-
-const gridForTilePlacement = (
-  tile: DesktopWindowTilePlacement,
-): { readonly columns: number; readonly rows: number } => {
-  switch (tile.algorithm) {
-    case "auto-grid": {
-      const columns = Math.ceil(Math.sqrt(tile.count));
-      return { columns, rows: Math.ceil(tile.count / columns) };
-    }
-    case "horizontal":
-      return { columns: tile.count, rows: 1 };
-    case "vertical":
-      return { columns: 1, rows: tile.count };
-  }
-};
-
-const partitionDimension = (
-  origin: number,
-  size: number,
-  index: number,
-  parts: number,
-): { readonly origin: number; readonly size: number } => {
-  const normalizedSize = Math.max(1, Math.round(size));
-  const start = origin + Math.floor((normalizedSize * index) / parts);
-  const end = origin + Math.floor((normalizedSize * (index + 1)) / parts);
-  return {
-    origin: start,
-    size: Math.max(1, end - start),
-  };
-};
-
-const resolveTileBounds = (
-  tile: DesktopWindowTilePlacement | undefined,
-): DesktopWindowBounds | undefined => {
-  const normalizedTile = normalizeTilePlacement(tile);
-  if (normalizedTile === undefined) {
-    return undefined;
-  }
-
-  const workArea = resolvePlacementWorkArea();
-  const { columns, rows } = gridForTilePlacement(normalizedTile);
-  const column = normalizedTile.index % columns;
-  const row = Math.floor(normalizedTile.index / columns);
-  const x = partitionDimension(workArea.x, workArea.width, column, columns);
-  const y = partitionDimension(workArea.y, workArea.height, row, rows);
-
-  return {
-    height: y.size,
-    width: x.size,
-    x: x.origin,
-    y: y.origin,
-  };
-};
 
 type DesktopRendererWebPreferences = NonNullable<
   BrowserWindowConstructorOptions["webPreferences"]
@@ -388,17 +293,14 @@ const createNativeWindowOptions = (
   env: DesktopEnvironment["Service"],
   definition: DesktopWindowDefinition,
   snapshot: AppearanceSnapshot,
-  bounds?: DesktopWindowBounds,
 ): ElectronHostWindowCreateOptions => {
-  const width = bounds?.width ?? definition.width;
-  const height = bounds?.height ?? definition.height;
+  const { height, width } = definition;
   const activeBranding = env.isDev ? appBranding.dev : appBranding.production;
   const appIconPath = join(env.assetsDir, activeBranding.iconPng);
 
   return {
     width,
     height,
-    ...(bounds === undefined ? {} : { x: bounds.x, y: bounds.y }),
     ...(definition.minWidth === undefined
       ? {}
       : { minWidth: Math.min(definition.minWidth, width) }),
@@ -427,14 +329,13 @@ const createWindowOptions = (
   definition: DesktopWindowDefinition,
   settings: AppSettings,
   snapshot: AppearanceSnapshot,
-  bounds?: DesktopWindowBounds,
   renderer?: {
     readonly bridgeView: DesktopBridgeView;
     readonly partition?: string;
   },
 ): ElectronWindowCreateOptions => {
   return {
-    ...createNativeWindowOptions(env, definition, snapshot, bounds),
+    ...createNativeWindowOptions(env, definition, snapshot),
     webPreferences: {
       ...createRendererWebPreferences(
         env,
@@ -1536,7 +1437,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         });
       }
 
-      const layout = usesGameViewGrid(options) ? "grid" : "focused";
+      const layout = options?.gameViewLayout ?? "focused";
       const gamePartition = yield* electronSession
         .acquireGamePartition(gamePartitionOwner(options))
         .pipe(
@@ -1764,19 +1665,12 @@ const makeDesktopWindows = Effect.gen(function* () {
     snapshot: AppearanceSnapshot,
     options?: DesktopWindowOpenOptions,
   ) {
-    // Auto-grid lays out WebContentsViews within an Account Manager launch batch.
-    const bounds = resolveTileBounds(
-      usesGameViewGrid(options) ? undefined : options?.tile,
-    );
-    const hostDefinition =
-      bounds === undefined
-        ? {
-            ...definition,
-            height: definition.height + GAME_VIEW_TAB_BAR_HEIGHT,
-          }
-        : definition;
     const window = yield* electronWindow.createHost(
-      createNativeWindowOptions(env, hostDefinition, snapshot, bounds),
+      createNativeWindowOptions(
+        env,
+        { ...definition, height: definition.height + GAME_VIEW_TAB_BAR_HEIGHT },
+        snapshot,
+      ),
     );
     const groupControlsView = yield* electronGameView
       .create(
@@ -2443,11 +2337,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
         if (kind === "game" && bootstrapSettings.preferences.useGameTabs) {
           const gameHostTarget = options?.gameHostTarget;
-          if (
-            gameHostTarget !== undefined &&
-            gameHostTarget.kind !== "new" &&
-            (options?.tile === undefined || usesGameViewGrid(options))
-          ) {
+          if (gameHostTarget !== undefined && gameHostTarget.kind !== "new") {
             const reusableHost =
               gameHostTarget.kind === "available"
                 ? [...gameHosts.values()].find(
@@ -2484,7 +2374,6 @@ const makeDesktopWindows = Effect.gen(function* () {
           );
         }
 
-        const bounds = resolveTileBounds(options?.tile);
         const gamePartition =
           kind === "game"
             ? yield* electronSession.acquireGamePartition(
@@ -2498,7 +2387,6 @@ const makeDesktopWindows = Effect.gen(function* () {
               definition,
               bootstrapSettings,
               snapshot,
-              bounds,
               gamePartition === undefined
                 ? undefined
                 : {
