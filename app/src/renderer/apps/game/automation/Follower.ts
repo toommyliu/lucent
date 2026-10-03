@@ -29,10 +29,6 @@ import {
   selectDesktopBridge,
   type DesktopGameFollowerBridge,
 } from "../../../../shared/desktopBridge";
-import type {
-  FollowerCommand,
-  FollowerCommandOutcome,
-} from "../../../../shared/ipc";
 import {
   COMBAT_PROFILE_RETRY_DELAY_MS,
   makeCombatProfileRunner,
@@ -111,7 +107,6 @@ export interface FollowerStartOptions {
 
 export interface FollowerDesktopPort {
   readonly getCombatProfiles: () => Promise<CombatProfileLibrary>;
-  readonly onCommand: DesktopGameFollowerBridge["onCommand"];
   readonly publishPlayers: DesktopGameFollowerBridge["publishPlayers"];
   readonly publishState: DesktopGameFollowerBridge["publishState"];
 }
@@ -246,8 +241,6 @@ export const makeFollower = Effect.fnUntraced(function* (
   port?: FollowerDesktopPort,
 ) {
   const scope = yield* Effect.scope;
-  const context = yield* Effect.context<never>();
-  const runPromise = Effect.runPromiseWith(context);
   const state = yield* SubscriptionRef.make<RuntimeState>(makeInitialState());
   const updateSemaphore = yield* Semaphore.make(1);
   const wakeups = yield* Queue.sliding<void>(1);
@@ -1006,46 +999,23 @@ export const makeFollower = Effect.fnUntraced(function* (
       return yield* start({ config: current.config, library });
     });
 
-  const handleCommand = Effect.fn("Follower.handleCommand")(function* (
-    command: FollowerCommand,
-  ): Effect.fn.Return<FollowerCommandOutcome> {
-    switch (command.kind) {
-      case "configure":
-        return {
-          kind: command.kind,
-          state: yield* configure(command.config),
-        };
-      case "get-state":
-        return {
-          kind: command.kind,
-          state: yield* getState(),
-        };
-      case "me":
-        return {
-          kind: command.kind,
-          username: (yield* getSelf())?.username ?? "",
-        };
-      case "start": {
-        const library =
-          port === undefined
-            ? DEFAULT_COMBAT_PROFILE_LIBRARY
-            : yield* Effect.tryPromise(() => port.getCombatProfiles()).pipe(
-                Effect.catch(() =>
-                  Effect.succeed(DEFAULT_COMBAT_PROFILE_LIBRARY),
-                ),
-              );
-        return {
-          kind: command.kind,
-          state: yield* start({ config: command.config, library }),
-        };
-      }
-      case "stop":
-        return {
-          kind: command.kind,
-          state: yield* stop(),
-        };
-    }
+  const me = Effect.fn("Follower.me")(function* () {
+    return (yield* getSelf())?.username ?? "";
   });
+
+  const startWithSavedProfiles = Effect.fn("Follower.startWithSavedProfiles")(
+    function* (config: FollowerConfig) {
+      const library =
+        port === undefined
+          ? DEFAULT_COMBAT_PROFILE_LIBRARY
+          : yield* Effect.tryPromise(() => port.getCombatProfiles()).pipe(
+              Effect.catch(() =>
+                Effect.succeed(DEFAULT_COMBAT_PROFILE_LIBRARY),
+              ),
+            );
+      return yield* start({ config, library });
+    },
+  );
 
   const disposeTravelEvents = yield* api.events.on(undefined, (event) =>
     Effect.gen(function* () {
@@ -1120,15 +1090,7 @@ export const makeFollower = Effect.fnUntraced(function* (
         ? publishPlayers()
         : Effect.void,
     );
-    const disposeCommands = port.onCommand((command) =>
-      runPromise(handleCommand(command)),
-    );
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        disposeCommands();
-        disposePlayers();
-      }),
-    );
+    yield* Effect.addFinalizer(() => Effect.sync(disposePlayers));
     yield* publishPlayers();
     yield* changes.pipe(
       Stream.runForEach((next) =>
@@ -1149,7 +1111,9 @@ export const makeFollower = Effect.fnUntraced(function* (
     changes,
     configure,
     getState,
+    me,
     start,
+    startWithSavedProfiles,
     stop,
     toggle,
   };
@@ -1162,7 +1126,6 @@ export const makeDesktopFollowerPort = (): FollowerDesktopPort => {
   const bridge = desktop.gameFollower;
   return {
     getCombatProfiles: desktop.combatProfiles.getState,
-    onCommand: bridge.onCommand,
     publishPlayers: bridge.publishPlayers,
     publishState: bridge.publishState,
   };

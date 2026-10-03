@@ -1,7 +1,4 @@
-import * as Cause from "effect/Cause";
-import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
 
 import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopGameRendererRecovery from "./DesktopGameRendererRecovery";
@@ -22,8 +19,8 @@ import * as AccountSessions from "../internal/accounts/AccountSessions";
 import * as CombatProfiles from "../internal/combat-profiles/CombatProfiles";
 import * as GameEnvironments from "../internal/environment/GameEnvironments";
 import * as GameFollowers from "../internal/follower/GameFollowers";
-import * as GameLoaderGrabbers from "../internal/loader-grabber/GameLoaderGrabbers";
 import * as GamePackets from "../internal/packets/GamePackets";
+import * as GameRendererRpc from "../internal/game-renderer/GameRendererRpc";
 import * as GitHubApiClient from "../github/GitHubApiClient";
 import * as DesktopHttpClient from "../http/DesktopHttpClient";
 import * as DesktopIpc from "../ipc/DesktopIpc";
@@ -53,7 +50,8 @@ import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
 import * as ElectronWindow from "../electron/ElectronWindow";
-import * as DesktopFileSystemNode from "../filesystem/DesktopFileSystemNode";
+import * as RuffleSocketProxy from "../ruffle/RuffleSocketProxy";
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 
 export const makeDesktopLayer = (
   envConfig: DesktopEnvironment.DesktopEnvironmentConfig,
@@ -62,35 +60,6 @@ export const makeDesktopLayer = (
   const observabilityLayer = DesktopObservability.layer.pipe(
     Layer.provideMerge(environmentLayer),
   );
-  const effectLoggerLayer =
-    envConfig.debug === true
-      ? Logger.layer(
-          [
-            DesktopObservability.DesktopObservability.pipe(
-              Effect.map((observability) =>
-                Logger.make<unknown, void>((options) => {
-                  if (options.fiber.currentSpan !== undefined) {
-                    return;
-                  }
-                  observability.recordUnsafe({
-                    ...(options.cause.reasons.length === 0
-                      ? {}
-                      : { cause: Cause.pretty(options.cause) }),
-                    component: "effect",
-                    event: "log",
-                    data: {
-                      fiberId: options.fiber.id,
-                      level: options.logLevel,
-                      message: options.message,
-                    },
-                  });
-                }),
-              ),
-            ),
-          ],
-          { mergeWithExisting: true },
-        ).pipe(Layer.provide(observabilityLayer))
-      : Layer.empty;
   const effectTracingLayer =
     envConfig.debug === true
       ? DesktopEffectTracing.layer.pipe(Layer.provide(observabilityLayer))
@@ -214,6 +183,7 @@ export const makeDesktopLayer = (
   const windowsLayer = DesktopWindows.layer.pipe(
     Layer.provideMerge(
       Layer.mergeAll(
+        RuffleSocketProxy.layer,
         ElectronApp.layer,
         ElectronGameView.layer,
         electronSessionLayer,
@@ -240,14 +210,14 @@ export const makeDesktopLayer = (
       ),
     );
 
+  const gameRendererRpcLayer = GameRendererRpc.layer.pipe(
+    Layer.provideMerge(windowsLayer),
+  );
   const gameEnvironmentsLayer = GameEnvironments.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
+    Layer.provideMerge(gameRendererRpcLayer),
   );
   const gameFollowersLayer = GameFollowers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
-  );
-  const gameLoaderGrabbersLayer = GameLoaderGrabbers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
+    Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, gameRendererRpcLayer)),
   );
   const gamePacketsLayer = GamePackets.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(desktopIpcLayer, windowsLayer)),
@@ -259,7 +229,9 @@ export const makeDesktopLayer = (
     Layer.provideMerge(environmentLayer),
   );
   const accountServersLayer = AccountServers.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(environmentLayer, observabilityLayer)),
+    Layer.provideMerge(
+      Layer.mergeAll(environmentLayer, observabilityLayer, httpClientLayer),
+    ),
   );
   const accountGameWindowsLayer = DesktopAccountGameWindows.layer.pipe(
     Layer.provideMerge(windowsLayer),
@@ -333,7 +305,6 @@ export const makeDesktopLayer = (
     armyLayer,
     ipcSendersLayer,
     electronLayer,
-    effectLoggerLayer,
     effectTracingLayer,
     environmentLayer,
     accountsLayer,
@@ -343,8 +314,8 @@ export const makeDesktopLayer = (
     observabilityServerLayer,
     gameEnvironmentsLayer,
     gameFollowersLayer,
-    gameLoaderGrabbersLayer,
     gamePacketsLayer,
+    gameRendererRpcLayer,
     gameRendererRecoveryLayer,
     httpClientLayer,
     observabilityLayer,
@@ -357,5 +328,8 @@ export const makeDesktopLayer = (
     updatesLayer,
     windowsLayer,
     applicationMenuLayer,
-  ).pipe(Layer.provideMerge(DesktopFileSystemNode.layer));
+  ).pipe(
+    Layer.provideMerge(NodeFileSystem.layer),
+    Layer.provideMerge(observabilityLayer),
+  );
 };

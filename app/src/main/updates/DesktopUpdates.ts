@@ -15,7 +15,6 @@ import {
 } from "../../shared/updates";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
-import { DesktopObservability } from "../app/observability/DesktopObservability";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
 import {
@@ -23,7 +22,7 @@ import {
   type GitHubApiClientShape,
 } from "../github/GitHubApiClient";
 import { firstHttpHeader } from "../http/DesktopHttpClient";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
@@ -439,8 +438,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const app = yield* ElectronApp;
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
-    const observability = yield* DesktopObservability;
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const shell = yield* ElectronShell;
     const settings = yield* DesktopSettings;
     const api = yield* GitHubApiClient;
@@ -465,8 +463,10 @@ export const layer = Layer.effect(
             : null,
         ),
         Effect.catch((cause) =>
-          observability
-            .warn("updates", "Failed to load release cache", { cause })
+          Effect.logWarning("Failed to load release cache")
+            .pipe(
+              Effect.annotateLogs({ component: "updates", data: { cause } }),
+            )
             .pipe(Effect.as(null)),
         ),
       );
@@ -474,9 +474,14 @@ export const layer = Layer.effect(
     const saveCache: DesktopUpdatesOptions["saveCache"] = (cache) =>
       jsonFile.write(releaseCachePath, serializeUpdateReleaseCache(cache)).pipe(
         Effect.catch((cause) =>
-          observability.warn("updates", "Failed to save release cache", {
-            cause,
-          }),
+          Effect.logWarning("Failed to save release cache").pipe(
+            Effect.annotateLogs({
+              component: "updates",
+              data: {
+                cause,
+              },
+            }),
+          ),
         ),
       );
 

@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 
 import { DEFAULT_APP_SETTINGS } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { layer as desktopFileSystemLayer } from "../filesystem/DesktopFileSystemNode";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   DesktopSettings,
   DesktopSettingsError,

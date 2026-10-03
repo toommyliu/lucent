@@ -1,9 +1,4 @@
-import {
-  BrowserWindow,
-  ipcMain,
-  webContents,
-  type IpcMainInvokeEvent,
-} from "electron";
+import { ipcMain, type IpcMainInvokeEvent } from "electron";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -11,10 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
-import {
-  type ElectronWindowUsabilityTarget,
-  isElectronWindowUsable,
-} from "../electron/windowUsability";
+import { electronRendererRegistry } from "../electron/ElectronRendererRegistry";
 import type { DesktopRendererKind } from "../window/DesktopWindowCatalog";
 import {
   type IpcEventDescriptor,
@@ -23,10 +15,7 @@ import {
   type IpcInvokePayload,
   type IpcInvokeResult,
 } from "../../shared/ipc";
-import {
-  createDesktopIpcInvokeHandler,
-  createObservedDesktopIpcInvokeHandler,
-} from "./DesktopIpcInvoke";
+import { createDesktopIpcInvokeHandler } from "./DesktopIpcInvoke";
 import {
   type DesktopIpcSender,
   type DesktopIpcSenderKinds,
@@ -103,27 +92,13 @@ export interface DesktopIpcMain {
   readonly removeHandler: (channel: string) => void;
 }
 
-export interface DesktopIpcWindow extends ElectronWindowUsabilityTarget {
-  readonly webContents: ElectronWindowUsabilityTarget["webContents"] & {
-    readonly send: (channel: string, payload: unknown) => void;
-  };
-  readonly getBrowserViews?: () => readonly DesktopIpcView[];
-}
-
-export interface DesktopIpcView {
-  readonly webContents: DesktopIpcWebContents;
-}
-
 export interface DesktopIpcWebContents {
   readonly isDestroyed: () => boolean;
   readonly send: (channel: string, payload: unknown) => void;
 }
 
-export interface DesktopIpcWindows {
-  readonly getAllWindows: () => readonly DesktopIpcWindow[];
-}
-
 export interface DesktopIpcWebContentsCatalog {
+  readonly getAllWebContents: () => readonly DesktopIpcWebContents[];
   readonly fromId: (id: number) => DesktopIpcWebContents | undefined;
 }
 
@@ -177,8 +152,7 @@ const sendEncoded = (
 
 export const makeDesktopIpc = (
   main: DesktopIpcMain,
-  windows: DesktopIpcWindows = BrowserWindow,
-  contents: DesktopIpcWebContentsCatalog = webContents,
+  contents: DesktopIpcWebContentsCatalog = electronRendererRegistry,
   tracingEnabled = false,
 ): DesktopIpc["Service"] => {
   const sendEventUnobserved = <Descriptor extends IpcEventDescriptor<unknown>>(
@@ -235,21 +209,8 @@ export const makeDesktopIpc = (
   const sendEvent =
     tracingEnabled === true ? sendEventObserved : sendEventUnobserved;
 
-  const allWebContents = function* (): Generator<DesktopIpcWebContents> {
-    for (const window of windows.getAllWindows()) {
-      if (!isElectronWindowUsable(window)) {
-        continue;
-      }
-
-      yield window.webContents;
-      for (const view of window.getBrowserViews?.() ?? []) {
-        yield view.webContents;
-      }
-    }
-  };
-
   const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
-    sendEvent(descriptor, payload, allWebContents);
+    sendEvent(descriptor, payload, contents.getAllWebContents);
 
   const sendToRendererIds: DesktopIpcShape["sendToRendererIds"] = (
     rendererIds,
@@ -273,40 +234,19 @@ export const makeDesktopIpc = (
       const runPromise = Effect.runPromiseWith(context);
       const { descriptor } = method;
 
-      const observedHandler =
-        tracingEnabled === false
-          ? undefined
-          : createObservedDesktopIpcInvokeHandler(
-              descriptor,
-              (payload, event: IpcMainInvokeEvent) =>
-                senders
-                  .require(event, method.allowedSenders)
-                  .pipe(
-                    Effect.flatMap((sender) => method.invoke(payload, sender)),
-                  ),
-              runPromise,
-              (event: IpcMainInvokeEvent) => event.sender.id,
-            );
+      const handler = createDesktopIpcInvokeHandler(
+        descriptor,
+        (payload, event: IpcMainInvokeEvent) =>
+          senders
+            .require(event, method.allowedSenders)
+            .pipe(Effect.flatMap((sender) => method.invoke(payload, sender))),
+        runPromise,
+        tracingEnabled ? (event) => event.sender.id : undefined,
+      );
 
       yield* Effect.acquireRelease(
         Effect.try({
-          try: () =>
-            main.handle(
-              descriptor.channel,
-              observedHandler ??
-                createDesktopIpcInvokeHandler(
-                  descriptor,
-                  (payload, event) =>
-                    senders
-                      .require(event, method.allowedSenders)
-                      .pipe(
-                        Effect.flatMap((sender) =>
-                          method.invoke(payload, sender),
-                        ),
-                      ),
-                  runPromise,
-                ),
-            ),
+          try: () => main.handle(descriptor.channel, handler),
           catch: (cause) =>
             new DesktopIpcRegistrationError({
               channel: descriptor.channel,
@@ -335,7 +275,7 @@ export const makeDesktopIpc = (
 export const makeElectronDesktopIpc = (
   tracingEnabled = false,
 ): DesktopIpc["Service"] =>
-  makeDesktopIpc(ipcMain, BrowserWindow, webContents, tracingEnabled);
+  makeDesktopIpc(ipcMain, electronRendererRegistry, tracingEnabled);
 
 export const layer = Layer.succeed(DesktopIpc, makeElectronDesktopIpc());
 

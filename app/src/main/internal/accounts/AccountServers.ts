@@ -1,10 +1,17 @@
-import { get } from "https";
-
+import * as Cache from "effect/Cache";
+import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
+import * as FileSystem from "effect/FileSystem";
+import {
+  HttpClient,
+  HttpClientError,
+  HttpClientResponse,
+  HttpIncomingMessage,
+} from "effect/unstable/http";
 
 import { ACCOUNT_SERVER_REFRESH_COOLDOWN_MS } from "../../../shared/accountPolicy";
 import type {
@@ -13,11 +20,9 @@ import type {
   AccountGameServersResult,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopObservability } from "../../app/observability/DesktopObservability";
 import {
   ACCOUNT_SERVER_PING_CACHE_TTL_MS,
   AccountServerDataSchema,
-  accountServerPingCacheKey,
   pingAccountServers,
   type AccountServerData,
 } from "./AccountServerPing";
@@ -28,8 +33,25 @@ const SERVERS_API_URL = "https://game.aq.com/game/api/data/servers";
 const SERVERS_CACHE_TTL_MS = 5 * 60 * 1_000;
 const SERVER_REQUEST_TIMEOUT_MS = 10_000;
 
-const decodeAccountServerDataList = Schema.decodeUnknownEffect(
-  Schema.Array(AccountServerDataSchema),
+export const requestAccountServers = Effect.fn("requestAccountServers")(
+  function* (
+    client: HttpClient.HttpClient,
+    url: string,
+    headers: Record<string, string>,
+  ) {
+    const response = yield* HttpClient.withScope(
+      HttpClient.filterStatusOk(client),
+    ).get(url, { headers: { Accept: "application/json", ...headers } });
+    return yield* HttpClientResponse.schemaBodyJson(
+      Schema.Array(AccountServerDataSchema),
+    )(response);
+  },
+  Effect.provideService(
+    HttpIncomingMessage.MaxBodySize,
+    FileSystem.Size(1024 * 1024),
+  ),
+  Effect.timeout(SERVER_REQUEST_TIMEOUT_MS),
+  Effect.scoped,
 );
 
 interface AccountServerCache {
@@ -37,58 +59,14 @@ interface AccountServerCache {
   readonly servers: readonly AccountServerData[];
 }
 
-interface AccountServerPingCache {
-  readonly cacheKey: string;
-  readonly result: AccountGameServerPingsResult;
-}
-
-const fetchJson = (
-  url: string,
-  headers: Record<string, string>,
-): Promise<unknown> =>
-  new Promise((resolve, reject) => {
-    const request = get(
-      url,
-      { headers: { Accept: "application/json", ...headers } },
-      (response) => {
-        const statusCode = response.statusCode ?? 0;
-        const chunks: Buffer[] = [];
-        response.on("error", reject);
-        response.on("data", (chunk: Buffer | string) => {
-          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-        });
-        response.on("end", () => {
-          const source = Buffer.concat(chunks).toString("utf8");
-          if (statusCode < 200 || statusCode >= 300) {
-            reject(
-              new Error(
-                `Failed to fetch servers: ${statusCode} ${
-                  response.statusMessage ?? ""
-                }`.trim(),
-              ),
-            );
-            return;
-          }
-          try {
-            resolve(JSON.parse(source));
-          } catch (error) {
-            reject(error);
-          }
-        });
-      },
-    );
-    request.setTimeout(SERVER_REQUEST_TIMEOUT_MS, () => {
-      request.destroy(new Error("Timed out while fetching servers"));
-    });
-    request.on("error", reject);
-  });
-
 const serverLoadErrorMessage = (error: unknown): string => {
-  const message = error instanceof Error ? error.message : "";
-  const statusCode = /Failed to fetch servers: (\d{3})/.exec(message)?.[1];
-  return statusCode === undefined
-    ? message || "Unable to load servers"
-    : `Unable to load login servers (HTTP ${statusCode})`;
+  if (
+    HttpClientError.isHttpClientError(error) &&
+    error.reason._tag === "StatusCodeError"
+  ) {
+    return `Unable to load login servers (HTTP ${error.reason.response.status})`;
+  }
+  return error instanceof Error ? error.message : "Unable to load servers";
 };
 
 const toAccountGameServer = (server: AccountServerData): AccountGameServer => ({
@@ -115,17 +93,34 @@ export const layer = Layer.effect(
   AccountServers,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const observability = yield* DesktopObservability;
+    const client = yield* HttpClient.HttpClient;
     const requestHeaders = getGameRequestHeaders(env.platform);
     const serverLoads = yield* Semaphore.make(1);
     const pingLoads = yield* Semaphore.make(1);
     let serverCache: AccountServerCache | null = null;
-    let serverPingCache: AccountServerPingCache | null = null;
-    let lastRefreshRequestTime = 0;
+    let lastRefreshRequestTime: number | null = null;
+
+    const pingCache = yield* Cache.make({
+      lookup: Effect.fn("AccountServers.measurePings")(function* (
+        servers: readonly AccountServerData[],
+      ) {
+        const pings = yield* pingAccountServers(servers).pipe(
+          pingLoads.withPermits(1),
+        );
+        const measuredAt = yield* Clock.currentTimeMillis;
+        return {
+          expiresAt: measuredAt + ACCOUNT_SERVER_PING_CACHE_TTL_MS,
+          measuredAt,
+          pings,
+        } satisfies AccountGameServerPingsResult;
+      }),
+      capacity: 1,
+      timeToLive: ACCOUNT_SERVER_PING_CACHE_TTL_MS,
+    });
 
     const getCachedServers = serverLoads.withPermits(1)(
       Effect.gen(function* () {
-        const timestamp = Date.now();
+        const timestamp = yield* Clock.currentTimeMillis;
         if (
           serverCache !== null &&
           timestamp - serverCache.fetchedAt < SERVERS_CACHE_TTL_MS
@@ -133,39 +128,39 @@ export const layer = Layer.effect(
           return serverCache.servers;
         }
 
-        const servers = yield* Effect.tryPromise({
-          try: () => fetchJson(SERVERS_API_URL, requestHeaders),
-          catch: (cause) =>
+        const servers = yield* requestAccountServers(
+          client,
+          SERVERS_API_URL,
+          requestHeaders,
+        ).pipe(
+          Effect.mapError((cause) =>
             accountError(
               "refresh-servers",
-              serverLoadErrorMessage(cause),
+              cause._tag === "SchemaError"
+                ? "Invalid login servers payload"
+                : serverLoadErrorMessage(cause),
               cause,
             ),
-        }).pipe(
-          Effect.flatMap(decodeAccountServerDataList),
-          Effect.mapError((cause) =>
-            cause instanceof AccountsError
-              ? cause
-              : accountError(
-                  "refresh-servers",
-                  "Invalid login servers payload",
-                  cause,
-                ),
           ),
           Effect.catch((error: AccountsError) =>
             serverCache === null
               ? Effect.fail(error)
-              : observability
-                  .warn("accounts", "Failed to fetch servers; using cache", {
-                    error,
-                    cachedServerCount: serverCache.servers.length,
-                  })
+              : Effect.logWarning("Failed to fetch servers; using cache")
+                  .pipe(
+                    Effect.annotateLogs({
+                      component: "accounts",
+                      data: {
+                        error,
+                        cachedServerCount: serverCache.servers.length,
+                      },
+                    }),
+                  )
                   .pipe(Effect.as(serverCache.servers)),
           ),
         );
 
-        serverCache = { fetchedAt: Date.now(), servers };
-        serverPingCache = null;
+        serverCache = { fetchedAt: yield* Clock.currentTimeMillis, servers };
+        yield* Cache.invalidateAll(pingCache);
         return servers;
       }),
     );
@@ -175,7 +170,7 @@ export const layer = Layer.effect(
     ): AccountGameServersResult => ({
       servers: servers.map(toAccountGameServer),
       refreshAvailableAt:
-        lastRefreshRequestTime === 0
+        lastRefreshRequestTime === null
           ? 0
           : lastRefreshRequestTime + ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
     });
@@ -184,43 +179,14 @@ export const layer = Layer.effect(
       Effect.map(toResult),
     );
 
-    const getPings: AccountServersShape["getPings"] = pingLoads.withPermits(1)(
-      Effect.gen(function* () {
-        const servers = yield* getCachedServers;
-        const cacheKey = accountServerPingCacheKey(servers);
-        const timestamp = Date.now();
-        if (
-          serverPingCache !== null &&
-          serverPingCache.cacheKey === cacheKey &&
-          timestamp < serverPingCache.result.expiresAt
-        ) {
-          return serverPingCache.result;
-        }
-
-        const pings = yield* Effect.tryPromise({
-          try: () => pingAccountServers(servers),
-          catch: (cause) =>
-            accountError(
-              "refresh-servers",
-              serverLoadErrorMessage(cause),
-              cause,
-            ),
-        });
-        const measuredAt = Date.now();
-        const result: AccountGameServerPingsResult = {
-          expiresAt: measuredAt + ACCOUNT_SERVER_PING_CACHE_TTL_MS,
-          measuredAt,
-          pings,
-        };
-        serverPingCache = { cacheKey, result };
-        return result;
-      }),
+    const getPings: AccountServersShape["getPings"] = getCachedServers.pipe(
+      Effect.flatMap((servers) => Cache.get(pingCache, servers)),
     );
 
     const refresh: AccountServersShape["refresh"] = Effect.gen(function* () {
-      const timestamp = Date.now();
+      const timestamp = yield* Clock.currentTimeMillis;
       if (
-        lastRefreshRequestTime !== 0 &&
+        lastRefreshRequestTime !== null &&
         timestamp - lastRefreshRequestTime < ACCOUNT_SERVER_REFRESH_COOLDOWN_MS
       ) {
         return yield* get;
@@ -228,7 +194,7 @@ export const layer = Layer.effect(
 
       lastRefreshRequestTime = timestamp;
       serverCache = null;
-      serverPingCache = null;
+      yield* Cache.invalidateAll(pingCache);
       return toResult(yield* getCachedServers);
     });
 

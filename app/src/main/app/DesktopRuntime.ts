@@ -6,7 +6,6 @@ import type { AppSettings } from "@lucent/core/settings";
 import type { CliOptions } from "../cli";
 import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
 import { DesktopGameRendererRecovery } from "./DesktopGameRendererRecovery";
-import type { FlashStartupResult } from "./Preflight";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
 import {
@@ -18,7 +17,6 @@ import { installDesktopRendererObservability } from "./observability/DesktopRend
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { ElectronTheme } from "../electron/ElectronTheme";
-import { makeMissingFlashPluginWarning } from "../flash/FlashPluginWarning";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { ScriptWorkspace } from "../scripting/ScriptWorkspace";
@@ -32,7 +30,6 @@ export const installDesktopNativeAppearanceSync = (
   initialSettings: AppSettings,
 ) =>
   Effect.gen(function* () {
-    const observability = yield* DesktopObservability;
     const settingsService = yield* DesktopSettings;
     const theme = yield* ElectronTheme;
     const windows = yield* DesktopWindows;
@@ -47,10 +44,8 @@ export const installDesktopNativeAppearanceSync = (
         yield* windows.setBackgroundColor(snapshot.backgroundColor);
       }).pipe(
         Effect.catch((cause) =>
-          observability.warn(
-            "appearance",
-            "Failed to update Electron native appearance",
-            { cause },
+          Effect.logWarning("Failed to update Electron native appearance").pipe(
+            Effect.annotateLogs({ component: "appearance", data: { cause } }),
           ),
         ),
       );
@@ -62,10 +57,7 @@ export const installDesktopNativeAppearanceSync = (
     yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
   });
 
-export const makeDesktopRuntime = (
-  cliOptions: CliOptions,
-  flash: FlashStartupResult,
-) =>
+export const makeDesktopRuntime = (cliOptions: CliOptions) =>
   Effect.scoped(
     Effect.gen(function* () {
       const app = yield* ElectronApp;
@@ -86,11 +78,16 @@ export const makeDesktopRuntime = (
         yield* installDesktopRendererObservability;
       }
       yield* lifecycle.register;
-      yield* observability.info("startup", "Lucent desktop runtime starting", {
-        appDataDir: env.appDataDir,
-        logFilePath: observability.logFilePath,
-        workspaceDir: env.workspaceDir,
-      });
+      yield* Effect.logInfo("Lucent desktop runtime starting").pipe(
+        Effect.annotateLogs({
+          component: "startup",
+          data: {
+            appDataDir: env.appDataDir,
+            logFilePath: observability.logFilePath,
+            workspaceDir: env.workspaceDir,
+          },
+        }),
+      );
 
       const settings = yield* settingsService.load;
 
@@ -108,51 +105,20 @@ export const makeDesktopRuntime = (
           })
           .pipe(
             Effect.catch((cause) =>
-              observability.error(
-                "observability-server",
+              Effect.logError(
                 "Failed to start the desktop observability server",
-                cause,
-                {
-                  port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
-                },
+                Cause.fail(cause),
+              ).pipe(
+                Effect.annotateLogs({
+                  component: "observability-server",
+                  data: {
+                    port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
+                  },
+                }),
               ),
             ),
           );
       }
-
-      if (flash.status === "missing-plugin") {
-        yield* observability.warn("startup", "Pepper Flash plugin missing", {
-          flashPluginPath: flash.flashPluginPath,
-          flashTrustRootPath: flash.flashTrustRootPath,
-        });
-        yield* dialog.showWarningAndQuit(
-          makeMissingFlashPluginWarning(flash.flashPluginPath),
-        );
-        return;
-      }
-
-      if (flash.status === "failed") {
-        yield* observability.error(
-          "startup",
-          "Pepper Flash startup setup failed",
-          flash.cause,
-          {
-            flashPluginPath: flash.flashPluginPath,
-            flashTrustRootPath: flash.flashTrustRootPath,
-          },
-        );
-        yield* dialog.showErrorBox(
-          "Lucent failed to start",
-          "Lucent could not configure Flash trust. Check the logs for details.",
-        );
-        yield* app.quit;
-        return;
-      }
-
-      yield* observability.info("startup", "Pepper Flash configured", {
-        flashPluginPath: flash.flashPluginPath,
-        flashTrustRootPath: flash.flashTrustRootPath,
-      });
 
       const requestedLaunchMode =
         cliOptions.launchMode ?? settings.preferences.launchMode;
@@ -163,19 +129,22 @@ export const makeDesktopRuntime = (
 
       if (settings.preferences.checkForUpdates) {
         const updateState = yield* updates.checkNow();
-        yield* observability.info("updates", "Startup update check completed", {
-          status: updateState.status,
-        });
+        yield* Effect.logInfo("Startup update check completed").pipe(
+          Effect.annotateLogs({
+            component: "updates",
+            data: {
+              status: updateState.status,
+            },
+          }),
+        );
         yield* showUpdateCheckDialog(updateState, {
           mode: "automatic",
           dialog,
           updates,
         }).pipe(
           Effect.catch((cause) =>
-            observability.warn(
-              "updates",
-              "Failed to show startup update dialog",
-              { cause },
+            Effect.logWarning("Failed to show startup update dialog").pipe(
+              Effect.annotateLogs({ component: "updates", data: { cause } }),
             ),
           ),
         );
@@ -186,11 +155,8 @@ export const makeDesktopRuntime = (
   ).pipe(
     Effect.catchCause((cause) =>
       Effect.gen(function* () {
-        const observability = yield* DesktopObservability;
-        yield* observability.error(
-          "startup",
-          "Lucent desktop runtime failed",
-          Cause.pretty(cause),
+        yield* Effect.logError("Lucent desktop runtime failed", cause).pipe(
+          Effect.annotateLogs({ component: "startup" }),
         );
         return yield* Effect.failCause(cause);
       }),

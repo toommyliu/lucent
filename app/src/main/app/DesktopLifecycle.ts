@@ -86,23 +86,28 @@ export const layer = Layer.effect(
 
           receivedSignal = signal;
           void runPromise(
-            observability.warn("lifecycle", "Received termination signal", {
-              signal,
-            }),
+            Effect.logWarning("Received termination signal").pipe(
+              Effect.annotateLogs({
+                component: "lifecycle",
+                data: {
+                  signal,
+                },
+              }),
+            ),
           ).catch(() => undefined);
           runFork(app.quit);
 
           forceExitTimer = setTimeout(() => {
             void runPromise(
-              observability
-                .error(
-                  "lifecycle",
-                  "Lucent quit timed out; forcing exit",
-                  undefined,
-                  {
-                    signal,
-                    timeoutMs: SIGNAL_FORCE_EXIT_AFTER_MS,
-                  },
+              Effect.logError("Lucent quit timed out; forcing exit")
+                .pipe(
+                  Effect.annotateLogs({
+                    component: "lifecycle",
+                    data: {
+                      signal,
+                      timeoutMs: SIGNAL_FORCE_EXIT_AFTER_MS,
+                    },
+                  }),
                 )
                 .pipe(
                   Effect.flatMap(() => observability.flush),

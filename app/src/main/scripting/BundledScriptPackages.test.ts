@@ -10,7 +10,7 @@ import * as Schema from "effect/Schema";
 
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronApp } from "../electron/ElectronApp";
-import { layer as desktopFileSystemLayer } from "../filesystem/DesktopFileSystemNode";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import { acquireBundledScriptPackageLock } from "./BundledScriptPackageLock";
 import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
 import {

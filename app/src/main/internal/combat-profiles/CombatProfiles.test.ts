@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Stream from "effect/Stream";
 
 import {
   COMBAT_PROFILE_LIBRARY_VERSION,
@@ -16,8 +17,8 @@ import {
   type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
-import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
+import { FileSystem } from "effect/FileSystem";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   CombatProfiles,
   layer as desktopCombatProfilesLayer,
@@ -39,9 +40,7 @@ afterEach(async () => {
 });
 
 const makeHarness = (
-  wrapFileSystem: (
-    fs: DesktopFileSystem["Service"],
-  ) => DesktopFileSystem["Service"] = (fs) => fs,
+  wrapFileSystem: (fs: FileSystem) => FileSystem = (fs) => fs,
 ) =>
   Effect.gen(function* () {
     const appDataDir = yield* Effect.promise(() =>
@@ -61,10 +60,9 @@ const makeHarness = (
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(DesktopEnvironment, env),
-          Layer.effect(
-            DesktopFileSystem,
-            Effect.map(DesktopFileSystem, wrapFileSystem),
-          ).pipe(Layer.provide(desktopFileSystemLayer)),
+          Layer.effect(FileSystem, Effect.map(FileSystem, wrapFileSystem)).pipe(
+            Layer.provide(desktopFileSystemLayer),
+          ),
         ),
       ),
     );
@@ -231,15 +229,18 @@ describe("CombatProfiles", () => {
         let blockRead = false;
         const { combatProfiles, path } = yield* makeHarness((fs) => ({
           ...fs,
-          readFile: (path, options) =>
-            Effect.gen(function* () {
-              const bytes = yield* fs.readFile(path, options);
-              if (blockRead) {
-                yield* Deferred.succeed(readStarted, undefined);
-                yield* Deferred.await(releaseRead);
-              }
-              return bytes;
-            }),
+          stream: (path, options) =>
+            fs.stream(path, options).pipe(
+              Stream.mapEffect((bytes) =>
+                Effect.gen(function* () {
+                  if (blockRead) {
+                    yield* Deferred.succeed(readStarted, undefined);
+                    yield* Deferred.await(releaseRead);
+                  }
+                  return bytes;
+                }),
+              ),
+            ),
         }));
         const initial = yield* combatProfiles.load;
         const changes: CombatProfileLibrary[] = [];

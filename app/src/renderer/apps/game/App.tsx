@@ -162,7 +162,6 @@ import {
   topNavOptionCommandIds,
   windowCommandIds,
 } from "./TopNav";
-import { createRandomId } from "../../../shared/randomId";
 import { createHotkeyStatus, HotkeyStatus } from "./HotkeyStatus";
 import { ScriptDialogHost } from "./ScriptDialogHost";
 import {
@@ -1414,21 +1413,11 @@ export function App(props: {
     );
     resolveGameLoaded?.();
   };
-  const markGameViewActive = () => {
-    if (gameViewPresentation().active) return;
-    void desktop.gameView.activate().catch((cause: unknown) => {
-      console.error("[game:view] activation failed", cause);
-    });
-  };
 
   window.onLoaded = markLoaded;
-  window.onGameInteraction = markGameViewActive;
   window.onProgress = setLoadProgress;
   onCleanup(() => {
     if (window.onLoaded === markLoaded) delete window.onLoaded;
-    if (window.onGameInteraction === markGameViewActive) {
-      delete window.onGameInteraction;
-    }
     if (window.onProgress === setLoadProgress) delete window.onProgress;
   });
 
@@ -2885,7 +2874,7 @@ export function App(props: {
 
   scriptQueue = makeScriptQueue({
     confirmStandaloneReplacement: confirmQueueStandaloneReplacement,
-    createId: createRandomId,
+    createId: (prefix) => `${prefix}-${crypto.randomUUID()}`,
     isRunnerActive: () =>
       runtime.runPromise(
         Effect.gen(function* () {

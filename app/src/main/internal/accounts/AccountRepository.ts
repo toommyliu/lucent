@@ -12,7 +12,7 @@ import {
   type AccountManagerStorage,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 import { AccountsError } from "./AccountsError";
 
@@ -45,7 +45,7 @@ export const layer = Layer.effect(
   AccountRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const path = join(env.appDataDir, ACCOUNT_MANAGER_STORAGE_FILE);
     const storageRef =
       yield* SynchronizedRef.make<AccountManagerStorage | null>(null);

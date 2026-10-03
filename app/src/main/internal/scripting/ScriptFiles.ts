@@ -1,7 +1,22 @@
-/* oxlint-disable unicorn/require-post-message-target-origin */
 import { join, resolve as resolvePath } from "path";
 import { Worker } from "worker_threads";
 
+import * as Deferred from "effect/Deferred";
+import * as FiberSet from "effect/FiberSet";
+import * as Duration from "effect/Duration";
+import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
+import * as Pool from "effect/Pool";
+import * as Semaphore from "effect/Semaphore";
+import type * as Scope from "effect/Scope";
+import { RpcClient } from "effect/unstable/rpc";
+import { RpcClientError } from "effect/unstable/rpc/RpcClientError";
+import type { FromServerEncoded } from "effect/unstable/rpc/RpcMessage";
+import {
+  WorkerReceiveError,
+  WorkerSendError,
+} from "effect/unstable/workers/WorkerError";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -17,8 +32,7 @@ import {
   SCRIPT_FILE_WORKER_TIMEOUT_MS,
   type ScriptFileAnalysis,
   type ScriptFileAnalysisResolution,
-  type ScriptFileWorkerRequest,
-  type ScriptFileWorkerResponse,
+  ScriptFileWorkerRpcs,
 } from "./ScriptFileWorkerProtocol";
 
 export class ScriptFilesError extends Schema.TaggedError<ScriptFilesError>()(
@@ -47,148 +61,156 @@ export class ScriptFiles extends Context.Service<
   ScriptFilesShape
 >()("lucent/internal/scripting/ScriptFiles") {}
 
-interface QueuedRequest {
-  readonly id: number;
-  readonly path: string;
-  readonly reject: (error: Error) => void;
-  readonly resolve: (resolution: ScriptFileAnalysisResolution) => void;
-}
-
-export class ScriptFileWorkerClient {
-  readonly #queue: QueuedRequest[] = [];
-  readonly #workerFactory: () => Worker;
-  #active: QueuedRequest | null = null;
-  #closed = false;
-  #nextId = 0;
-  #timeout: NodeJS.Timeout | undefined;
-  #worker: Worker | null = null;
-
-  constructor(
+export const makeScriptFileWorker = Effect.fn("makeScriptFileWorker")(
+  function* (
     workerFactory: () => Worker = () =>
       new Worker(join(__dirname, "script-file-worker.js"), {
-        resourceLimits: {
-          maxOldGenerationSizeMb: SCRIPT_FILE_WORKER_HEAP_MB,
-        },
+        resourceLimits: { maxOldGenerationSizeMb: SCRIPT_FILE_WORKER_HEAP_MB },
       }),
   ) {
-    this.#workerFactory = workerFactory;
-  }
-
-  resolve(path: string): Promise<ScriptFileAnalysisResolution> {
-    if (this.#closed) {
-      return Promise.reject(new Error("Script file worker is closed."));
-    }
-    if (
-      this.#queue.length + (this.#active === null ? 0 : 1) >=
-      SCRIPT_FILE_WORKER_QUEUE_LIMIT
-    ) {
-      return Promise.reject(new Error("Script file worker queue is full."));
-    }
-
-    return new Promise((resolve, reject) => {
-      this.#queue.push({
-        id: (this.#nextId += 1),
-        path,
-        reject,
-        resolve,
-      });
-      this.#pump();
-    });
-  }
-
-  async close(): Promise<void> {
-    this.#closed = true;
-    this.#clearTimeout();
-    this.#rejectAllRequests(new Error("Script file worker is shutting down."));
-    const worker = this.#worker;
-    this.#worker = null;
-    if (worker !== null) {
-      worker.removeAllListeners();
-      await worker.terminate();
-    }
-  }
-
-  #ensureWorker(): Worker {
-    if (this.#worker !== null) return this.#worker;
-
-    const worker = this.#workerFactory();
-    worker.unref();
-    worker.on("message", (response: ScriptFileWorkerResponse) => {
-      const active = this.#active;
-      if (active === null || response.id !== active.id) return;
-      this.#clearTimeout();
-      this.#active = null;
-      active.resolve(response.resolution);
-      this.#pump();
-    });
-    worker.on("error", (error) => this.#resetWorker(error));
-    worker.on("exit", (code) => {
-      if (this.#worker === worker) {
-        this.#resetWorker(
-          new Error(`Script file worker exited with code ${code}.`),
-        );
-      }
-    });
-    this.#worker = worker;
-    return worker;
-  }
-
-  #pump(): void {
-    if (this.#closed || this.#active !== null) return;
-    const next = this.#queue.shift();
-    if (next === undefined) return;
-
-    this.#active = next;
-    try {
-      const worker = this.#ensureWorker();
-      worker.postMessage({
-        id: next.id,
-        path: next.path,
-      } satisfies ScriptFileWorkerRequest);
-      this.#timeout = setTimeout(() => {
-        this.#resetWorker(
-          new Error(
-            `Script file processing timed out after ${SCRIPT_FILE_WORKER_TIMEOUT_MS} ms.`,
-          ),
-        );
-      }, SCRIPT_FILE_WORKER_TIMEOUT_MS);
-      this.#timeout.unref();
-    } catch (error) {
-      this.#resetWorker(
-        error instanceof Error ? error : new Error(String(error)),
+    const run = yield* FiberSet.makeRuntime<never, void>();
+    const acquire: Effect.Effect<
+      RpcClient.FromGroup<typeof ScriptFileWorkerRpcs, RpcClientError>,
+      never,
+      Scope.Scope
+    > = Effect.gen(function* () {
+      let invalidate: Effect.Effect<void> = Effect.void;
+      const protocol = yield* RpcClient.Protocol.make(
+        Effect.fnUntraced(function* (writeResponse, clientIds) {
+          const thread = yield* Effect.acquireRelease(
+            Effect.sync(workerFactory),
+            (worker) => Effect.promise(() => worker.terminate()),
+          );
+          thread.unref();
+          const ready = yield* Deferred.make<void, RpcClientError>();
+          let isReady = false;
+          let failure: RpcClientError | undefined;
+          const onMessage = (
+            message: readonly [0] | readonly [1, FromServerEncoded],
+          ) => {
+            if (message[0] === 0) {
+              isReady = true;
+              Deferred.doneUnsafe(ready, Exit.void);
+            } else {
+              run(
+                Effect.asVoid(
+                  Effect.forEach(clientIds, (id) =>
+                    writeResponse(id, message[1]),
+                  ),
+                ),
+              );
+            }
+          };
+          const onError = (cause: unknown) => {
+            if (failure !== undefined) return;
+            failure = new RpcClientError({
+              reason: new WorkerReceiveError({
+                message: "Script file worker failed.",
+                cause,
+              }),
+            });
+            Deferred.doneUnsafe(ready, Exit.fail(failure));
+            const response = {
+              _tag: "ClientProtocolError" as const,
+              error: failure,
+            };
+            run(
+              Effect.asVoid(
+                Effect.forEach(clientIds, (id) => writeResponse(id, response)),
+              ).pipe(Effect.andThen(invalidate)),
+            );
+          };
+          const onExit = (code: number) =>
+            onError(new Error(`Script file worker exited with code ${code}.`));
+          thread.on("message", onMessage);
+          thread.on("messageerror", onError);
+          thread.on("error", onError);
+          thread.on("exit", onExit);
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              thread.off("message", onMessage);
+              thread.off("messageerror", onError);
+              thread.off("error", onError);
+              thread.off("exit", onExit);
+            }),
+          );
+          return {
+            supportsAck: true,
+            supportsTransferables: false,
+            codecFor: Schema.toCodecJson,
+            send: (_id, request) =>
+              Effect.gen(function* () {
+                // Startup must remain cancellable even before the worker's ready message.
+                if (request._tag !== "Request" && !isReady) return;
+                if (failure !== undefined) return yield* Effect.fail(failure);
+                yield* Deferred.await(ready);
+                yield* Effect.try({
+                  try: () => thread.postMessage([0, request]),
+                  catch: (cause) =>
+                    new RpcClientError({
+                      reason: new WorkerSendError({
+                        message: "Could not send script file request.",
+                        cause,
+                      }),
+                    }),
+                });
+              }),
+          };
+        }),
       );
-    }
-  }
+      const client = yield* RpcClient.make(ScriptFileWorkerRpcs).pipe(
+        Effect.provideService(RpcClient.Protocol, protocol),
+      );
+      invalidate = Pool.invalidate(workers, client).pipe(Effect.scoped);
+      return client;
+    });
+    const workers = yield* Pool.makeWithTTL({
+      acquire,
+      min: 0,
+      max: 1,
+      concurrency: 1,
+      timeToLive: Duration.infinity,
+    });
+    const slots = yield* Semaphore.make(SCRIPT_FILE_WORKER_QUEUE_LIMIT);
 
-  #clearTimeout(): void {
-    if (this.#timeout === undefined) return;
-    clearTimeout(this.#timeout);
-    this.#timeout = undefined;
-  }
-
-  #rejectActiveRequest(error: Error): void {
-    const active = this.#active;
-    this.#active = null;
-    active?.reject(error);
-  }
-
-  #rejectAllRequests(error: Error): void {
-    this.#rejectActiveRequest(error);
-    for (const queued of this.#queue.splice(0)) queued.reject(error);
-  }
-
-  #resetWorker(error: Error): void {
-    this.#clearTimeout();
-    const worker = this.#worker;
-    this.#worker = null;
-    if (worker !== null) {
-      worker.removeAllListeners();
-      void worker.terminate();
-    }
-    this.#rejectActiveRequest(error);
-    this.#pump();
-  }
-}
+    return Effect.fn("ScriptFiles.processFile")(function* (path: string) {
+      const result = yield* slots.withPermitsIfAvailable(1)(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const client = yield* Pool.get(workers);
+            return yield* client.ResolveScriptFile({ path }).pipe(
+              Effect.timeoutOrElse({
+                duration: SCRIPT_FILE_WORKER_TIMEOUT_MS,
+                orElse: () =>
+                  Effect.fail(
+                    new ScriptFilesError({
+                      path,
+                      detail: `Script file processing timed out after ${SCRIPT_FILE_WORKER_TIMEOUT_MS} ms.`,
+                    }),
+                  ),
+              }),
+              Effect.onExit((exit) =>
+                Exit.isFailure(exit)
+                  ? Pool.invalidate(workers, client)
+                  : Effect.void,
+              ),
+            );
+          }),
+        ),
+      );
+      return yield* Option.match(result, {
+        onNone: () =>
+          Effect.fail(
+            new ScriptFilesError({
+              path,
+              detail: "Script file worker queue is full.",
+            }),
+          ),
+        onSome: Effect.succeed,
+      });
+    });
+  },
+);
 
 const failureResolution = (
   path: string,
@@ -278,8 +300,17 @@ export const makeScriptFileResolver = (
 export const layer = Layer.effect(
   ScriptFiles,
   Effect.gen(function* () {
-    const client = new ScriptFileWorkerClient();
-    yield* Effect.addFinalizer(() => Effect.promise(() => client.close()));
-    return makeScriptFiles((path) => client.resolve(path));
+    const processFile = yield* makeScriptFileWorker();
+    const scope = yield* Effect.scope;
+    const context = yield* Effect.context<never>();
+    const runPromise = Effect.runPromiseWith(context);
+    return makeScriptFiles((path) =>
+      runPromise(
+        processFile(path).pipe(
+          Effect.forkIn(scope),
+          Effect.flatMap(Fiber.join),
+        ),
+      ),
+    );
   }),
 );

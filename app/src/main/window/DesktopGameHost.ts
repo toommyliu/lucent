@@ -14,7 +14,7 @@ import { GameViewsIpc } from "../../shared/ipc";
 import type { ElectronGameViewHandle } from "../electron/ElectronGameView";
 import {
   isElectronWindowUsable,
-  type ElectronWindowHandle,
+  type ElectronNativeWindowHandle,
 } from "../electron/ElectronWindow";
 import { focusedGameViewBounds, gridGameViewBounds } from "./GameViewLayout";
 import {
@@ -36,7 +36,7 @@ export interface DesktopGameViewRecord {
   gameViewName?: string;
   gameViewPhase: GameViewSession["phase"];
   generation: number;
-  readonly hostWindow: ElectronWindowHandle;
+  readonly hostWindow: ElectronNativeWindowHandle;
   readonly kind: "game";
   loggedInUsername?: string;
   readonly ownerId?: DesktopWindowInstanceId;
@@ -60,14 +60,13 @@ export interface DesktopGameHostRecord {
   readonly rendererId: number;
   layout: GameViewLayout;
   readonly orderedIds: DesktopWindowInstanceId[];
-  repaintTimer?: ReturnType<typeof setTimeout>;
   resizeSettleTimer?: ReturnType<typeof setTimeout>;
   selectedId: DesktopWindowInstanceId;
   shortcutModifierPressed: boolean;
   stackedGameViewId?: DesktopWindowInstanceId;
   stopObservingShortcutInput: () => void;
   tabMenuOpen: boolean;
-  readonly window: ElectronWindowHandle;
+  readonly window: ElectronNativeWindowHandle;
 }
 
 interface DesktopGameHostsOptions {
@@ -166,12 +165,6 @@ const setGameViewBounds = (
   }
 };
 
-const cancelRepaint = (host: DesktopGameHostRecord): void => {
-  if (host.repaintTimer === undefined) return;
-  clearTimeout(host.repaintTimer);
-  delete host.repaintTimer;
-};
-
 const cancelResize = (host: DesktopGameHostRecord): void => {
   if (host.resizeSettleTimer === undefined) return;
   clearTimeout(host.resizeSettleTimer);
@@ -244,7 +237,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       host.groupControlsView,
       gameGroupControlsBounds(width, height, topInset),
     );
-    host.window.setTopBrowserView(host.groupControlsView);
+    host.window.contentView.addChildView(host.groupControlsView.native);
   };
 
   const applyHostViewLayout = (
@@ -259,7 +252,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       x: 0,
       y: 0,
     });
-    host.window.setTopBrowserView(host.hostView);
+    host.window.contentView.addChildView(host.hostView.native);
   };
 
   const applyLayout = (host: DesktopGameHostRecord): void => {
@@ -275,7 +268,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       if (selected !== undefined) {
         setGameViewBounds(selected.gameView, bounds);
         if (host.stackedGameViewId !== host.selectedId) {
-          host.window.setTopBrowserView(selected.gameView);
+          host.window.contentView.addChildView(selected.gameView.native);
           host.stackedGameViewId = host.selectedId;
         }
       }
@@ -309,51 +302,18 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     applyHostViewLayout(host, width, height, topInset);
   };
 
-  const repaint = (host: DesktopGameHostRecord): void => {
-    if (!isElectronWindowUsable(host.window)) return;
-
-    if (!host.hostView.webContents.isDestroyed()) {
-      host.hostView.webContents.invalidate();
-    }
-    const visibleIds =
-      host.layout === "focused" ? [host.selectedId] : host.orderedIds;
-    for (const id of visibleIds) {
-      const record = options.getGameViewRecord(id);
-      if (record !== undefined && !record.gameView.webContents.isDestroyed()) {
-        record.gameView.webContents.invalidate();
-      }
-    }
-    if (
-      host.groupControlsOpen &&
-      !host.groupControlsView.webContents.isDestroyed()
-    ) {
-      host.groupControlsView.webContents.invalidate();
-    }
-  };
-
-  const scheduleRepaint = (host: DesktopGameHostRecord): void => {
-    cancelRepaint(host);
-    host.repaintTimer = setTimeout(() => {
-      delete host.repaintTimer;
-      repaint(host);
-    }, 16);
-  };
-
   const finishResize = (host: DesktopGameHostRecord): void => {
     cancelResize(host);
-    cancelRepaint(host);
     if (host.closing) return;
 
     try {
       applyLayout(host);
-      repaint(host);
     } catch {}
   };
 
   const scheduleResize = (host: DesktopGameHostRecord): void => {
     if (host.closing) return;
 
-    cancelRepaint(host);
     if (host.resizeSettleTimer !== undefined) {
       clearTimeout(host.resizeSettleTimer);
     }
@@ -362,11 +322,6 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       () => finishResize(host),
       GAME_VIEW_RESIZE_SETTLE_DELAY_MS,
     );
-  };
-
-  const syncTabBarLayout = (host: DesktopGameHostRecord): void => {
-    applyLayout(host);
-    scheduleRepaint(host);
   };
 
   const presentation = (
@@ -416,7 +371,6 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     cancelResize(host);
     applyLayout(host);
     publishState(host);
-    scheduleRepaint(host);
   };
 
   const activate = (
@@ -441,7 +395,6 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       } catch {}
       throw cause;
     }
-    scheduleRepaint(host);
     if (open && !host.hostView.webContents.isDestroyed()) {
       try {
         host.hostView.webContents.focus();
@@ -464,9 +417,9 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     if (host.groupControlsOpen === open) return;
     if (open && host.tabMenuOpen) setTabMenuOpen(host, false);
     if (open) {
-      host.window.addBrowserView(host.groupControlsView);
+      host.window.contentView.addChildView(host.groupControlsView.native);
     } else {
-      host.window.removeBrowserView(host.groupControlsView);
+      host.window.contentView.removeChildView(host.groupControlsView.native);
     }
     host.groupControlsOpen = open;
     if (!open) delete host.stackedGameViewId;
@@ -557,7 +510,6 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
 
   return {
     activate,
-    cancelRepaint,
     cancelResize,
     find,
     finishResize,
@@ -575,7 +527,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     setGroupControlsOpen,
     setShortcutModifierPressed,
     setTabMenuOpen,
-    syncTabBarLayout,
+    syncTabBarLayout: applyLayout,
     state,
     unregister,
     values: () => hosts.values(),

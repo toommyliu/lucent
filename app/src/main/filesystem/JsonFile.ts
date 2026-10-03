@@ -2,10 +2,9 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { makeAtomicFile } from "./AtomicFile";
-import {
-  type DesktopFileSystem,
-  type DesktopFileSystemError,
-} from "./DesktopFileSystem";
+import type { FileSystem } from "effect/FileSystem";
+import type { PlatformError } from "effect/PlatformError";
+import { readFileBounded } from "./BoundedFileSystem";
 
 /** JSON state files are intentionally bounded to protect the main process. */
 export const JSON_FILE_MAX_BYTES = 8 * 1024 * 1024;
@@ -44,34 +43,36 @@ const makeError = (
   cause: unknown,
 ): JsonFileError => new JsonFileError({ operation, path, cause });
 
-const atomicOperation = (error: DesktopFileSystemError): JsonFileOperation => {
-  switch (error.operation) {
-    case "make-directory":
+const atomicOperation = (error: PlatformError): JsonFileOperation => {
+  switch (error.reason.method) {
+    case "makeDirectory":
       return "mkdir";
     case "rename":
       return "rename";
-    case "remove-file":
+    case "remove":
       return "unlink";
     default:
       return "write";
   }
 };
 
-export const makeJsonFile = (fileSystem: DesktopFileSystem["Service"]) => {
+export const makeJsonFile = (fileSystem: FileSystem) => {
   const atomicFile = makeAtomicFile(fileSystem);
 
   const read = Effect.fn("JsonFile.read")(function* (
     path: string,
   ): Effect.fn.Return<JsonFileReadResult, JsonFileError> {
-    const bytes = yield* fileSystem
-      .readFile(path, { maxBytes: JSON_FILE_MAX_BYTES })
-      .pipe(
-        Effect.catch((error) =>
-          error.reason === "NotFound"
-            ? Effect.void
-            : Effect.fail(makeError(path, "read", error)),
-        ),
-      );
+    const bytes = yield* readFileBounded(
+      fileSystem,
+      path,
+      JSON_FILE_MAX_BYTES,
+    ).pipe(
+      Effect.catch((error) =>
+        error._tag === "PlatformError" && error.reason._tag === "NotFound"
+          ? Effect.void
+          : Effect.fail(makeError(path, "read", error)),
+      ),
+    );
     if (bytes === undefined) return { status: "missing" };
 
     return yield* Effect.try({

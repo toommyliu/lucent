@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Logger from "effect/Logger";
 import * as Layer from "effect/Layer";
 
 import { ElectronApp } from "../electron/ElectronApp";
@@ -30,13 +31,7 @@ const makeHarness = (flushCompletes: boolean) => {
     ? flushStarted
     : flushStarted.pipe(Effect.andThen(Effect.never));
   const observability = DesktopObservability.of({
-    debug: () => Effect.void,
-    error: (_component, message) =>
-      Effect.sync(() => {
-        events.push(`error:${message}`);
-      }),
     flush,
-    info: () => Effect.void,
     installProcessHooks: Effect.void,
     logFilePath: "lucent.log",
     record: () => Effect.void,
@@ -47,7 +42,6 @@ const makeHarness = (flushCompletes: boolean) => {
       spans: [],
       truncated: false,
     }),
-    warn: () => Effect.void,
   });
   const app = ElectronApp.of({
     appendCommandLineSwitch: () => Effect.void,
@@ -65,6 +59,12 @@ const makeHarness = (flushCompletes: boolean) => {
     whenReady: Effect.void,
   });
   const layer = Layer.mergeAll(
+    Logger.layer([
+      Logger.make((options) => {
+        if (options.logLevel === "Error")
+          events.push(`error:${String(options.message)}`);
+      }),
+    ]),
     desktopLifecycleLayer,
     Layer.succeed(DesktopObservability, observability),
     Layer.succeed(ElectronApp, app),

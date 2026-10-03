@@ -19,7 +19,7 @@ import {
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../../app/ListenerRegistry";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const combatProfilesOperationSchema = Schema.Literals([
@@ -135,7 +135,7 @@ const deleteProfileFromLibrary = (
 
 const makeCombatProfiles = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+  const jsonFile = makeJsonFile(yield* FileSystem);
   const path = join(env.appDataDir, "combat-profiles.json");
   const libraryRef = yield* Ref.make<CombatProfileLibrary | null>(null);
   const mutationLock = yield* Semaphore.make(1);

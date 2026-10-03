@@ -203,10 +203,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
         event.kind === "game"
           ? coordinator.abortParticipant(event.rendererId, {
               kind: "participant-unavailable",
-              reason:
-                event.failure.type === "plugin-crashed"
-                  ? "An army participant's Flash plugin crashed"
-                  : `An army participant's game renderer stopped (${event.failure.reason})`,
+              reason: "An army player's game stopped unexpectedly",
             })
           : Effect.void,
       ),
@@ -218,7 +215,7 @@ export const installLifecycle = Effect.fn("desktop.ipc.army.installLifecycle")(
         event.kind === "game"
           ? coordinator.abortParticipant(event.rendererId, {
               kind: "participant-unavailable",
-              reason: `Army window reloaded into renderer generation ${event.generation}`,
+              reason: "An army player's game reloaded",
             })
           : Effect.void,
       ),

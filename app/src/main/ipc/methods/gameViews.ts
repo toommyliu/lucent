@@ -407,17 +407,6 @@ export const closeCurrent = makeDesktopIpcMethod({
   ),
 });
 
-export const activate = makeDesktopIpcMethod({
-  descriptor: GameViewsIpc.activate,
-  allowedSenders: gameSenders,
-  handler: Effect.fn("desktop.ipc.gameViews.activate")(
-    function* (_payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.activateGameView(sender.rendererId);
-    },
-  ),
-});
-
 export const methods = [
   getRecentlyClosed,
   reopen,
@@ -435,5 +424,4 @@ export const methods = [
   dispatchGroupOptionHotkey,
   getPresentation,
   closeCurrent,
-  activate,
 ] as const;

@@ -1,6 +1,6 @@
 import {
-  BrowserView,
-  type BrowserViewConstructorOptions,
+  WebContentsView,
+  type WebContentsViewConstructorOptions,
   type LoadFileOptions,
   type WebContents,
 } from "electron";
@@ -10,9 +10,19 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
-import type { ElectronWindowOpenRequestHandler } from "./ElectronWindow";
+import { electronRendererRegistry } from "./ElectronRendererRegistry";
+import {
+  guardRendererNavigation,
+  type ElectronWindowOpenRequestHandler,
+} from "./ElectronWindow";
 
-export type ElectronGameViewHandle = BrowserView;
+export interface ElectronGameViewHandle {
+  readonly native: WebContentsView;
+  readonly webContents: WebContents;
+  readonly getBounds: WebContentsView["getBounds"];
+  readonly setBounds: WebContentsView["setBounds"];
+  readonly setBackgroundColor: WebContentsView["setBackgroundColor"];
+}
 
 export class ElectronGameViewCreateError extends Schema.TaggedError<ElectronGameViewCreateError>()(
   "ElectronGameViewCreateError",
@@ -37,7 +47,7 @@ export class ElectronGameViewLoadError extends Schema.TaggedError<ElectronGameVi
 
 export interface ElectronGameViewShape {
   readonly create: (
-    options: BrowserViewConstructorOptions,
+    options: WebContentsViewConstructorOptions,
     onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
   ) => Effect.Effect<ElectronGameViewHandle, ElectronGameViewCreateError>;
   readonly loadFile: (
@@ -57,25 +67,24 @@ export class ElectronGameView extends Context.Service<
   ElectronGameViewShape
 >()("lucent/desktop/electron/ElectronGameView") {}
 
-const denyRendererWindowOpen = (
-  webContents: WebContents,
-  onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
-): void => {
-  webContents.on("new-window", (event, url) => {
-    event.preventDefault();
-    onWindowOpenRequest?.(url);
-  });
-};
-
 const create: ElectronGameViewShape["create"] = (
   options,
   onWindowOpenRequest,
 ) =>
   Effect.try({
     try: () => {
-      const view = new BrowserView(options);
-      denyRendererWindowOpen(view.webContents, onWindowOpenRequest);
-      return view;
+      const view = new WebContentsView(options);
+      const webContents = view.webContents;
+      electronRendererRegistry.register(webContents);
+      guardRendererNavigation(webContents, onWindowOpenRequest);
+      return {
+        native: view,
+        // The native view clears its accessor after close; retain the contents for cleanup observers.
+        webContents,
+        getBounds: () => view.getBounds(),
+        setBounds: (bounds) => view.setBounds(bounds),
+        setBackgroundColor: (color) => view.setBackgroundColor(color),
+      };
     },
     catch: (cause) => new ElectronGameViewCreateError({ cause }),
   });
@@ -87,13 +96,7 @@ const loadFile: ElectronGameViewShape["loadFile"] = (view, path, options) =>
   });
 
 const onFocus: ElectronGameViewShape["onFocus"] = (view, listener) => {
-  // Electron 11 emits this event at runtime but omits it from the public
-  // WebContents overloads. Keep the compatibility cast inside this adapter.
-  const webContents = view.webContents as unknown as {
-    readonly isDestroyed: () => boolean;
-    readonly on: (event: "focus", listener: () => void) => void;
-    readonly removeListener: (event: "focus", listener: () => void) => void;
-  };
+  const webContents = view.webContents;
   webContents.on("focus", listener);
 
   let observing = true;
@@ -113,14 +116,7 @@ const destroy: ElectronGameViewShape["destroy"] = (view) => {
     return;
   }
 
-  // Electron 11 exposes this teardown hook at runtime but omits it from the
-  // public WebContents type. Keep the compatibility cast inside this adapter.
-  const webContents = view.webContents as WebContents & {
-    readonly destroy: () => void;
-  };
-  try {
-    webContents.destroy();
-  } catch {}
+  view.webContents.close({ waitForBeforeUnload: false });
 };
 
 export const layer = Layer.succeed(
