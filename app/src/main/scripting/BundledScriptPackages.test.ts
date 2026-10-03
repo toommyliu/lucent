@@ -79,11 +79,9 @@ const makeFixture = async () => {
   const app = Layer.succeed(
     ElectronApp,
     ElectronApp.of({
-      appendCommandLineSwitch: () => Effect.void,
       exit: () => Effect.void,
       getAppMetrics: Effect.succeed([]),
       getVersion: Effect.succeed("1.0.0"),
-      isPackaged: Effect.succeed(true),
       on: () => Effect.succeed(() => {}),
       relaunch: Effect.void,
       quit: Effect.void,
