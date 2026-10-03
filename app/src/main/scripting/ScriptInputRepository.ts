@@ -12,9 +12,9 @@ import {
   type ScriptInputsDefinition,
   type ScriptInputValues,
 } from "@lucent/core/scriptInputs";
-import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { FileSystem } from "effect/FileSystem";
-import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
+import { type JsonFileError, makeJsonFile } from "../filesystem/JsonFile";
 
 const inputRepositoryOperationSchema = Schema.Literals(["read", "write"]);
 
@@ -44,7 +44,7 @@ export interface ScriptInputRepositoryShape {
 export class ScriptInputRepository extends Context.Service<
   ScriptInputRepository,
   ScriptInputRepositoryShape
->()("lucent/internal/scripting/ScriptInputRepository") {}
+>()("lucent/desktop/scripting/ScriptInputRepository") {}
 
 const UnknownRecordSchema = Schema.Record(Schema.String, Schema.Unknown);
 type UnknownRecord = typeof UnknownRecordSchema.Type;

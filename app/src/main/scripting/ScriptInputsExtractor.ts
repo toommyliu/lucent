@@ -54,7 +54,7 @@ export interface ScriptInputsExtractorShape {
 export class ScriptInputsExtractor extends Context.Service<
   ScriptInputsExtractor,
   ScriptInputsExtractorShape
->()("lucent/internal/scripting/ScriptInputsExtractor") {}
+>()("lucent/desktop/scripting/ScriptInputsExtractor") {}
 
 export interface ScriptSourceAnalysis {
   readonly inputs: ScriptInputsDefinition | null;
