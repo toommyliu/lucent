@@ -39,6 +39,7 @@ import {
   TRACE_PROJECTIONS_ARGUMENT,
 } from "../../shared/rendererBootstrapArguments";
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
+import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronGameView } from "../electron/ElectronGameView";
@@ -630,26 +631,24 @@ const makeDesktopWindows = Effect.gen(function* () {
     },
   );
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindowTitleSettings));
-  const createdListeners = new Set<
-    (event: DesktopWindowCreatedEvent) => Effect.Effect<void, unknown>
-  >();
-  const closedListeners = new Set<
-    (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>
-  >();
-  const rendererDestroyedListeners = new Set<
-    (event: DesktopWindowRendererDestroyedEvent) => Effect.Effect<void, unknown>
-  >();
-  const rendererUnavailableListeners = new Set<
-    (
-      event: DesktopWindowRendererUnavailableEvent,
-    ) => Effect.Effect<void, unknown>
-  >();
-  const rendererReloadedListeners = new Set<
-    (event: DesktopWindowRendererReloadedEvent) => Effect.Effect<void, unknown>
-  >();
-  const rendererReadyListeners = new Set<
-    (event: DesktopWindowRendererReadyEvent) => Effect.Effect<void, unknown>
-  >();
+  const createdEvents = makeListenerRegistry<DesktopWindowCreatedEvent>();
+  const closedEvents = makeListenerRegistry<DesktopWindowClosedEvent>({
+    concurrency: "unbounded",
+  });
+  const rendererDestroyedEvents =
+    makeListenerRegistry<DesktopWindowRendererDestroyedEvent>({
+      concurrency: "unbounded",
+    });
+  const rendererUnavailableEvents =
+    makeListenerRegistry<DesktopWindowRendererUnavailableEvent>({
+      concurrency: "unbounded",
+    });
+  const rendererReloadedEvents =
+    makeListenerRegistry<DesktopWindowRendererReloadedEvent>({
+      concurrency: "unbounded",
+    });
+  const rendererReadyEvents =
+    makeListenerRegistry<DesktopWindowRendererReadyEvent>();
 
   const observeRendererAvailability = (
     contents: Pick<WebContents, "off" | "on">,
@@ -661,9 +660,9 @@ const makeDesktopWindows = Effect.gen(function* () {
     ): void => {
       onUnavailable(failure);
       const unavailableEvent = { ...event, failure };
-      for (const listener of rendererUnavailableListeners) {
-        void runPromise(listener(unavailableEvent)).catch(() => undefined);
-      }
+      void runPromise(
+        rendererUnavailableEvents.publish(unavailableEvent),
+      ).catch(() => undefined);
     };
     const handleRenderProcessGone = (
       _event: ElectronEvent,
@@ -1133,12 +1132,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         return;
       }
 
-      yield* Effect.forEach(
-        rendererReadyListeners,
-        (listener) =>
-          listener(readyEvent).pipe(Effect.catch(() => Effect.void)),
-        { discard: true },
-      );
+      yield* rendererReadyEvents.publish(readyEvent);
     });
 
   const getOwnedRendererIds: DesktopWindowsShape["getOwnedRendererIds"] = (
@@ -1190,9 +1184,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       id,
       kind: record.kind,
     };
-    for (const listener of closedListeners) {
-      void runPromise(listener(event)).catch(() => undefined);
-    }
+    void runPromise(closedEvents.publish(event)).catch(() => undefined);
   };
 
   const closeGameViewRecord = (
@@ -1286,60 +1278,6 @@ const makeDesktopWindows = Effect.gen(function* () {
           }),
       ),
     );
-
-  const onClosed: DesktopWindowsShape["onClosed"] = (listener) =>
-    Effect.sync(() => {
-      closedListeners.add(listener);
-      return () => {
-        closedListeners.delete(listener);
-      };
-    });
-
-  const onCreated: DesktopWindowsShape["onCreated"] = (listener) =>
-    Effect.sync(() => {
-      createdListeners.add(listener);
-      return () => {
-        createdListeners.delete(listener);
-      };
-    });
-
-  const onRendererDestroyed: DesktopWindowsShape["onRendererDestroyed"] = (
-    listener,
-  ) =>
-    Effect.sync(() => {
-      rendererDestroyedListeners.add(listener);
-      return () => {
-        rendererDestroyedListeners.delete(listener);
-      };
-    });
-
-  const onRendererUnavailable: DesktopWindowsShape["onRendererUnavailable"] = (
-    listener,
-  ) =>
-    Effect.sync(() => {
-      rendererUnavailableListeners.add(listener);
-      return () => {
-        rendererUnavailableListeners.delete(listener);
-      };
-    });
-
-  const onRendererReloaded: DesktopWindowsShape["onRendererReloaded"] = (
-    listener,
-  ) =>
-    Effect.sync(() => {
-      rendererReloadedListeners.add(listener);
-      return () => {
-        rendererReloadedListeners.delete(listener);
-      };
-    });
-
-  const onRendererReady: DesktopWindowsShape["onRendererReady"] = (listener) =>
-    Effect.sync(() => {
-      rendererReadyListeners.add(listener);
-      return () => {
-        rendererReadyListeners.delete(listener);
-      };
-    });
 
   const setBackgroundColor: DesktopWindowsShape["setBackgroundColor"] = (
     backgroundColor,
@@ -1546,9 +1484,9 @@ const makeDesktopWindows = Effect.gen(function* () {
             id,
             kind: "game",
           };
-          for (const listener of rendererReloadedListeners) {
-            void runPromise(listener(reloadedEvent)).catch(() => undefined);
-          }
+          void runPromise(rendererReloadedEvents.publish(reloadedEvent)).catch(
+            () => undefined,
+          );
         },
       );
       const shortcutInputListener = gameHosts.makeShortcutInputListener(host);
@@ -1593,16 +1531,12 @@ const makeDesktopWindows = Effect.gen(function* () {
         record.stopObservingFocus();
         record.stopObservingReloads();
         record.stopObservingShortcutInput();
-        for (const listener of rendererDestroyedListeners) {
-          void runPromise(listener(rendererDestroyedEvent)).catch(
-            () => undefined,
-          );
-        }
+        void runPromise(
+          rendererDestroyedEvents.publish(rendererDestroyedEvent),
+        ).catch(() => undefined);
       });
 
-      for (const listener of createdListeners) {
-        yield* listener(createdEvent).pipe(Effect.catch(() => Effect.void));
-      }
+      yield* createdEvents.publish(createdEvent);
       if (options?.onCreated !== undefined) {
         yield* options
           .onCreated(createdEvent)
@@ -2458,9 +2392,9 @@ const makeDesktopWindows = Effect.gen(function* () {
               id,
               kind,
             };
-            for (const listener of rendererReloadedListeners) {
-              void runPromise(listener(reloadedEvent)).catch(() => undefined);
-            }
+            void runPromise(
+              rendererReloadedEvents.publish(reloadedEvent),
+            ).catch(() => undefined);
           },
         );
 
@@ -2468,11 +2402,9 @@ const makeDesktopWindows = Effect.gen(function* () {
           markRendererUnavailable(record);
           stopObservingAvailability();
           stopObservingWindowReloads();
-          for (const listener of rendererDestroyedListeners) {
-            void runPromise(listener(rendererDestroyedEvent)).catch(
-              () => undefined,
-            );
-          }
+          void runPromise(
+            rendererDestroyedEvents.publish(rendererDestroyedEvent),
+          ).catch(() => undefined);
         });
 
         if (definition.closeBehavior === "hide") {
@@ -2507,17 +2439,15 @@ const makeDesktopWindows = Effect.gen(function* () {
               nativeWindow.destroy();
             }
           }
-          for (const listener of closedListeners) {
-            void runPromise(listener(closedEvent)).catch(() => undefined);
-          }
+          void runPromise(closedEvents.publish(closedEvent)).catch(
+            () => undefined,
+          );
           if (isTopLevelWindow) {
             quitIfNoTopLevelWindow();
           }
         });
 
-        for (const listener of createdListeners) {
-          yield* listener(createdEvent).pipe(Effect.catch(() => Effect.void));
-        }
+        yield* createdEvents.publish(createdEvent);
 
         if (options?.onCreated !== undefined) {
           yield* options.onCreated(createdEvent);
@@ -2655,12 +2585,12 @@ const makeDesktopWindows = Effect.gen(function* () {
     getRendererGeneration,
     isRendererReady,
     markRendererReady,
-    onClosed,
-    onCreated,
-    onRendererDestroyed,
-    onRendererUnavailable,
-    onRendererReloaded,
-    onRendererReady,
+    onClosed: closedEvents.subscribe,
+    onCreated: createdEvents.subscribe,
+    onRendererDestroyed: rendererDestroyedEvents.subscribe,
+    onRendererUnavailable: rendererUnavailableEvents.subscribe,
+    onRendererReloaded: rendererReloadedEvents.subscribe,
+    onRendererReady: rendererReadyEvents.subscribe,
     open,
     reveal,
     revealRenderer,

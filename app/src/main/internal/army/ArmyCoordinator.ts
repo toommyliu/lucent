@@ -1,3 +1,4 @@
+import { makeListenerRegistry } from "../../app/ListenerRegistry";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -403,25 +404,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
 > =>
   Effect.gen(function* () {
     const stateRef = yield* SynchronizedRef.make(initialState);
-    const sessionEndedListeners = new Set<
-      (event: ArmySessionEndedEvent) => Effect.Effect<void, unknown>
-    >();
-
-    const onSessionEnded: ArmyCoordinatorShape["onSessionEnded"] = (listener) =>
-      Effect.sync(() => {
-        sessionEndedListeners.add(listener);
-        return () => {
-          sessionEndedListeners.delete(listener);
-        };
-      });
-
-    const publishSessionEnded = (event: ArmySessionEndedEvent) =>
-      Effect.forEach(
-        [...sessionEndedListeners],
-        (listener) =>
-          listener(event).pipe(Effect.catchCause(() => Effect.void)),
-        { discard: true },
-      );
+    const sessionEndedEvents = makeListenerRegistry<ArmySessionEndedEvent>();
 
     const getSession = (sessionId: string) =>
       SynchronizedRef.get(stateRef).pipe(
@@ -502,7 +485,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
           : Effect.logWarning("Army session ended").pipe(
               Effect.annotateLogs({ component: "army", data: logData }),
             );
-        yield* publishSessionEnded({
+        yield* sessionEndedEvents.publish({
           participantIds: [...removed.participants.values()].map(
             (participant) => participant.id,
           ),
@@ -1217,7 +1200,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
       getSessions,
       join,
       leave,
-      onSessionEnded,
+      onSessionEnded: sessionEndedEvents.subscribe,
       progress,
       requireParticipant,
       sync,
@@ -1235,11 +1218,6 @@ export const makeArmyCoordinator = (): Effect.Effect<
               }),
             { discard: true },
           ),
-        ),
-        Effect.ensuring(
-          Effect.sync(() => {
-            sessionEndedListeners.clear();
-          }),
         ),
       ),
     );
