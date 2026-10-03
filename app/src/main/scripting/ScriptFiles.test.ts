@@ -21,7 +21,7 @@ import {
 import { makeScriptFileResolver, makeScriptFileWorker } from "./ScriptFiles";
 import { processScriptFile } from "./ScriptFileAnalysis";
 import type { ScriptFileAnalysisResolution } from "./ScriptFileWorkerProtocol";
-import { SCRIPT_FILE_MAX_BYTES } from "../../scripting/ScriptLimits";
+import { SCRIPT_FILE_MAX_BYTES } from "./ScriptLimits";
 
 const tempDirectories = new Set<string>();
 

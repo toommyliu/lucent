@@ -481,6 +481,25 @@ describe("ScriptPackageCatalog", () => {
     }),
   );
 
+  it.effect("keeps the last catalog after a failed refresh and can retry", () =>
+    Effect.gen(function* () {
+      const { catalog, workspace } = yield* makeCatalogHarness();
+      const initial = yield* catalog.getOverview;
+      yield* Effect.promise(async () => {
+        await fs.rm(workspace.packagesDir, { recursive: true });
+        await fs.writeFile(workspace.packagesDir, "not a directory");
+      });
+      const failure = yield* catalog.refresh.pipe(Effect.flip);
+      expect(failure.operation).toBe("scan");
+      expect(yield* catalog.getOverview).toEqual(initial);
+      yield* Effect.promise(async () => {
+        await fs.unlink(workspace.packagesDir);
+        await write(join(workspace.scriptsDir, "second.js"), "");
+      });
+      expect((yield* catalog.refresh).scriptCount).toBe(2);
+    }),
+  );
+
   it.effect("replaces and removes a package without a full rescan", () =>
     Effect.gen(function* () {
       const { catalog, workspace, scanCount } = yield* makeCatalogHarness();

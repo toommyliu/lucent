@@ -10,7 +10,7 @@ import {
   normalizeScriptInputValues,
   type ScriptInputsDefinition,
 } from "@lucent/core/scriptInputs";
-import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   ScriptInputRepository,
