@@ -64,7 +64,7 @@ vi.mock("electron", async () => {
 import { ElectronWindow, layer as windowLayer } from "./ElectronWindow";
 import { ElectronGameView, layer as viewLayer } from "./ElectronGameView";
 
-const windowOptions = { x: 0, y: 0, height: 768, width: 1024 };
+const windowOptions = { height: 768, width: 1024 };
 const createWindow = Effect.gen(function* () {
   return yield* (yield* ElectronWindow).create(windowOptions);
 }).pipe(Effect.provide(windowLayer), Effect.asVoid);

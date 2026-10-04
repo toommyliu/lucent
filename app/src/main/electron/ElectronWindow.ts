@@ -19,7 +19,6 @@ export {
 } from "./windowUsability";
 import { isElectronWindowUsable } from "./windowUsability";
 import { electronRendererRegistry } from "./ElectronRendererRegistry";
-import { resolvePlacementWorkArea } from "./windowPlacement";
 
 export interface ElectronWindowWebContents {
   readonly focus: WebContents["focus"];
@@ -146,27 +145,12 @@ export const guardRendererNavigation = (
   });
 };
 
-const makeCenteredOptions = <Options extends ElectronHostWindowCreateOptions>(
-  options: Options,
-): Options => {
-  if (options.x !== undefined && options.y !== undefined) {
-    return options;
-  }
-
-  const bounds = resolvePlacementWorkArea();
-  return {
-    ...options,
-    x: Math.round(bounds.x + (bounds.width - options.width) / 2),
-    y: Math.round(bounds.y + (bounds.height - options.height) / 2),
-  };
-};
-
 const create: ElectronWindowShape["create"] = Effect.fn(
   "ElectronWindow.create",
 )(function* (options, onWindowOpenRequest) {
   const window = yield* Effect.acquireRelease(
     Effect.try({
-      try: () => new BrowserWindow(makeCenteredOptions(options)),
+      try: () => new BrowserWindow(options),
       catch: (cause) => new ElectronWindowCreateError({ cause }),
     }),
     (window) =>
@@ -187,7 +171,7 @@ const create: ElectronWindowShape["create"] = Effect.fn(
 const createHost: ElectronWindowShape["createHost"] = (options) =>
   Effect.acquireRelease(
     Effect.try({
-      try: () => new BaseWindow(makeCenteredOptions(options)),
+      try: () => new BaseWindow(options),
       catch: (cause) => new ElectronWindowCreateError({ cause }),
     }),
     (window) =>
