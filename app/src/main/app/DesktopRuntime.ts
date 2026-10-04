@@ -1,4 +1,3 @@
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 
 import { createAppearanceSnapshot } from "@lucent/core/appearance";
@@ -8,10 +7,6 @@ import { installDesktopDevRendererReload } from "./DesktopDevRendererReload";
 import { DesktopGameRendererRecovery } from "./DesktopGameRendererRecovery";
 import { DesktopEnvironment } from "./DesktopEnvironment";
 import { DesktopLifecycle } from "./DesktopLifecycle";
-import {
-  DEFAULT_DESKTOP_OBSERVABILITY_PORT,
-  DesktopObservabilityServer,
-} from "./observability/DesktopObservabilityServer";
 import { DesktopObservability } from "./observability/DesktopObservability";
 import { installDesktopRendererObservability } from "./observability/DesktopRendererObservability";
 import { ElectronApp } from "../electron/ElectronApp";
@@ -65,7 +60,6 @@ export const makeDesktopRuntime = (cliOptions: CliOptions) =>
       const dialog = yield* ElectronDialog;
       const env = yield* DesktopEnvironment;
       const gameRendererRecovery = yield* DesktopGameRendererRecovery;
-      const observabilityServer = yield* DesktopObservabilityServer;
       const lifecycle = yield* DesktopLifecycle;
       const observability = yield* DesktopObservability;
       const settingsService = yield* DesktopSettings;
@@ -98,27 +92,6 @@ export const makeDesktopRuntime = (cliOptions: CliOptions) =>
       yield* installDesktopNativeAppearanceSync(settings);
       yield* installDesktopIpcHandlers();
       yield* applicationMenu.install;
-      if (env.debug === true) {
-        yield* observabilityServer
-          .install({
-            port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
-          })
-          .pipe(
-            Effect.catch((cause) =>
-              Effect.logError(
-                "Failed to start the desktop observability server",
-                Cause.fail(cause),
-              ).pipe(
-                Effect.annotateLogs({
-                  component: "observability-server",
-                  data: {
-                    port: DEFAULT_DESKTOP_OBSERVABILITY_PORT,
-                  },
-                }),
-              ),
-            ),
-          );
-      }
 
       const requestedLaunchMode =
         cliOptions.launchMode ?? settings.preferences.launchMode;

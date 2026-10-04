@@ -62,12 +62,7 @@ import {
   type RendererDiagnosticError,
   type RendererDiagnosticPayload,
 } from "../shared/ipc";
-import {
-  createInvoke,
-  createObservedInvoke,
-  createSubscribe,
-  type IpcInvokeObservation,
-} from "./preloadIpcClient";
+import { createInvoke, createSubscribe } from "./preloadIpcClient";
 
 // Cancel cross-document navigations before Chromium emits the loading events
 // that reset renderer state; reopening routes the URL through the main
@@ -152,58 +147,9 @@ const sendRendererDiagnostic = (payload: RendererDiagnosticPayload): void => {
   } catch {}
 };
 
-const invokeTransport = (channel: string, payload: unknown) =>
-  ipcRenderer.invoke(channel, payload);
-
-const reportInvoke = (observation: IpcInvokeObservation): void => {
-  const {
-    cause,
-    channel,
-    durationMs,
-    endTimeUnixNano,
-    name,
-    outcome,
-    stage,
-    startTimeUnixNano,
-    trace,
-  } = observation;
-  const error = cause === undefined ? undefined : diagnosticError(cause);
-  sendRendererDiagnostic({
-    type: "trace.span",
-    span: {
-      attributes: {
-        "ipc.channel": channel,
-        "ipc.name": name,
-        "ipc.outcome": outcome,
-        ...(stage === undefined ? {} : { "ipc.failure_stage": stage }),
-        "renderer.view": bridgeView,
-      },
-      durationMs,
-      endTimeUnixNano,
-      events: [],
-      exit:
-        error === undefined
-          ? { _tag: "Success" }
-          : {
-              _tag: "Failure",
-              cause: error.stack ?? `${error.name}: ${error.message}`,
-            },
-      kind: "client",
-      links: [],
-      name: `ipc.roundtrip ${name}`,
-      sampled: trace.sampled,
-      source: "renderer",
-      spanId: trace.spanId,
-      startTimeUnixNano,
-      traceId: trace.traceId,
-    },
-    view: bridgeView,
-  });
-};
-
-const invoke = debug
-  ? createObservedInvoke(invokeTransport, reportInvoke)
-  : createInvoke(invokeTransport);
+const invoke = createInvoke((channel, payload) =>
+  ipcRenderer.invoke(channel, payload),
+);
 
 if (debug) {
   window.addEventListener("error", (event) => {

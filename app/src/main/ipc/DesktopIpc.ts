@@ -153,9 +153,8 @@ const sendEncoded = (
 export const makeDesktopIpc = (
   main: DesktopIpcMain,
   contents: DesktopIpcWebContentsCatalog = electronRendererRegistry,
-  tracingEnabled = false,
 ): DesktopIpc["Service"] => {
-  const sendEventUnobserved = <Descriptor extends IpcEventDescriptor<unknown>>(
+  const sendEvent = <Descriptor extends IpcEventDescriptor<unknown>>(
     descriptor: Descriptor,
     payload: IpcEventPayload<Descriptor>,
     targets: () => Iterable<DesktopIpcWebContents | undefined>,
@@ -166,48 +165,6 @@ export const makeDesktopIpc = (
         Effect.sync(() => sendEncoded(targets(), descriptor.channel, encoded)),
       ),
     );
-
-  const sendEventObserved = <Descriptor extends IpcEventDescriptor<unknown>>(
-    descriptor: Descriptor,
-    payload: IpcEventPayload<Descriptor>,
-    targets: () => Iterable<DesktopIpcWebContents | undefined>,
-  ): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const encoded = yield* descriptor.encodePayloadEffect(payload).pipe(
-        Effect.orDie,
-        Effect.withSpan(`ipc.event.encode ${descriptor.name}`, undefined, {
-          captureStackTrace: false,
-        }),
-      );
-      const resolvedTargets = [...targets()];
-      const recipientCount = resolvedTargets.filter(
-        (target) => target !== undefined && !target.isDestroyed(),
-      ).length;
-      yield* Effect.sync(() =>
-        sendEncoded(resolvedTargets, descriptor.channel, encoded),
-      ).pipe(
-        Effect.withSpan(`ipc.event.send ${descriptor.name}`, undefined, {
-          captureStackTrace: false,
-        }),
-      );
-      yield* Effect.annotateCurrentSpan("ipc.recipient_count", recipientCount);
-    }).pipe(
-      Effect.withSpan(
-        `ipc.event ${descriptor.name}`,
-        {
-          attributes: {
-            "ipc.channel": descriptor.channel,
-            "ipc.name": descriptor.name,
-            "ipc.payload": payload,
-          },
-          kind: "producer",
-        },
-        { captureStackTrace: false },
-      ),
-    );
-
-  const sendEvent =
-    tracingEnabled === true ? sendEventObserved : sendEventUnobserved;
 
   const sendToAll: DesktopIpcShape["sendToAll"] = (descriptor, payload) =>
     sendEvent(descriptor, payload, contents.getAllWebContents);
@@ -241,7 +198,6 @@ export const makeDesktopIpc = (
             .require(event, method.allowedSenders)
             .pipe(Effect.flatMap((sender) => method.invoke(payload, sender))),
         runPromise,
-        tracingEnabled ? (event) => event.sender.id : undefined,
       );
 
       yield* Effect.acquireRelease(
@@ -272,12 +228,10 @@ export const makeDesktopIpc = (
   });
 };
 
-export const makeElectronDesktopIpc = (
-  tracingEnabled = false,
-): DesktopIpc["Service"] =>
-  makeDesktopIpc(ipcMain, electronRendererRegistry, tracingEnabled);
-
-export const layer = Layer.succeed(DesktopIpc, makeElectronDesktopIpc());
+export const layer = Layer.succeed(
+  DesktopIpc,
+  makeDesktopIpc(ipcMain, electronRendererRegistry),
+);
 
 export const ALL_DESKTOP_RENDERER_KINDS = [
   "about",

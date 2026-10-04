@@ -9,7 +9,6 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 
-import type { DesktopTraceSpan } from "../../../shared/ipc";
 import { layer as desktopEnvironmentLayer } from "../DesktopEnvironment";
 import {
   DesktopObservability,
@@ -45,22 +44,6 @@ const readRecords = async (path: string): Promise<unknown[]> =>
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line));
-
-const traceSpan = (): DesktopTraceSpan => ({
-  attributes: {},
-  durationMs: 1,
-  endTimeUnixNano: "2",
-  events: [],
-  exit: { _tag: "Success" },
-  kind: "internal",
-  links: [],
-  name: "test-span",
-  sampled: true,
-  source: "effect",
-  spanId: "span-1",
-  startTimeUnixNano: "1",
-  traceId: "trace-1",
-});
 
 const makeLayer = (appDataDir: string, debug: boolean) =>
   desktopObservabilityLayer.pipe(
@@ -113,7 +96,6 @@ describe("DesktopObservability", () => {
       vi.useFakeTimers();
       const root = yield* Effect.promise(makeFixture);
       const logFilePath = join(root, "logs", "lucent.log");
-      const span = traceSpan();
 
       yield* Effect.scoped(
         Effect.gen(function* () {
@@ -132,9 +114,9 @@ describe("DesktopObservability", () => {
             Effect.annotateLogs({ component: "test" }),
           );
           observability.recordUnsafe({
-            component: "trace",
-            event: "span.completed",
-            data: span,
+            component: "renderer",
+            event: "console",
+            data: { message: "hello", rendererId: 1 },
           });
           yield* observability.record({
             component: "test",
@@ -220,15 +202,14 @@ describe("DesktopObservability", () => {
       vi.useFakeTimers();
       const root = yield* Effect.promise(makeFixture);
       const logFilePath = join(root, "logs", "lucent.log");
-      const span = traceSpan();
 
       yield* Effect.scoped(
         Effect.gen(function* () {
           const observability = yield* DesktopObservability;
           observability.recordUnsafe({
-            component: "trace",
-            event: "span.completed",
-            data: span,
+            component: "renderer",
+            event: "console",
+            data: { message: "hello", rendererId: 1 },
           });
           yield* observability.record({
             component: "test",
@@ -245,7 +226,11 @@ describe("DesktopObservability", () => {
         yield* Effect.promise(() => readRecords(logFilePath)),
       ).toMatchObject([
         { event: "recording.started" },
-        { data: span, event: "span.completed" },
+        {
+          component: "renderer",
+          data: { message: "hello", rendererId: 1 },
+          event: "console",
+        },
         { event: "diagnostic" },
         { event: "recording.stopped" },
       ]);
