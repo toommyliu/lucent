@@ -6,9 +6,15 @@ import {
   type WebContents,
 } from "electron";
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
+import * as Scope from "effect/Scope";
 import * as Option from "effect/Option";
 
 import { DiagnosticsIpc, GameConsoleIpc } from "../../../shared/ipc";
+import {
+  forkWebContentsScope,
+  observeElectronEvent,
+} from "../../electron/ElectronScope";
 import { DesktopObservability } from "./DesktopObservability";
 
 const decodeRendererRecord = Option.liftThrowable(
@@ -20,15 +26,16 @@ const decodeConsoleMessage = Option.liftThrowable(
 
 export const installDesktopRendererObservability = Effect.gen(function* () {
   const observability = yield* DesktopObservability;
-  const webContentsCleanups = new Set<() => void>();
+  const installScope = yield* Effect.scope;
+  const run = yield* FiberSet.makeRuntime<never, void>();
 
   const record = observability.recordUnsafe;
 
   const handleRendererRecord = (
     event: IpcMainEvent,
-    rawPayload: unknown,
+    ...payload: unknown[]
   ): void => {
-    const decoded = decodeRendererRecord(rawPayload);
+    const decoded = decodeRendererRecord(payload[0]);
     if (Option.isNone(decoded)) {
       return;
     }
@@ -42,9 +49,9 @@ export const installDesktopRendererObservability = Effect.gen(function* () {
 
   const handleConsoleMessage = (
     event: IpcMainEvent,
-    rawPayload: unknown,
+    ...payload: unknown[]
   ): void => {
-    const decoded = decodeConsoleMessage(rawPayload);
+    const decoded = decodeConsoleMessage(payload[0]);
     if (Option.isNone(decoded)) {
       return;
     }
@@ -78,13 +85,18 @@ export const installDesktopRendererObservability = Effect.gen(function* () {
     });
   };
 
-  const observeWebContents = (contents: WebContents): void => {
+  const observeWebContents = Effect.fn("observeWebContents")(function* (
+    contents: WebContents,
+  ) {
+    const scope = yield* forkWebContentsScope(contents);
     const handleDidFailLoad = (
       _event: ElectronEvent,
       errorCode: number,
       errorDescription: string,
       validatedUrl: string,
       isMainFrame: boolean,
+      _processId: number,
+      _routingId: number,
     ): void => {
       record({
         component: "renderer",
@@ -112,56 +124,51 @@ export const installDesktopRendererObservability = Effect.gen(function* () {
         data: { rendererId: contents.id },
       });
     };
-    let cleanedUp = false;
-    const cleanup = (): void => {
-      if (cleanedUp) {
-        return;
-      }
-      cleanedUp = true;
-      contents.removeListener("did-fail-load", handleDidFailLoad);
-      contents.removeListener("responsive", handleResponsive);
-      contents.removeListener("unresponsive", handleUnresponsive);
-      contents.removeListener("destroyed", cleanup);
-      webContentsCleanups.delete(cleanup);
-    };
-
-    contents.on("did-fail-load", handleDidFailLoad);
-    contents.on("responsive", handleResponsive);
-    contents.on("unresponsive", handleUnresponsive);
-    contents.once("destroyed", cleanup);
-    webContentsCleanups.add(cleanup);
-  };
+    yield* observeElectronEvent(
+      contents,
+      "did-fail-load",
+      handleDidFailLoad,
+    ).pipe(Scope.provide(scope));
+    yield* observeElectronEvent(contents, "responsive", handleResponsive).pipe(
+      Scope.provide(scope),
+    );
+    yield* observeElectronEvent(
+      contents,
+      "unresponsive",
+      handleUnresponsive,
+    ).pipe(Scope.provide(scope));
+  });
 
   const handleWebContentsCreated = (
     _event: ElectronEvent,
     contents: WebContents,
   ): void => {
-    observeWebContents(contents);
+    run(observeWebContents(contents).pipe(Scope.provide(installScope)));
   };
 
-  yield* Effect.sync(() => {
-    ipcMain.on(DiagnosticsIpc.rendererRecord.channel, handleRendererRecord);
-    ipcMain.on(GameConsoleIpc.rendererMessage.channel, handleConsoleMessage);
-    app.on("child-process-gone", handleChildProcessGone);
-    app.on("render-process-gone", handleRenderProcessGone);
-    app.on("web-contents-created", handleWebContentsCreated);
-  });
-  yield* Effect.addFinalizer(() =>
-    Effect.sync(() => {
-      ipcMain.removeListener(
-        DiagnosticsIpc.rendererRecord.channel,
-        handleRendererRecord,
-      );
-      ipcMain.removeListener(
-        GameConsoleIpc.rendererMessage.channel,
-        handleConsoleMessage,
-      );
-      app.removeListener("child-process-gone", handleChildProcessGone);
-      app.removeListener("render-process-gone", handleRenderProcessGone);
-      app.removeListener("web-contents-created", handleWebContentsCreated);
-      for (const cleanup of webContentsCleanups) {
-        cleanup();
-      }
-    }),
+  yield* observeElectronEvent(
+    ipcMain,
+    DiagnosticsIpc.rendererRecord.channel,
+    handleRendererRecord,
+  );
+  yield* observeElectronEvent(
+    ipcMain,
+    GameConsoleIpc.rendererMessage.channel,
+    handleConsoleMessage,
+  );
+  yield* observeElectronEvent(
+    app,
+    "child-process-gone",
+    handleChildProcessGone,
+  );
+  yield* observeElectronEvent(
+    app,
+    "render-process-gone",
+    handleRenderProcessGone,
+  );
+  yield* observeElectronEvent(
+    app,
+    "web-contents-created",
+    handleWebContentsCreated,
   );
 });

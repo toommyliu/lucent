@@ -10,7 +10,6 @@ type RendererNavigationListener = (
 ) => void;
 
 interface WindowGenerationWebContents {
-  readonly isDestroyed: () => boolean;
   readonly off: (
     event: "did-start-navigation",
     listener: RendererNavigationListener,
@@ -27,7 +26,6 @@ export const observeWindowReloads = (
 ): (() => void) => {
   let generation = INITIAL_WINDOW_GENERATION;
   let initialNavigationStarted = false;
-  let observing = true;
   const handleNavigationStarted: RendererNavigationListener = ({
     isSameDocument,
     isMainFrame,
@@ -47,13 +45,6 @@ export const observeWindowReloads = (
   webContents.on("did-start-navigation", handleNavigationStarted);
 
   return () => {
-    if (!observing) {
-      return;
-    }
-
-    observing = false;
-    if (!webContents.isDestroyed()) {
-      webContents.off("did-start-navigation", handleNavigationStarted);
-    }
+    webContents.off("did-start-navigation", handleNavigationStarted);
   };
 };

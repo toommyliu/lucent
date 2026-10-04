@@ -9,9 +9,14 @@ import {
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 
+import {
+  forkWebContentsScope,
+  observeElectronEvent,
+} from "../electron/ElectronScope";
 import { Accounts } from "../internal/accounts/Accounts";
 import { ElectronDialog } from "../electron/ElectronDialog";
 import { DesktopWindows } from "../window/DesktopWindows";
@@ -115,7 +120,7 @@ export const makeDesktopGameRendererRecovery = (
 ): DesktopGameRendererRecovery["Service"] => {
   const executions = new Map<number, Set<number>>();
   const intentionalRendererCrashes = new Set<number>();
-  const observedContents = new Map<number, () => void>();
+  const observedContents = new Set<number>();
   const pendingPrompts = new Set<number>();
   const recoverableCrashes = new Map<number, RecoverableGameCrash>();
   const unresponsiveRenderers = new Set<number>();
@@ -127,7 +132,6 @@ export const makeDesktopGameRendererRecovery = (
 
   const clearRenderer = (rendererId: number): void => {
     executions.delete(rendererId);
-    pendingPrompts.delete(rendererId);
     recoverableCrashes.delete(rendererId);
     unresponsiveRenderers.delete(rendererId);
   };
@@ -275,137 +279,156 @@ export const makeDesktopGameRendererRecovery = (
     });
 
   const install = Effect.gen(function* () {
-    const context = yield* Effect.context<never>();
-    const runPromise = Effect.runPromiseWith(context);
-    const unsubscribeBeforeQuit = dependencies.onBeforeQuit(() => {
-      appIsQuitting = true;
-    });
-
+    const installScope = yield* Effect.scope;
+    const run = yield* FiberSet.makeRuntime<never, void>();
+    yield* Effect.acquireRelease(
+      Effect.sync(() =>
+        dependencies.onBeforeQuit(() => {
+          appIsQuitting = true;
+        }),
+      ),
+      (stop) => Effect.sync(stop),
+    );
     const observe = (contents: RecoverableGameWebContents): void => {
-      if (observedContents.has(contents.id)) return;
+      if (observedContents.has(contents.id) || contents.isDestroyed()) return;
+      run(
+        Effect.gen(function* () {
+          const scope = yield* forkWebContentsScope(contents);
+          yield* Effect.gen(function* () {
+            observedContents.add(contents.id);
+            yield* Effect.addFinalizer(() =>
+              Effect.sync(() => {
+                clearRenderer(contents.id);
+                intentionalRendererCrashes.delete(contents.id);
+                observedContents.delete(contents.id);
+              }),
+            );
+            const runRecovery = yield* FiberSet.makeRuntime<never, void>();
+            const startCrashRecovery = (): void => {
+              if (
+                appIsQuitting ||
+                pendingPrompts.has(contents.id) ||
+                contents.isDestroyed()
+              ) {
+                return;
+              }
+              const crash = recoverableCrashes.get(contents.id);
+              if (crash === undefined) return;
 
-      const startCrashRecovery = (): void => {
-        if (
-          appIsQuitting ||
-          pendingPrompts.has(contents.id) ||
-          contents.isDestroyed()
-        ) {
-          return;
-        }
-        const crash = recoverableCrashes.get(contents.id);
-        if (crash === undefined) return;
+              pendingPrompts.add(contents.id);
+              runRecovery(
+                offerCrashRecovery(contents, crash).pipe(
+                  Effect.catchCause((cause) =>
+                    Cause.hasInterruptsOnly(cause)
+                      ? Effect.interrupt
+                      : dependencies.error(
+                          "Failed to offer renderer crash recovery",
+                          cause,
+                          { rendererId: contents.id },
+                        ),
+                  ),
+                  Effect.ensuring(
+                    Effect.sync(() => pendingPrompts.delete(contents.id)),
+                  ),
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      if (recoverableCrashes.get(contents.id) === crash)
+                        recoverableCrashes.delete(contents.id);
+                      startCrashRecovery();
+                    }),
+                  ),
+                ),
+              );
+            };
+            const handleResponsive = (): void => {
+              unresponsiveRenderers.delete(contents.id);
+            };
+            const handleUnresponsive = (): void => {
+              if (appIsQuitting) return;
 
-        pendingPrompts.add(contents.id);
-        void runPromise(
-          offerCrashRecovery(contents, crash).pipe(
-            Effect.catchCause((cause) =>
-              dependencies.error(
-                "Failed to offer renderer crash recovery",
-                cause,
-                { rendererId: contents.id },
-              ),
-            ),
-            Effect.ensuring(
-              Effect.sync(() => pendingPrompts.delete(contents.id)),
-            ),
-          ),
-        )
-          .then(() => {
-            if (recoverableCrashes.get(contents.id) === crash) {
-              recoverableCrashes.delete(contents.id);
-            }
-            startCrashRecovery();
-          })
-          .catch(() => undefined);
-      };
-      const handleResponsive = (): void => {
-        unresponsiveRenderers.delete(contents.id);
-      };
-      const handleUnresponsive = (): void => {
-        if (appIsQuitting) return;
+              unresponsiveRenderers.add(contents.id);
+              if (
+                !hasActiveExecution(contents.id) ||
+                pendingPrompts.has(contents.id)
+              ) {
+                return;
+              }
 
-        unresponsiveRenderers.add(contents.id);
-        if (
-          !hasActiveExecution(contents.id) ||
-          pendingPrompts.has(contents.id)
-        ) {
-          return;
-        }
+              pendingPrompts.add(contents.id);
+              runRecovery(
+                offerUnresponsiveRecovery(contents).pipe(
+                  Effect.catchCause((cause) =>
+                    Cause.hasInterruptsOnly(cause)
+                      ? Effect.interrupt
+                      : dependencies.error(
+                          "Failed to offer game renderer recovery",
+                          cause,
+                          { rendererId: contents.id },
+                        ),
+                  ),
+                  Effect.ensuring(
+                    Effect.sync(() => pendingPrompts.delete(contents.id)),
+                  ),
+                  Effect.andThen(Effect.sync(startCrashRecovery)),
+                ),
+              );
+            };
+            const handleRenderProcessGone = (
+              _event: ElectronEvent,
+              details: RenderProcessGoneDetails,
+            ): void => {
+              // Unresponsive recovery deliberately kills the renderer before
+              // reloading it, so that event must not open another recovery prompt.
+              if (intentionalRendererCrashes.delete(contents.id)) return;
+              if (
+                appIsQuitting ||
+                !isRecoverableRendererCrash(details.reason)
+              ) {
+                return;
+              }
 
-        pendingPrompts.add(contents.id);
-        void runPromise(
-          offerUnresponsiveRecovery(contents).pipe(
-            Effect.catchCause((cause) =>
-              dependencies.error(
-                "Failed to offer game renderer recovery",
-                cause,
-                { rendererId: contents.id },
-              ),
-            ),
-            Effect.ensuring(
-              Effect.sync(() => pendingPrompts.delete(contents.id)),
-            ),
-          ),
-        )
-          .then(() => {
-            startCrashRecovery();
-          })
-          .catch(() => undefined);
-      };
-      const handleRenderProcessGone = (
-        _event: ElectronEvent,
-        details: RenderProcessGoneDetails,
-      ): void => {
-        // Unresponsive recovery deliberately kills the renderer before
-        // reloading it, so that event must not open another recovery prompt.
-        if (intentionalRendererCrashes.delete(contents.id)) return;
-        if (appIsQuitting || !isRecoverableRendererCrash(details.reason)) {
-          return;
-        }
+              const current = recoverableCrashes.get(contents.id);
+              recoverableCrashes.set(
+                contents.id,
+                current ?? {
+                  reason: details.reason,
+                  scriptWasRunning: hasActiveExecution(contents.id),
+                },
+              );
+              startCrashRecovery();
+            };
+            const handleDidStartLoading = (): void => {
+              clearRenderer(contents.id);
+            };
 
-        const current = recoverableCrashes.get(contents.id);
-        recoverableCrashes.set(
-          contents.id,
-          current ?? {
-            reason: details.reason,
-            scriptWasRunning: hasActiveExecution(contents.id),
-          },
-        );
-        startCrashRecovery();
-      };
-      const handleDidStartLoading = (): void => {
-        clearRenderer(contents.id);
-      };
-      let cleanedUp = false;
-      const cleanup = (): void => {
-        if (cleanedUp) return;
-        cleanedUp = true;
-        clearRenderer(contents.id);
-        intentionalRendererCrashes.delete(contents.id);
-        contents.removeListener("responsive", handleResponsive);
-        contents.removeListener("unresponsive", handleUnresponsive);
-        contents.removeListener("render-process-gone", handleRenderProcessGone);
-        contents.removeListener("did-start-loading", handleDidStartLoading);
-        contents.removeListener("destroyed", cleanup);
-        observedContents.delete(contents.id);
-      };
-
-      contents.on("responsive", handleResponsive);
-      contents.on("unresponsive", handleUnresponsive);
-      contents.on("render-process-gone", handleRenderProcessGone);
-      contents.on("did-start-loading", handleDidStartLoading);
-      contents.once("destroyed", cleanup);
-      observedContents.set(contents.id, cleanup);
+            yield* observeElectronEvent(
+              contents,
+              "responsive",
+              handleResponsive,
+            );
+            yield* observeElectronEvent(
+              contents,
+              "unresponsive",
+              handleUnresponsive,
+            );
+            yield* observeElectronEvent(
+              contents,
+              "render-process-gone",
+              handleRenderProcessGone,
+            );
+            yield* observeElectronEvent(
+              contents,
+              "did-start-loading",
+              handleDidStartLoading,
+            );
+          }).pipe(Scope.provide(scope));
+        }).pipe(Scope.provide(installScope)),
+      );
     };
-
     for (const contents of dependencies.allWebContents()) observe(contents);
-    const unsubscribeCreated = dependencies.onWebContentsCreated(observe);
-    yield* Effect.addFinalizer(() =>
-      Effect.sync(() => {
-        unsubscribeBeforeQuit();
-        unsubscribeCreated();
-        for (const cleanup of observedContents.values()) cleanup();
-      }),
+    yield* Effect.acquireRelease(
+      Effect.sync(() => dependencies.onWebContentsCreated(observe)),
+      (stop) => Effect.sync(stop),
     );
   });
 

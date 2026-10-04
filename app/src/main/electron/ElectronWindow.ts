@@ -11,6 +11,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
 
 export {
   isElectronWindowUsable,
@@ -25,6 +26,7 @@ export interface ElectronWindowWebContents {
   readonly id: number;
   readonly isDestroyed: () => boolean;
   readonly off: WebContents["removeListener"];
+  readonly removeListener: WebContents["removeListener"];
   readonly on: WebContents["on"];
   readonly openDevTools: WebContents["openDevTools"];
   readonly send: WebContents["send"];
@@ -44,6 +46,7 @@ export interface ElectronNativeWindowHandle {
   readonly getContentBounds: BrowserWindow["getContentBounds"];
   readonly on: BaseWindow["on"];
   readonly once: BaseWindow["once"];
+  readonly removeListener: BaseWindow["removeListener"];
   readonly restore: () => void;
   readonly setBackgroundColor: (backgroundColor: string) => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;
@@ -55,6 +58,7 @@ export interface ElectronWindowHandle extends ElectronNativeWindowHandle {
   readonly webContents: ElectronWindowWebContents;
   readonly loadFile: BrowserWindow["loadFile"];
   readonly on: BrowserWindow["on"];
+  readonly removeListener: BrowserWindow["removeListener"];
   readonly once: BrowserWindow["once"];
 }
 
@@ -96,11 +100,19 @@ export type ElectronWindowOpenRequestHandler = (url: string) => void;
 export interface ElectronWindowShape {
   readonly createHost: (
     options: ElectronHostWindowCreateOptions,
-  ) => Effect.Effect<ElectronNativeWindowHandle, ElectronWindowCreateError>;
+  ) => Effect.Effect<
+    ElectronNativeWindowHandle,
+    ElectronWindowCreateError,
+    Scope.Scope
+  >;
   readonly create: (
     options: ElectronWindowCreateOptions,
     onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
-  ) => Effect.Effect<ElectronWindowHandle, ElectronWindowCreateError>;
+  ) => Effect.Effect<
+    ElectronWindowHandle,
+    ElectronWindowCreateError,
+    Scope.Scope
+  >;
   readonly loadFile: (
     window: ElectronWindowHandle,
     path: string,
@@ -149,24 +161,40 @@ const makeCenteredOptions = <Options extends ElectronHostWindowCreateOptions>(
   };
 };
 
-const create: ElectronWindowShape["create"] = (options, onWindowOpenRequest) =>
-  Effect.try({
+const create: ElectronWindowShape["create"] = Effect.fn(
+  "ElectronWindow.create",
+)(function* (options, onWindowOpenRequest) {
+  const window = yield* Effect.acquireRelease(
+    Effect.try({
+      try: () => new BrowserWindow(makeCenteredOptions(options)),
+      catch: (cause) => new ElectronWindowCreateError({ cause }),
+    }),
+    (window) =>
+      Effect.sync(() => {
+        if (!window.isDestroyed()) window.destroy();
+      }),
+  );
+  yield* Effect.try({
     try: () => {
-      const window = new BrowserWindow({
-        ...makeCenteredOptions(options),
-      });
       electronRendererRegistry.register(window.webContents);
       guardRendererNavigation(window.webContents, onWindowOpenRequest);
-      return window;
     },
     catch: (cause) => new ElectronWindowCreateError({ cause }),
   });
+  return window;
+});
 
 const createHost: ElectronWindowShape["createHost"] = (options) =>
-  Effect.try({
-    try: () => new BaseWindow(makeCenteredOptions(options)),
-    catch: (cause) => new ElectronWindowCreateError({ cause }),
-  });
+  Effect.acquireRelease(
+    Effect.try({
+      try: () => new BaseWindow(makeCenteredOptions(options)),
+      catch: (cause) => new ElectronWindowCreateError({ cause }),
+    }),
+    (window) =>
+      Effect.sync(() => {
+        if (!window.isDestroyed()) window.destroy();
+      }),
+  );
 
 const loadFile: ElectronWindowShape["loadFile"] = (window, path, options) =>
   Effect.tryPromise({
