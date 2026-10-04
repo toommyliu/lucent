@@ -1,0 +1,154 @@
+@layer ui.components {
+  .root {
+    --control-height: var(--control-height-md);
+    --swatch-size: 18px;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    width: fit-content;
+    height: var(--control-height);
+    padding: 0 14px 0 8px;
+    border: 1px solid oklch(0 0 0 / 0.28);
+    border-radius: 9999px;
+    color: oklch(0 0 0);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    font-weight: 700;
+
+    &[data-fill="dark"] {
+      border-color: oklch(1 0 0 / 0.42);
+      color: oklch(1 0 0);
+    }
+
+    &:has(.input:focus-visible) {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &[data-disabled] {
+      opacity: 0.5;
+    }
+
+    &[data-size="sm"] {
+      --control-height: var(--control-height-sm);
+      --swatch-size: 16px;
+
+      padding: 0 12px 0 6px;
+    }
+
+    &[data-size="lg"] {
+      --control-height: var(--control-height-lg);
+      --swatch-size: 20px;
+
+      padding: 0 16px 0 10px;
+    }
+  }
+
+  .swatch {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: var(--swatch-size);
+    height: var(--swatch-size);
+    margin: 0;
+    padding: 0;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background-color: transparent;
+    color: inherit;
+    cursor: var(--cursor-interactive);
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid currentColor;
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+  }
+
+  .input {
+    width: 7ch;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    outline: 0;
+    text-transform: uppercase;
+  }
+
+  .popup {
+    padding: 8px;
+  }
+}
+
+/* react-colorful injects unlayered CSS at runtime, which beats every layered rule. */
+.picker:global(.react-colorful) {
+  width: 176px;
+  height: 184px;
+  gap: 8px;
+}
+
+.picker :global(.react-colorful__saturation) {
+  border-bottom: 0;
+  border-radius: calc(var(--radius-popup) - 4px);
+}
+
+.picker :global(.react-colorful__hue) {
+  --thumb-inset: 12px;
+  --travel: calc(100% - 2 * var(--thumb-inset));
+
+  flex-shrink: 0;
+  height: 24px;
+  border-radius: calc(var(--radius-popup) - 4px);
+  background: linear-gradient(
+    90deg,
+    #f00 var(--thumb-inset),
+    #ff0 calc(var(--thumb-inset) + var(--travel) / 6),
+    #0f0 calc(var(--thumb-inset) + var(--travel) / 3),
+    #0ff calc(var(--thumb-inset) + var(--travel) / 2),
+    #00f calc(var(--thumb-inset) + var(--travel) * 2 / 3),
+    #f0f calc(var(--thumb-inset) + var(--travel) * 5 / 6),
+    #f00 calc(100% - var(--thumb-inset))
+  );
+}
+
+.picker :global(.react-colorful__hue .react-colorful__interactive) {
+  inset: 0 var(--thumb-inset);
+
+  &::before {
+    position: absolute;
+    inset: 0 calc(var(--thumb-inset) * -1);
+    content: "";
+  }
+}
+
+.picker :global(.react-colorful__pointer) {
+  width: 16px;
+  height: 16px;
+  box-shadow:
+    0 0 0 1px oklch(0 0 0 / 0.12),
+    0 1px 3px oklch(0 0 0 / 0.24);
+}
+
+.picker :global(.react-colorful__hue-pointer) {
+  width: 24px;
+  height: 24px;
+}
+
+.picker
+  :global(.react-colorful__interactive:focus)
+  :global(.react-colorful__pointer) {
+  transform: translate(-50%, -50%);
+}
+
+.picker
+  :global(.react-colorful__interactive:focus-visible)
+  :global(.react-colorful__pointer) {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 1px;
+}

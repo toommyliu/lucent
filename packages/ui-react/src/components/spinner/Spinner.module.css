@@ -1,0 +1,12 @@
+@layer ui.components {
+  .root {
+    flex-shrink: 0;
+    animation: spin 800ms linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      rotate: 1turn;
+    }
+  }
+}

@@ -1,0 +1,41 @@
+@layer ui.components {
+  .root {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    box-sizing: border-box;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 4px;
+    border-radius: var(--radius-tag);
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-raised);
+    color: var(--color-text-secondary);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-caption);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    line-height: 1;
+    vertical-align: middle;
+    white-space: nowrap;
+    user-select: none;
+
+    & > svg {
+      width: 11px;
+      height: 11px;
+    }
+  }
+
+  .group {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--font-sans);
+    font-size: var(--font-size-caption);
+    color: var(--color-text-tertiary);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+}

@@ -1,12 +1,6 @@
-import { Button, Icon } from "@lucent/ui";
-import {
-  For,
-  Show,
-  createSignal,
-  onCleanup,
-  onMount,
-  type JSX,
-} from "solid-js";
+/** @jsxImportSource react */
+import { Button, Icon } from "@lucent/ui-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
 import type { AboutFolder, AboutInfo, AboutLink } from "../../../shared/ipc";
@@ -91,25 +85,36 @@ export interface AboutViewProps {
   readonly onOpenReleasePage: () => Promise<boolean>;
 }
 
-function InfoRow(props: {
-  readonly children: JSX.Element;
+function InfoRow({
+  children,
+  label,
+}: {
+  readonly children: ReactNode;
   readonly label: string;
-}): JSX.Element {
+}) {
   return (
     <>
-      <dt class="about-info__label">{props.label}</dt>
-      <dd class="about-info__value">{props.children}</dd>
+      <dt className="about-info__label">{label}</dt>
+      <dd className="about-info__value">{children}</dd>
     </>
   );
 }
 
-export function AboutView(props: AboutViewProps): JSX.Element {
-  const [copied, setCopied] = createSignal(false);
-  const [checking, setChecking] = createSignal(false);
-  const [notice, setNotice] = createSignal<string | null>(null);
-  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+export function AboutView({
+  infoState,
+  updateState,
+  onCheckForUpdates,
+  onCopyText,
+  onOpenFolder,
+  onOpenLink,
+  onOpenReleasePage,
+}: AboutViewProps) {
+  const [copied, setCopied] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  onCleanup(() => clearTimeout(copiedTimer));
+  useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   const reportFailure = (message: string) => (cause: unknown) => {
     console.error(message, cause);
@@ -126,25 +131,21 @@ export function AboutView(props: AboutViewProps): JSX.Element {
   };
 
   const openFolder = (folder: AboutFolder, label: string): void =>
-    open(
-      () => props.onOpenFolder(folder),
-      `Couldn't open the ${label} folder.`,
-    );
+    open(() => onOpenFolder(folder), `Couldn't open the ${label} folder.`);
 
   const openLink = (link: AboutLink): void =>
-    open(
-      () => props.onOpenLink(link),
-      "Couldn't open the link in your browser.",
-    );
+    open(() => onOpenLink(link), "Couldn't open the link in your browser.");
 
   const copyDiagnostics = (info: AboutInfo): void => {
     setNotice(null);
-    void props
-      .onCopyText(formatDiagnostics(info))
+    void onCopyText(formatDiagnostics(info))
       .then(() => {
         setCopied(true);
-        clearTimeout(copiedTimer);
-        copiedTimer = setTimeout(() => setCopied(false), COPIED_RESET_MS);
+        clearTimeout(copiedTimer.current);
+        copiedTimer.current = setTimeout(
+          () => setCopied(false),
+          COPIED_RESET_MS,
+        );
       })
       .catch(reportFailure("Couldn't copy to the clipboard."));
   };
@@ -152,175 +153,157 @@ export function AboutView(props: AboutViewProps): JSX.Element {
   const checkForUpdates = (): void => {
     setNotice(null);
     setChecking(true);
-    void props
-      .onCheckForUpdates()
+    void onCheckForUpdates()
       .catch(reportFailure("Couldn't check for updates."))
       .finally(() => setChecking(false));
   };
 
-  const updateAvailable = () => props.updateState?.status === "available";
-  const statusText = () =>
-    notice() ??
-    (props.updateState === null ? "" : updateStatusText(props.updateState));
-  const statusTone = () =>
-    notice() !== null ? "error" : updateAvailable() ? "available" : undefined;
+  const updateAvailable = updateState?.status === "available";
+  const statusText =
+    notice ?? (updateState === null ? "" : updateStatusText(updateState));
+  const statusTone =
+    notice !== null ? "error" : updateAvailable ? "available" : undefined;
+  const info = infoState.status === "loaded" ? infoState.info : null;
+  const commit = info === null ? null : formatCommit(info.build);
 
   return (
-    <main class="about-app">
-      <Show when={props.infoState.status === "failed"}>
-        <p class="about-header__status" data-tone="error" role="status">
+    <main className="about-app">
+      {infoState.status === "failed" ? (
+        <p className="about-header__status" data-tone="error" role="status">
           Couldn't load app details. Reopen this window to try again.
         </p>
-      </Show>
-      <Show
-        when={props.infoState.status === "loaded" ? props.infoState.info : null}
-      >
-        {(info) => (
-          <>
-            <header class="about-header">
-              <div class="about-header__text">
-                <h1 class="about-header__title">
-                  Lucent{" "}
-                  <span class="about-header__version">
-                    {info().version}
-                    <Show when={info().channel === "development"}> (dev)</Show>
-                  </span>
-                </h1>
-                <p
-                  class="about-header__status"
-                  data-tone={statusTone()}
-                  role="status"
-                  title={statusText()}
-                >
-                  {statusText()}
-                </p>
-              </div>
-              <Show
-                fallback={
-                  <Button
-                    disabled={
-                      checking() || props.updateState?.status === "checking"
-                    }
-                    onClick={checkForUpdates}
-                    size="xs"
-                    type="button"
-                    variant="secondary"
-                  >
-                    Check for updates
-                  </Button>
-                }
-                when={updateAvailable()}
+      ) : null}
+      {info === null ? null : (
+        <>
+          <header className="about-header">
+            <div className="about-header__text">
+              <h1 className="about-header__title">
+                Lucent{" "}
+                <span className="about-header__version">
+                  {info.version}
+                  {info.channel === "development" ? " (dev)" : null}
+                </span>
+              </h1>
+              <p
+                className="about-header__status"
+                data-tone={statusTone}
+                role="status"
+                title={statusText}
               >
-                <Button
-                  onClick={() =>
-                    open(
-                      () => props.onOpenReleasePage(),
-                      "Couldn't open the release page.",
-                    )
-                  }
-                  size="xs"
-                  type="button"
-                >
-                  View release
-                  <Icon icon="arrow_up_right" size="xs" />
-                </Button>
-              </Show>
-            </header>
-
-            <section
-              aria-labelledby="about-details-title"
-              class="about-section"
-            >
-              <div class="about-section__header">
-                <h2 class="about-section__title" id="about-details-title">
-                  Details
-                </h2>
-                <Button
-                  onClick={() => copyDiagnostics(info())}
-                  size="xs"
-                  type="button"
-                  variant="outline"
-                >
-                  <Icon icon={copied() ? "check" : "copy"} size="xs" />
-                  {copied() ? "Copied" : "Copy diagnostics"}
-                </Button>
-              </div>
-              <dl class="about-info">
-                <InfoRow label="Commit">
-                  <Show fallback="Unknown" when={formatCommit(info().build)}>
-                    {(commit) => (
-                      <button
-                        class="about-info__link about-info__mono"
-                        onClick={() => openLink("commit")}
-                        title="View this commit on GitHub"
-                        type="button"
-                      >
-                        {commit()}
-                      </button>
-                    )}
-                  </Show>
-                </InfoRow>
-                <InfoRow label="Built">
-                  {formatBuiltAt(info().build.builtAt)}
-                </InfoRow>
-                <InfoRow label="Channel">
-                  {formatChannel(info().channel)}
-                </InfoRow>
-                <InfoRow label="System">{formatSystem(info().system)}</InfoRow>
-              </dl>
-            </section>
-
-            <div aria-label="Open folder" class="about-actions" role="group">
-              <For each={FOLDERS}>
-                {(folder) => (
-                  <Button
-                    onClick={() =>
-                      openFolder(folder.id, folder.label.toLowerCase())
-                    }
-                    size="xs"
-                    title={info().paths[folder.id]}
-                    type="button"
-                    variant="secondary"
-                  >
-                    <Icon icon="folder_open" size="xs" />
-                    {folder.label}
-                  </Button>
-                )}
-              </For>
+                {statusText}
+              </p>
             </div>
+            {updateAvailable ? (
+              <Button
+                onClick={() =>
+                  open(onOpenReleasePage, "Couldn't open the release page.")
+                }
+                size="sm"
+                type="button"
+                variant="primary"
+              >
+                View release
+                <Icon icon="arrow_up_right" size="sm" />
+              </Button>
+            ) : (
+              <Button
+                disabled={checking || updateState?.status === "checking"}
+                onClick={checkForUpdates}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Check for updates
+              </Button>
+            )}
+          </header>
 
-            <nav aria-label="Links" class="about-links">
-              <For each={LINKS}>
-                {(link) => (
+          <section
+            aria-labelledby="about-details-title"
+            className="about-section"
+          >
+            <div className="about-section__header">
+              <h2 className="about-section__title" id="about-details-title">
+                Details
+              </h2>
+              <Button
+                onClick={() => copyDiagnostics(info)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon icon={copied ? "check" : "copy"} size="sm" />
+                {copied ? "Copied" : "Copy diagnostics"}
+              </Button>
+            </div>
+            <dl className="about-info">
+              <InfoRow label="Commit">
+                {commit === null ? (
+                  "Unknown"
+                ) : (
                   <button
-                    class="about-links__item"
-                    onClick={() => openLink(link.id)}
+                    className="about-info__link about-info__mono"
+                    onClick={() => openLink("commit")}
+                    title="View this commit on GitHub"
                     type="button"
                   >
-                    {link.label}
+                    {commit}
                   </button>
                 )}
-              </For>
-            </nav>
-          </>
-        )}
-      </Show>
+              </InfoRow>
+              <InfoRow label="Built">
+                {formatBuiltAt(info.build.builtAt)}
+              </InfoRow>
+              <InfoRow label="Channel">{formatChannel(info.channel)}</InfoRow>
+              <InfoRow label="System">{formatSystem(info.system)}</InfoRow>
+            </dl>
+          </section>
+
+          <div aria-label="Open folder" className="about-actions" role="group">
+            {FOLDERS.map((folder) => (
+              <Button
+                key={folder.id}
+                onClick={() =>
+                  openFolder(folder.id, folder.label.toLowerCase())
+                }
+                size="sm"
+                title={info.paths[folder.id]}
+                type="button"
+                variant="secondary"
+              >
+                <Icon icon="folder_open" size="sm" />
+                {folder.label}
+              </Button>
+            ))}
+          </div>
+
+          <nav aria-label="Links" className="about-links">
+            {LINKS.map((link) => (
+              <button
+                className="about-links__item"
+                key={link.id}
+                onClick={() => openLink(link.id)}
+                type="button"
+              >
+                {link.label}
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
     </main>
   );
 }
 
-export function App(): JSX.Element {
+export function App() {
   const desktop = selectDesktopBridge(window.desktop, "about");
-  const [infoState, setInfoState] = createSignal<AboutInfoState>({
+  const [infoState, setInfoState] = useState<AboutInfoState>({
     status: "loading",
   });
-  const [updateState, setUpdateState] = createSignal<UpdateCheckState | null>(
-    null,
-  );
+  const [updateState, setUpdateState] = useState<UpdateCheckState | null>(null);
 
-  onMount(() => {
+  useEffect(() => {
     const unsubscribe = desktop.updates.onChanged(setUpdateState);
-    onCleanup(unsubscribe);
 
     void Promise.all([desktop.about.getInfo(), desktop.updates.getState()])
       .then(([nextInfo, nextUpdateState]) => {
@@ -334,11 +317,13 @@ export function App(): JSX.Element {
       .finally(() => {
         document.documentElement.dataset["ready"] = "true";
       });
-  });
+
+    return unsubscribe;
+  }, [desktop]);
 
   return (
     <AboutView
-      infoState={infoState()}
+      infoState={infoState}
       onCheckForUpdates={() =>
         desktop.updates
           .checkNow({ force: true })
@@ -348,7 +333,7 @@ export function App(): JSX.Element {
       onOpenFolder={(folder) => desktop.about.openFolder(folder)}
       onOpenLink={(link) => desktop.about.openLink(link)}
       onOpenReleasePage={() => desktop.updates.openReleasePage()}
-      updateState={updateState()}
+      updateState={updateState}
     />
   );
 }

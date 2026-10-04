@@ -1,0 +1,90 @@
+@layer ui.components {
+  .root {
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    height: var(--control-height);
+    padding: 0;
+    cursor: text;
+
+    &:has(> .input[readonly]) {
+      background-color: transparent;
+      box-shadow: none;
+    }
+
+    &:has(> .input[data-invalid]) {
+      border-color: var(--color-danger-solid);
+
+      &:has(:focus-visible) {
+        outline-color: var(--color-danger-solid);
+      }
+    }
+
+    &:has(> .input[data-disabled]) {
+      border-color: var(--color-border);
+      cursor: default;
+      opacity: 0.5;
+    }
+  }
+
+  .input {
+    flex: 1 1 0;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0 var(--control-padding);
+    border: 0;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    outline: 0;
+
+    &::placeholder {
+      color: var(--color-text-tertiary);
+      opacity: 1;
+    }
+
+    &[type="search"]::-webkit-search-cancel-button {
+      appearance: none;
+    }
+  }
+
+  .addon {
+    --addon-edge: var(--control-padding);
+    --addon-icon-size: 16px;
+
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+    user-select: none;
+
+    &:has(> button) {
+      --addon-edge: 2px;
+    }
+
+    &:first-child {
+      padding-inline-start: var(--addon-edge);
+    }
+
+    &:last-child {
+      padding-inline-end: var(--addon-edge);
+    }
+
+    & > svg {
+      flex-shrink: 0;
+      width: var(--addon-icon-size);
+      height: var(--addon-icon-size);
+    }
+
+    & > button {
+      border-radius: var(--radius-tag);
+    }
+
+    .root[data-size="sm"] > & {
+      --addon-icon-size: 14px;
+    }
+  }
+}

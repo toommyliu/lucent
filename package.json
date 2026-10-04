@@ -20,7 +20,7 @@
     "docgen": "tsx scripts/gen-script-types.ts && tsx scripts/docgen.ts",
     "icons:build": "tsx scripts/build-icons.ts",
     "lint": "pnpm lint:css && oxlint --disable-nested-config",
-    "lint:css": "stylelint \"packages/ui/src/**/*.css\" \"app/src/renderer/**/*.css\"",
+    "lint:css": "stylelint \"packages/ui/src/**/*.css\" \"packages/ui-react/src/**/*.css\" \"app/src/renderer/**/*.css\"",
     "lint:fix": "oxlint --disable-nested-config --fix",
     "format": "oxfmt --check",
     "format:write": "oxfmt",
