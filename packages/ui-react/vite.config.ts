@@ -22,7 +22,15 @@ export default defineConfig({
       formats: ["es"],
     },
     minify: false,
-    rollupOptions: { external: isExternal },
+    rollupOptions: {
+      external: isExternal,
+      output: {
+        entryFileNames: (chunk) =>
+          chunk.name === "entry" ? "index.js" : "[name].js",
+        preserveModules: true,
+        preserveModulesRoot: "src",
+      },
+    },
     sourcemap: true,
     target: `chrome${runtimeTargets.chrome}`,
   },

@@ -110,6 +110,9 @@ importers:
       '@lucent/ui':
         specifier: workspace:*
         version: link:../packages/ui
+      '@lucent/ui-react':
+        specifier: workspace:*
+        version: link:../packages/ui-react
       '@tanstack/solid-hotkeys':
         specifier: ^0.10.0
         version: 0.10.0(solid-js@1.9.12)
@@ -122,6 +125,12 @@ importers:
       effect:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
       semver:
         specifier: 7.7.4
         version: 7.7.4
@@ -141,6 +150,12 @@ importers:
       '@types/node':
         specifier: 24.12.2
         version: 24.12.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
       '@types/semver':
         specifier: 7.7.1
         version: 7.7.1
@@ -9028,15 +9043,15 @@ snapshots:
     dependencies:
       prismjs: 1.30.0
 
-  '@astrojs/react@6.0.1(@types/node@24.12.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.21.0)(yaml@2.9.0)':
+  '@astrojs/react@6.0.1(@types/node@24.12.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tsx@4.21.0)(yaml@2.9.0)':
     dependencies:
       '@astrojs/internal-helpers': 0.10.1
       '@types/react': 19.3.0
       '@types/react-dom': 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react': 5.2.0(vite@8.1.5(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
       devalue: 5.8.1
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
       ultrahtml: 1.6.0
       vite: 8.1.5(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0)
     transitivePeerDependencies:
@@ -9061,10 +9076,10 @@ snapshots:
       is-docker: 4.0.0
       package-manager-detector: 1.6.0
 
-  '@astrojs/vercel@11.0.3(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))(encoding@0.1.13)(react@19.2.8)(rollup@4.60.2)(ws@8.21.3)':
+  '@astrojs/vercel@11.0.3(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))(encoding@0.1.13)(react@19.3.0)(rollup@4.60.2)(ws@8.21.3)':
     dependencies:
       '@astrojs/internal-helpers': 0.10.1
-      '@vercel/analytics': 1.6.1(react@19.2.8)
+      '@vercel/analytics': 1.6.1(react@19.3.0)
       '@vercel/functions': 3.7.6(ws@8.21.3)
       '@vercel/nft': 1.10.2(encoding@0.1.13)(rollup@4.60.2)
       '@vercel/routing-utils': 5.3.3
@@ -10541,28 +10556,28 @@ snapshots:
       tslib: 2.8.1
       webcrypto-core: 1.9.2
 
-  '@pierre/diffs@1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@pierre/diffs@1.2.12(@shikijs/themes@4.3.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@pierre/theme': 1.1.0
-      '@pierre/theming': 0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.3.1)
+      '@pierre/theming': 0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.3.1)
       '@shikijs/transformers': 4.3.1
       diff: 9.0.0
       hast-util-to-html: 9.0.5
       lru_map: 0.4.1
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
       shiki: 4.3.1
     transitivePeerDependencies:
       - '@shikijs/themes'
 
   '@pierre/theme@1.1.0': {}
 
-  '@pierre/theming@0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.3.1)':
+  '@pierre/theming@0.0.2(@pierre/theme@1.1.0)(@shikijs/themes@4.3.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(shiki@4.3.1)':
     optionalDependencies:
       '@pierre/theme': 1.1.0
       '@shikijs/themes': 4.3.1
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
       shiki: 4.3.1
 
   '@pkgjs/parseargs@0.11.0':
@@ -11122,9 +11137,9 @@ snapshots:
   '@takumi-rs/core-win32-x64-msvc@2.5.0':
     optional: true
 
-  '@takumi-rs/core@2.5.0(csstype@3.2.3)(react@19.2.8)':
+  '@takumi-rs/core@2.5.0(csstype@3.2.3)(react@19.3.0)':
     dependencies:
-      '@takumi-rs/helpers': 2.5.0(react@19.2.8)
+      '@takumi-rs/helpers': 2.5.0(react@19.3.0)
     optionalDependencies:
       '@takumi-rs/core-darwin-arm64': 2.5.0
       '@takumi-rs/core-darwin-x64': 2.5.0
@@ -11139,13 +11154,13 @@ snapshots:
       - preact
       - react
 
-  '@takumi-rs/helpers@2.5.0(react@19.2.8)':
+  '@takumi-rs/helpers@2.5.0(react@19.3.0)':
     optionalDependencies:
-      react: 19.2.8
+      react: 19.3.0
 
-  '@takumi-rs/wasm@2.5.0(csstype@3.2.3)(react@19.2.8)':
+  '@takumi-rs/wasm@2.5.0(csstype@3.2.3)(react@19.3.0)':
     dependencies:
-      '@takumi-rs/helpers': 2.5.0(react@19.2.8)
+      '@takumi-rs/helpers': 2.5.0(react@19.3.0)
     optionalDependencies:
       csstype: 3.2.3
     transitivePeerDependencies:
@@ -11536,13 +11551,13 @@ snapshots:
       d3-selection: 3.0.0
       d3-transition: 3.0.1(d3-selection@3.0.0)
 
-  '@vercel/analytics@1.6.1(react@19.2.8)':
+  '@vercel/analytics@1.6.1(react@19.3.0)':
     optionalDependencies:
-      react: 19.2.8
+      react: 19.3.0
 
-  '@vercel/analytics@2.0.1(react@19.2.8)':
+  '@vercel/analytics@2.0.1(react@19.3.0)':
     optionalDependencies:
-      react: 19.2.8
+      react: 19.3.0
 
   '@vercel/cli-config@0.2.1':
     dependencies:
@@ -12736,15 +12751,15 @@ snapshots:
       '@astrojs/markdown-satteri': 0.3.4
       '@astrojs/mdx': 7.0.3(@astrojs/markdown-satteri@0.3.4)(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))
       '@astrojs/node': 11.0.2(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))
-      '@astrojs/react': 6.0.1(@types/node@24.12.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(tsx@4.21.0)(yaml@2.9.0)
-      '@astrojs/vercel': 11.0.3(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))(encoding@0.1.13)(react@19.2.8)(rollup@4.60.2)(ws@8.21.3)
+      '@astrojs/react': 6.0.1(@types/node@24.12.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(esbuild@0.28.1)(jiti@2.7.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(tsx@4.21.0)(yaml@2.9.0)
+      '@astrojs/vercel': 11.0.3(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))(encoding@0.1.13)(react@19.3.0)(rollup@4.60.2)(ws@8.21.3)
       '@clack/prompts': 1.7.0
       '@iconify-json/lucide': 1.2.119
       '@iconify/types': 2.0.0
       '@iconify/utils': 3.1.4
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
       '@orama/orama': 3.1.18
-      '@pierre/diffs': 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@pierre/diffs': 1.2.12(@shikijs/themes@4.3.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@scalar/astro': 0.4.11(astro@7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0))
       '@scalar/openapi-parser': 0.28.10
       '@scalar/openapi-types': 0.9.3
@@ -12752,7 +12767,7 @@ snapshots:
       '@shikijs/twoslash': 4.3.1(@typescript/typescript6@6.0.2)
       '@tailwindcss/typography': 0.5.20(tailwindcss@4.3.3)
       '@tailwindcss/vite': 4.3.3(vite@8.1.5(@types/node@24.12.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
-      '@vercel/analytics': 2.0.1(react@19.2.8)
+      '@vercel/analytics': 2.0.1(react@19.3.0)
       ai: 5.0.220(zod@3.25.76)
       astro: 7.1.3(@astrojs/markdown-remark@7.2.1)(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@24.12.2)(@vercel/functions@3.7.6(ws@8.21.3))(jiti@2.7.0)(rollup@4.60.2)(tsx@4.21.0)(yaml@2.9.0)
       babel-plugin-react-compiler: 1.0.0
@@ -12770,13 +12785,13 @@ snapshots:
       node-html-parser: 9.0.0
       pagefind: 1.5.2
       pathe: 2.0.3
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
+      react: 19.3.0
+      react-dom: 19.3.0(react@19.3.0)
       satteri: 0.9.5
       shiki: 4.3.1
       simple-icons: 13.21.0
       tailwindcss: 4.3.3
-      takumi-js: 2.5.0(csstype@3.2.3)(react@19.2.8)
+      takumi-js: 2.5.0(csstype@3.2.3)(react@19.3.0)
       tinyglobby: 0.2.16
       twoslash: 0.3.9(@typescript/typescript6@6.0.2)
       typescript: '@typescript/typescript6@6.0.2'
@@ -17181,11 +17196,11 @@ snapshots:
 
   tailwindcss@4.3.3: {}
 
-  takumi-js@2.5.0(csstype@3.2.3)(react@19.2.8):
+  takumi-js@2.5.0(csstype@3.2.3)(react@19.3.0):
     dependencies:
-      '@takumi-rs/core': 2.5.0(csstype@3.2.3)(react@19.2.8)
-      '@takumi-rs/helpers': 2.5.0(react@19.2.8)
-      '@takumi-rs/wasm': 2.5.0(csstype@3.2.3)(react@19.2.8)
+      '@takumi-rs/core': 2.5.0(csstype@3.2.3)(react@19.3.0)
+      '@takumi-rs/helpers': 2.5.0(react@19.3.0)
+      '@takumi-rs/wasm': 2.5.0(csstype@3.2.3)(react@19.3.0)
     transitivePeerDependencies:
       - csstype
       - preact

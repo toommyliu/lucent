@@ -28,6 +28,7 @@
   "scripts": {
     "clean": "rm -rf dist storybook-static",
     "build": "vite build && tsc -p tsconfig.build.json",
+    "postinstall": "pnpm run build",
     "css-types": "tsx scripts/generate-css-module-types.ts",
     "storybook": "storybook dev -p 6007",
     "storybook:build": "storybook build",
