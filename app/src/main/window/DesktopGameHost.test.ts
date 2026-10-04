@@ -39,9 +39,10 @@ const makeView = (
 };
 
 const makeHost = (ids: readonly string[]) => {
+  let content = { height: 830, width: 1200, x: 0, y: 0 };
   const window = {
     contentView: { addChildView: () => {}, removeChildView: () => {} },
-    getContentBounds: () => ({ height: 830, width: 1200, x: 0, y: 0 }),
+    getContentBounds: () => content,
     isDestroyed: () => false,
     isFocused: () => true,
   } as unknown as ElectronNativeWindowHandle;
@@ -102,7 +103,12 @@ const makeHost = (ids: readonly string[]) => {
     host.selectedId = selectedId;
     hosts.refresh(host);
   };
-  return { show, size, tiled };
+  const resizeWindow = (width: number, height: number) => {
+    content = { ...content, height, width };
+    hosts.finishResize(host);
+  };
+  const activate = (id: string) => hosts.activate(host, id);
+  return { activate, resizeWindow, show, size, tiled };
 };
 
 describe("game view layout", () => {
@@ -140,5 +146,29 @@ describe("game view layout", () => {
       "600x400",
     ]);
     expect([tiled("a"), tiled("b"), tiled("c")]).toEqual([false, false, true]);
+  });
+
+  it("leaves hidden tiles alone when the focused window resizes", () => {
+    const { resizeWindow, show, size } = makeHost(["a", "b", "c"]);
+    show("grid");
+    show("focused", "b");
+    show("focused", "a");
+    resizeWindow(1000, 630);
+
+    expect([size("a"), size("b"), size("c")]).toEqual([
+      "1000x600",
+      "1000x600",
+      "600x400",
+    ]);
+  });
+
+  it("shows a tile's top nav once a window resize brings it to full size", () => {
+    const { activate, resizeWindow, show, size, tiled } = makeHost(["a", "b"]);
+    show("grid");
+    show("focused", "a");
+    activate("b");
+    resizeWindow(1000, 630);
+
+    expect([size("b"), tiled("b")]).toEqual(["1000x600", false]);
   });
 });

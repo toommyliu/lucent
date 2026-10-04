@@ -283,13 +283,15 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       }
     }
 
-    // Inactive views keep their last size behind the selected view. A resized
-    // view redraws everything at its new size, and views resized together
-    // compete for the GPU.
+    // Inactive views keep their last size behind the selected view, and a
+    // hidden tile keeps its bounds until the grid shows it. A resized view
+    // redraws everything at its new size, and views resized together compete
+    // for the GPU.
     const focusedBounds = focusedGameViewBounds(width, height, topInset);
     for (const [index, id] of host.orderedIds.entries()) {
       const record = options.getGameViewRecord(id);
       if (record === undefined) continue;
+      if (host.layout === "focused" && record.boundsLayout === "grid") continue;
       setGameViewBounds(
         record.gameView,
         record.boundsLayout === "focused"
@@ -306,6 +308,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
 
     applyGroupControlsLayout(host, width, height, topInset);
     applyHostViewLayout(host, width, height, topInset);
+    publishPresentations(host);
   };
 
   const finishResize = (host: DesktopGameHostRecord): void => {
