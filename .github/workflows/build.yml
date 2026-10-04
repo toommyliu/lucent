@@ -75,3 +75,4 @@ jobs:
             ./app/build/Lucent-*-mac-*.dmg
             ./app/build/Lucent-*-win-*.zip
             ./app/build/Lucent-*-linux-*.AppImage
+            ./app/build/Lucent-*-linux-*.zip
