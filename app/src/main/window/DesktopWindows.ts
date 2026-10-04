@@ -2565,6 +2565,12 @@ const makeDesktopWindows = Effect.gen(function* () {
             publishStandaloneGameViewPresentation(record),
           );
           refreshStandaloneGameWindowTitle(record);
+        } else {
+          window.on("page-title-updated", (event, _title, explicitSet) => {
+            if (!explicitSet) {
+              event.preventDefault();
+            }
+          });
         }
         const createdEvent: DesktopWindowCreatedEvent = {
           rendererId,
