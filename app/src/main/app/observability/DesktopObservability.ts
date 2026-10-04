@@ -179,7 +179,7 @@ const makeDesktopObservability = Effect.gen(function* () {
       recordUnsafe,
     }),
   ).pipe(
-    Context.add(Logger.CurrentLoggers, new Set([logger, Logger.tracerLogger])),
+    Context.add(Logger.CurrentLoggers, new Set([logger])),
     Context.add(References.MinimumLogLevel, "Debug"),
   );
 });

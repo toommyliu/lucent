@@ -4,9 +4,7 @@ import * as DesktopEnvironment from "./DesktopEnvironment";
 import * as DesktopGameRendererRecovery from "./DesktopGameRendererRecovery";
 import * as DesktopLifecycle from "./DesktopLifecycle";
 import * as DesktopChromiumPerformanceRecording from "./observability/DesktopChromiumPerformanceRecording";
-import * as DesktopEffectTracing from "./observability/DesktopEffectTracing";
 import * as DesktopObservability from "./observability/DesktopObservability";
-import * as DesktopObservabilityServer from "./observability/DesktopObservabilityServer";
 import * as ArmyConfigRepository from "../internal/army/ArmyConfigRepository";
 import * as ArmyCoordinator from "../internal/army/ArmyCoordinator";
 import * as ArmyLoopTauntOrchestrator from "../internal/army/ArmyLoopTauntOrchestrator";
@@ -60,9 +58,6 @@ export const makeDesktopLayer = (
       Layer.mergeAll(NodeFileSystem.layer, DesktopEnvironment.layer(envConfig)),
     ),
   );
-  const tracing = (
-    envConfig.debug === true ? DesktopEffectTracing.layer : Layer.empty
-  ).pipe(Layer.provideMerge(diagnostics));
   const platform = Layer.mergeAll(
     DesktopLifecycle.layer,
     ElectronApp.layer,
@@ -72,15 +67,12 @@ export const makeDesktopLayer = (
     ElectronShell.layer,
     ElectronTheme.layer,
     ElectronWindow.layer,
-    Layer.succeed(
-      DesktopIpc.DesktopIpc,
-      DesktopIpc.makeElectronDesktopIpc(envConfig.debug === true),
-    ),
+    DesktopIpc.layer,
     DesktopHttpClient.layer,
     RuffleSocketProxy.layer,
     AccountSessions.layer,
     ScriptFiles.layer,
-  ).pipe(Layer.provideMerge(tracing));
+  ).pipe(Layer.provideMerge(diagnostics));
 
   const storage = Layer.mergeAll(
     DesktopSettings.layer,
@@ -126,8 +118,7 @@ export const makeDesktopLayer = (
     DesktopScriptLibrary.layer,
   ).pipe(Layer.provideMerge(game));
 
-  return Layer.mergeAll(
-    DesktopObservabilityServer.layer,
-    DesktopGameRendererRecovery.layer,
-  ).pipe(Layer.provideMerge(application));
+  return DesktopGameRendererRecovery.layer.pipe(
+    Layer.provideMerge(application),
+  );
 };
