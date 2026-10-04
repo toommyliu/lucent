@@ -237,25 +237,6 @@ export const Appearance: Story = {
   },
 };
 
-export const AppearanceSaveError: Story = {
-  args: {
-    fixture: {
-      activeTab: "appearance",
-      settings: {
-        ...DEFAULT_APP_SETTINGS,
-        appearance: {
-          ...DEFAULT_APP_SETTINGS.appearance,
-          themeMode: "dark",
-        },
-      },
-    },
-    onAppearancePatch: () =>
-      Promise.reject(
-        new Error("Unable to save appearance. Free disk space and try again."),
-      ),
-  },
-};
-
 export const CustomLightTheme: Story = {
   args: {
     fixture: {

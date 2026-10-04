@@ -35,8 +35,8 @@ export const rendererViewports = {
     type: "desktop",
   },
   settings: {
-    name: "Settings (651 × 500)",
-    styles: { height: "500px", width: "651px" },
+    name: "Settings (651 × 654)",
+    styles: { height: "654px", width: "651px" },
     type: "desktop",
   },
 } as const;
