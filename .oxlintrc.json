@@ -34,5 +34,27 @@
     ],
     "lucent/no-inline-schema-compile": "warn",
     "lucent/no-manual-effect-runtime-in-tests": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["packages/ui-react/**/*.ts", "packages/ui-react/**/*.tsx"],
+      "plugins": ["react"],
+      "rules": {
+        "effecttsgo/async-function": "off",
+        "effecttsgo/crypto-random-uuid": "off",
+        "effecttsgo/global-console": "off",
+        "effecttsgo/global-date": "off",
+        "effecttsgo/global-fetch": "off",
+        "effecttsgo/global-random": "off",
+        "effecttsgo/global-timers": "off",
+        "effecttsgo/new-promise": "off",
+        "effecttsgo/node-builtin-import": "off",
+        "effecttsgo/process-env": "off",
+        "react/exhaustive-deps": "error",
+        "react/jsx-key": "error",
+        "react/react-in-jsx-scope": "off",
+        "react/rules-of-hooks": "error"
+      }
+    }
+  ]
 }

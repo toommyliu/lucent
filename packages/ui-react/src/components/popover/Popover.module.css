@@ -1,0 +1,25 @@
+@layer ui.components {
+  .popup {
+    max-width: min(320px, var(--available-width));
+    padding: 12px;
+  }
+
+  .title {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-size-body);
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .description {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-small);
+    line-height: 1.45;
+
+    .title + & {
+      margin-top: 4px;
+    }
+  }
+}

@@ -1,0 +1,92 @@
+@layer ui.components {
+  .item {
+    padding-block: 4px;
+
+    & + & {
+      border-block-start: 1px solid var(--color-separator);
+    }
+  }
+
+  .header {
+    display: flex;
+    margin: 0;
+    font: inherit;
+  }
+
+  .trigger {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: var(--control-height-lg);
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background-color: transparent;
+    color: var(--color-text);
+    cursor: var(--cursor-interactive);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-body);
+    font-weight: 500;
+    line-height: 1.4;
+    text-align: start;
+    user-select: none;
+    transition-property: background-color;
+    transition-duration: var(--duration-state);
+    transition-timing-function: var(--ease-out);
+
+    & > svg {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+    }
+
+    @media (hover: hover) {
+      &:hover:not([data-disabled]) {
+        background-color: var(--color-fill-hover);
+      }
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &[data-disabled] {
+      cursor: default;
+      opacity: 0.5;
+    }
+  }
+
+  .chevron {
+    margin-inline-start: auto;
+    color: var(--color-text-secondary);
+
+    .trigger[data-panel-open] > & {
+      rotate: 180deg;
+    }
+  }
+
+  .panel {
+    height: var(--accordion-panel-height);
+    overflow: hidden;
+    transition-property: height;
+    transition-duration: var(--duration-movement);
+    transition-timing-function: var(--ease-out);
+
+    &[data-starting-style],
+    &[data-ending-style] {
+      height: 0;
+    }
+  }
+
+  .content {
+    padding: 2px 8px 8px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-body);
+    line-height: 1.5;
+  }
+}

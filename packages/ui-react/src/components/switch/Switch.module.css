@@ -1,0 +1,75 @@
+@layer ui.components {
+  .root {
+    --switch-width: 28px;
+    --switch-height: 16px;
+    --switch-thumb-size: 12px;
+    --switch-travel: calc(var(--switch-width) - var(--switch-thumb-size) - 4px);
+
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    box-sizing: border-box;
+    width: var(--switch-width);
+    height: var(--switch-height);
+    margin: 0;
+    padding: 2px;
+    border: 0;
+    border-radius: 9999px;
+    background-color: var(--color-border-strong);
+    cursor: var(--cursor-interactive);
+    transition-property: background-color;
+    transition-duration: var(--duration-state);
+    transition-timing-function: var(--ease-out);
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &[data-checked] {
+      background-color: var(--color-accent);
+    }
+
+    &[data-invalid]:focus-visible {
+      outline-color: var(--color-danger-solid);
+    }
+
+    &[data-disabled],
+    &[data-readonly] {
+      cursor: default;
+    }
+
+    &[data-disabled] {
+      opacity: 0.5;
+    }
+  }
+
+  .root[data-size="sm"] {
+    --switch-width: 24px;
+    --switch-height: 14px;
+    --switch-thumb-size: 10px;
+  }
+
+  .thumb {
+    display: block;
+    flex-shrink: 0;
+    width: var(--switch-thumb-size);
+    height: var(--switch-thumb-size);
+    border-radius: 50%;
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-raised);
+    transition-property: translate, background-color;
+    transition-duration: var(--duration-movement), var(--duration-state);
+    transition-timing-function: var(--ease-out);
+
+    &[data-checked] {
+      background-color: var(--color-on-accent);
+      translate: var(--switch-travel) 0;
+    }
+
+    &[data-checked]:dir(rtl) {
+      translate: calc(var(--switch-travel) * -1) 0;
+    }
+  }
+}
