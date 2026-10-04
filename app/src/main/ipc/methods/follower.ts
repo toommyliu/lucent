@@ -82,6 +82,7 @@ const requestState = Effect.fn("desktop.ipc.follower.requestState")(function* (
         readonly config: ReturnType<typeof normalizeFollowerConfig>;
         readonly kind: "configure";
       }
+    | { readonly kind: "get-state" }
     | {
         readonly config: ReturnType<typeof normalizeFollowerConfig>;
         readonly kind: "start";
@@ -131,7 +132,11 @@ export const getState = makeDesktopIpcMethod({
     function* (_payload, sender) {
       const followers = yield* GameFollowers;
       const gameRendererId = yield* resolveGameRendererId(sender);
-      return yield* followers.get(gameRendererId);
+      return yield* requestState(sender, { kind: "get-state" }).pipe(
+        Effect.catchTag("GameFollowerRequestError", () =>
+          followers.get(gameRendererId),
+        ),
+      );
     },
   ),
 });
