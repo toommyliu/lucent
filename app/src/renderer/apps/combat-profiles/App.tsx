@@ -1,9 +1,3 @@
-import { createHotkey } from "@tanstack/solid-hotkeys";
-import {
-  formatHotkeyDisplay,
-  formatHotkeyDisplayParts,
-  type HotkeyDisplayPlatform,
-} from "@lucent/core/hotkeys";
 import {
   Alert,
   AlertDescription,
@@ -23,20 +17,14 @@ import {
   type IconName,
   Input,
   type InputProps,
-  Kbd,
-  KbdGroup,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  type SelectTriggerProps,
-  Tooltip,
   TooltipButton,
   TooltipButtonContent,
   TooltipButtonTrigger,
-  TooltipContent,
   TooltipIconButton,
-  TooltipTrigger,
   VirtualizedSelectContent,
   cn,
 } from "@lucent/ui";
@@ -73,7 +61,6 @@ import {
   type SkillSlot,
 } from "@lucent/core/combatProfiles";
 import { selectDesktopBridge } from "../../../shared/desktopBridge";
-import type { DesktopRendererProps } from "../../RendererBootstrap";
 import {
   readStoredCombatProfileId,
   resolvePreferredCombatProfileId,
@@ -105,15 +92,7 @@ export interface CombatProfilesViewProps {
   readonly onSaveProfile?: (
     profile: CombatProfile,
   ) => Promise<CombatProfileLibrary>;
-  readonly platform: HotkeyDisplayPlatform;
 }
-
-const SAVE_PROFILE_HOTKEY = "Mod+S";
-const COPY_SNIPPET_HOTKEY = "Mod+C";
-const NEW_PROFILE_HOTKEY = "Mod+N";
-const DUPLICATE_PROFILE_HOTKEY = "Mod+D";
-const SWITCH_PROFILE_HOTKEY = "Mod+P";
-const PROFILE_PICKER_TRIGGER_ID = "combat-profiles-picker-trigger";
 
 const skillSlots: readonly SkillSlot[] = [0, 1, 2, 3, 4, 5];
 
@@ -412,14 +391,6 @@ const toScriptProfileDefinition = (
 const formatCombatProfileScriptProperty = (profile: CombatProfile): string =>
   `profile: ${formatJsLiteral(toScriptProfileDefinition(profile))}`;
 
-const focusFirstInvalidField = (): void => {
-  const field = document.querySelector<HTMLElement>(
-    ".combat-profiles-sheet [aria-invalid='true']",
-  );
-  field?.scrollIntoView({ block: "nearest" });
-  field?.focus({ preventScroll: true });
-};
-
 function createCombatProfilesController(props: CombatProfilesViewProps) {
   const [library, setLibrary] = createSignal<CombatProfileLibrary>(
     props.fixture.library,
@@ -456,7 +427,6 @@ function createCombatProfilesController(props: CombatProfilesViewProps) {
   const [error, setError] = createSignal(props.fixture.error ?? "");
   let nameInput: HTMLInputElement | undefined;
   let classNameInput: HTMLInputElement | undefined;
-  let profilePickerTrigger: HTMLButtonElement | undefined;
   let hydratedProfileId = "";
   let profileCopiedTimer: number | undefined;
 
@@ -691,7 +661,6 @@ function createCombatProfilesController(props: CombatProfilesViewProps) {
   const blockOnIssues = (): boolean => {
     if (hasIssues()) {
       setShowIssues(true);
-      focusFirstInvalidField();
     }
     return hasIssues();
   };
@@ -1061,12 +1030,8 @@ function createCombatProfilesController(props: CombatProfilesViewProps) {
     setNameInput: (element: HTMLInputElement) => {
       nameInput = element;
     },
-    setProfilePickerTrigger: (element: HTMLButtonElement) => {
-      profilePickerTrigger = element;
-    },
     setResetSkillIndexOnTargetDeath,
     showIssues,
-    toggleProfilePicker: () => profilePickerTrigger?.click(),
     updateCondition,
     updateConditionType,
     updateMessageTrigger,
@@ -1082,104 +1047,6 @@ type CombatProfilesController = ReturnType<
 
 interface ControllerProps {
   readonly controller: CombatProfilesController;
-}
-
-interface ShortcutControllerProps extends ControllerProps {
-  readonly platform: HotkeyDisplayPlatform;
-}
-
-const hasTextSelection = (): boolean => {
-  const active = document.activeElement;
-  if (
-    active instanceof HTMLInputElement ||
-    active instanceof HTMLTextAreaElement
-  ) {
-    return active.selectionStart !== active.selectionEnd;
-  }
-
-  return window.getSelection()?.isCollapsed === false;
-};
-
-function createCombatProfileHotkeys(c: CombatProfilesController): void {
-  const options = {
-    conflictBehavior: "replace",
-    ignoreInputs: false,
-  } as const;
-  const ignoreShortcut = (event: KeyboardEvent): boolean =>
-    event.repeat ||
-    c.deleteDialogOpen() ||
-    c.pendingProfileSwitch() !== undefined;
-
-  createHotkey(
-    SAVE_PROFILE_HOTKEY,
-    (event) => {
-      if (!ignoreShortcut(event) && c.hasUnsavedChanges()) {
-        void c.saveSelected();
-      }
-    },
-    options,
-  );
-
-  createHotkey(
-    COPY_SNIPPET_HOTKEY,
-    (event) => {
-      if (ignoreShortcut(event) || hasTextSelection()) {
-        return;
-      }
-
-      event.preventDefault();
-      void c.copySelectedProfile();
-    },
-    { ...options, preventDefault: false },
-  );
-
-  createHotkey(
-    NEW_PROFILE_HOTKEY,
-    (event) => {
-      if (!ignoreShortcut(event) && !c.saving()) {
-        c.createProfile();
-      }
-    },
-    options,
-  );
-
-  createHotkey(
-    DUPLICATE_PROFILE_HOTKEY,
-    (event) => {
-      if (!ignoreShortcut(event)) {
-        void c.duplicateSelected();
-      }
-    },
-    options,
-  );
-
-  createHotkey(
-    SWITCH_PROFILE_HOTKEY,
-    (event) => {
-      if (!ignoreShortcut(event)) {
-        c.toggleProfilePicker();
-      }
-    },
-    options,
-  );
-}
-
-const formatAriaKeyshortcuts = (
-  hotkey: string,
-  platform: HotkeyDisplayPlatform,
-): string => hotkey.replace("Mod", platform === "mac" ? "Meta" : "Control");
-
-function ShortcutHint(props: {
-  readonly hotkey: string;
-  readonly platform: HotkeyDisplayPlatform;
-}): JSX.Element {
-  return (
-    <KbdGroup aria-label={formatHotkeyDisplay(props.hotkey, props.platform)}>
-      <For each={formatHotkeyDisplayParts(props.hotkey, props.platform)}>
-        {(part) => <Kbd>{part}</Kbd>}
-      </For>
-    </KbdGroup>
-  );
 }
 
 function IssueAlert(props: ControllerProps): JSX.Element {
@@ -1202,160 +1069,101 @@ const profileOptionLabel = (profile: CombatProfileOption): string =>
     ? profile.label
     : `${profile.label} - ${profile.group}`;
 
-function ProfilePicker(props: ShortcutControllerProps): JSX.Element {
-  const c = props.controller;
-  const [open, setOpen] = createSignal(false);
-  return (
-    <Tooltip
-      closeDelay={0}
-      disabled={open()}
-      ids={{ trigger: PROFILE_PICKER_TRIGGER_ID }}
-      openDelay={200}
-      positioning={{ placement: "top" }}
-    >
-      <Select
-        class="combat-profiles-picker"
-        composite={false}
-        ids={{ trigger: PROFILE_PICKER_TRIGGER_ID }}
-        items={c.profileSelectItems()}
-        value={c.profileSelectValue() === "" ? [] : [c.profileSelectValue()]}
-        onOpenChange={(details) => setOpen(details.open)}
-        onValueChange={(details) => {
-          const option = c
-            .profileSelectItems()
-            .find((item) => item.value === details.value[0]);
-          if (option !== undefined) {
-            c.selectProfileOption(option);
-          }
-        }}
-      >
-        <TooltipTrigger
-          asChild={(tooltipTriggerProps) => (
-            <SelectTrigger
-              {...(tooltipTriggerProps({
-                ref: (element: HTMLButtonElement) =>
-                  c.setProfilePickerTrigger(element),
-                "aria-haspopup": "dialog",
-                "aria-keyshortcuts": formatAriaKeyshortcuts(
-                  SWITCH_PROFILE_HOTKEY,
-                  props.platform,
-                ),
-                "aria-label": "Profile",
-              } as SelectTriggerProps) as SelectTriggerProps)}
-            >
-              <span
-                class="select__value"
-                data-placeholder={
-                  c.selectedProfileLabel() === "" ? "" : undefined
-                }
-              >
-                {c.selectedProfileLabel() || "Profile"}
-              </span>
-            </SelectTrigger>
-          )}
-        />
-        <ProfilePickerContent controller={c} />
-      </Select>
-      <TooltipContent>
-        Switch profile{" "}
-        <ShortcutHint
-          hotkey={SWITCH_PROFILE_HOTKEY}
-          platform={props.platform}
-        />
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function ProfilePickerContent(props: ControllerProps): JSX.Element {
+function ProfilePicker(props: ControllerProps): JSX.Element {
   const c = props.controller;
   return (
-    <VirtualizedSelectContent
-      aria-label="Combat profiles"
+    <Select
+      class="combat-profiles-picker"
+      composite={false}
       items={c.profileSelectItems()}
-      groupBy={
-        c.groupProfiles()
-          ? (profile) => profile.group ?? "Any class"
-          : undefined
-      }
-      header={
-        <Button
-          aria-label="Group by class"
-          aria-pressed={c.groupProfiles()}
-          class="virtual-list__group-toggle"
-          size="xs"
-          title={c.groupProfiles() ? "Show flat list" : "Show grouped list"}
-          variant="ghost"
-          onClick={() => c.setGroupProfiles((grouped) => !grouped)}
-        >
-          <Icon icon="list_tree" class="button__icon" />
-          <span>Group</span>
-        </Button>
-      }
-      searchable
-      scrollToSelected
+      value={c.profileSelectValue() === "" ? [] : [c.profileSelectValue()]}
+      onValueChange={(details) => {
+        const option = c
+          .profileSelectItems()
+          .find((item) => item.value === details.value[0]);
+        if (option !== undefined) {
+          c.selectProfileOption(option);
+        }
+      }}
     >
-      {(profile) => (
-        <SelectItem
-          item={profile}
-          aria-label={profileOptionLabel(profile)}
-          title={profileOptionLabel(profile)}
-          value={profile.value}
+      <SelectTrigger
+        aria-haspopup="dialog"
+        aria-label="Profile"
+        title={c.selectedProfileLabel() || "Profile"}
+      >
+        <span
+          class="select__value"
+          data-placeholder={c.selectedProfileLabel() === "" ? "" : undefined}
         >
-          {profile.label}
-        </SelectItem>
-      )}
-    </VirtualizedSelectContent>
+          {c.selectedProfileLabel() || "Profile"}
+        </span>
+      </SelectTrigger>
+      <VirtualizedSelectContent
+        aria-label="Combat profiles"
+        items={c.profileSelectItems()}
+        groupBy={
+          c.groupProfiles()
+            ? (profile) => profile.group ?? "Any class"
+            : undefined
+        }
+        header={
+          <Button
+            aria-label="Group by class"
+            aria-pressed={c.groupProfiles()}
+            class="virtual-list__group-toggle"
+            size="xs"
+            title={c.groupProfiles() ? "Show flat list" : "Show grouped list"}
+            variant="ghost"
+            onClick={() => c.setGroupProfiles((grouped) => !grouped)}
+          >
+            <Icon icon="list_tree" class="button__icon" />
+            <span>Group</span>
+          </Button>
+        }
+        searchable
+        scrollToSelected
+      >
+        {(profile) => (
+          <SelectItem
+            item={profile}
+            aria-label={profileOptionLabel(profile)}
+            title={profileOptionLabel(profile)}
+            value={profile.value}
+          >
+            {profile.label}
+          </SelectItem>
+        )}
+      </VirtualizedSelectContent>
+    </Select>
   );
 }
 
-function ProfileActions(props: ShortcutControllerProps): JSX.Element {
+function ProfileActions(props: ControllerProps): JSX.Element {
   const c = props.controller;
   return (
     <div class="combat-profiles-profile-actions">
       <TooltipIconButton
-        aria-keyshortcuts={formatAriaKeyshortcuts(
-          NEW_PROFILE_HOTKEY,
-          props.platform,
-        )}
         aria-label="New profile"
         class="combat-profiles-profile-action"
         disabled={c.saving()}
         size="icon-sm"
-        tooltip={
-          <>
-            New profile{" "}
-            <ShortcutHint
-              hotkey={NEW_PROFILE_HOTKEY}
-              platform={props.platform}
-            />
-          </>
-        }
+        tooltip="New profile"
         variant="ghost"
         onClick={() => c.createProfile()}
       >
         <Icon icon="plus" size="sm" />
       </TooltipIconButton>
       <TooltipIconButton
-        aria-keyshortcuts={formatAriaKeyshortcuts(
-          DUPLICATE_PROFILE_HOTKEY,
-          props.platform,
-        )}
         aria-label="Duplicate profile"
         class="combat-profiles-profile-action"
         disabled={c.saving() || c.selectedProfile() === undefined}
         size="icon-sm"
-        tooltip={
-          <>
-            Duplicate{" "}
-            <ShortcutHint
-              hotkey={DUPLICATE_PROFILE_HOTKEY}
-              platform={props.platform}
-            />
-          </>
-        }
+        tooltip="Duplicate"
         variant="ghost"
-        onClick={() => void c.duplicateSelected()}
+        onClick={() => {
+          void c.duplicateSelected();
+          focusFirstInvalidField();
+        }}
       >
         <Icon icon="files" size="sm" />
       </TooltipIconButton>
@@ -1374,15 +1182,11 @@ function ProfileActions(props: ShortcutControllerProps): JSX.Element {
   );
 }
 
-function CopySnippetButton(props: ShortcutControllerProps): JSX.Element {
+function CopySnippetButton(props: ControllerProps): JSX.Element {
   const c = props.controller;
   return (
     <TooltipButton>
       <TooltipButtonTrigger
-        aria-keyshortcuts={formatAriaKeyshortcuts(
-          COPY_SNIPPET_HOTKEY,
-          props.platform,
-        )}
         aria-label={
           c.profileCopied() ? "Copied profile snippet" : "Copy profile snippet"
         }
@@ -1401,8 +1205,7 @@ function CopySnippetButton(props: ShortcutControllerProps): JSX.Element {
         </span>
       </TooltipButtonTrigger>
       <TooltipButtonContent>
-        For use in scripts.{" "}
-        <ShortcutHint hotkey={COPY_SNIPPET_HOTKEY} platform={props.platform} />
+        For <code>combat.kill</code> and related kill APIs.
       </TooltipButtonContent>
     </TooltipButton>
   );
@@ -1470,6 +1273,14 @@ function DiscardChangesDialog(props: ControllerProps): JSX.Element {
     </AlertDialog>
   );
 }
+
+const focusFirstInvalidField = (): void => {
+  const field = document.querySelector<HTMLElement>(
+    ".combat-profiles-sheet [aria-invalid='true']",
+  );
+  field?.scrollIntoView({ block: "nearest" });
+  field?.focus({ preventScroll: true });
+};
 
 const formatNumberDraft = (value: number | undefined): string =>
   value === undefined ? "" : String(value);
@@ -2302,7 +2113,6 @@ export function CombatProfilesView(
   props: CombatProfilesViewProps,
 ): JSX.Element {
   const c = createCombatProfilesController(props);
-  createCombatProfileHotkeys(c);
   return (
     <div class="standalone-window combat-profiles-root">
       <header class="standalone-window__header combat-profiles-header">
@@ -2310,34 +2120,24 @@ export function CombatProfilesView(
           Profile
         </span>
         <div class="combat-profiles-header__picker">
-          <ProfilePicker controller={c} platform={props.platform} />
-          <ProfileActions controller={c} platform={props.platform} />
+          <ProfilePicker controller={c} />
+          <ProfileActions controller={c} />
         </div>
         <div class="combat-profiles-header__end">
-          <CopySnippetButton controller={c} platform={props.platform} />
-          <TooltipButton closeDelay={0} openDelay={200}>
-            <TooltipButtonTrigger
-              aria-keyshortcuts={formatAriaKeyshortcuts(
-                SAVE_PROFILE_HOTKEY,
-                props.platform,
-              )}
-              aria-label="Save profile"
-              class="combat-profiles-save"
-              disabled={c.saving() || !c.hasUnsavedChanges()}
-              loading={c.saving()}
-              size="sm"
-              onClick={() => void c.saveSelected()}
-            >
-              Save
-            </TooltipButtonTrigger>
-            <TooltipButtonContent>
-              Save{" "}
-              <ShortcutHint
-                hotkey={SAVE_PROFILE_HOTKEY}
-                platform={props.platform}
-              />
-            </TooltipButtonContent>
-          </TooltipButton>
+          <CopySnippetButton controller={c} />
+          <Button
+            aria-label="Save profile"
+            class="combat-profiles-save"
+            disabled={c.saving() || !c.hasUnsavedChanges()}
+            loading={c.saving()}
+            size="sm"
+            onClick={() => {
+              void c.saveSelected();
+              focusFirstInvalidField();
+            }}
+          >
+            Save
+          </Button>
         </div>
       </header>
 
@@ -2355,7 +2155,7 @@ export function CombatProfilesView(
   );
 }
 
-export function App(props: DesktopRendererProps): JSX.Element {
+export function App(): JSX.Element {
   const combatProfiles = selectDesktopBridge(
     window.desktop,
     "combat-profiles",
@@ -2369,7 +2169,6 @@ export function App(props: DesktopRendererProps): JSX.Element {
       onDeleteProfile={(profileId) => combatProfiles.deleteProfile(profileId)}
       onLibraryChanged={(listener) => combatProfiles.onChanged(listener)}
       onSaveProfile={(profile) => combatProfiles.saveProfile(profile)}
-      platform={props.platform}
     />
   );
 }
