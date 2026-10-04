@@ -29,6 +29,8 @@ const GAME_GROUP_CONTROLS_MARGIN = 8;
 const GAME_GROUP_CONTROLS_WIDTH = 392;
 
 export interface DesktopGameViewRecord {
+  /** The layout whose bounds this view has, which can differ from its host's. */
+  boundsLayout: GameViewLayout;
   readonly gameHostRendererId: number;
   readonly gamePartition: string;
   readonly gameView: ElectronGameViewHandle;
@@ -98,6 +100,7 @@ const sameGameViewPresentation = (
 ): boolean =>
   left.active === right.active &&
   left.layout === right.layout &&
+  left.tiled === right.tiled &&
   left.windowActive === right.windowActive;
 
 const gameViewSession = (
@@ -116,9 +119,11 @@ const gameViewSession = (
 const gameViewPresentation = (
   host: DesktopGameHostRecord,
   id: DesktopWindowInstanceId,
+  boundsLayout: GameViewLayout,
 ): GameViewPresentation => ({
   active: host.selectedId === id,
   layout: host.layout,
+  tiled: boundsLayout === "grid",
   windowActive: host.window.isFocused(),
 });
 
@@ -263,43 +268,47 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       host.hostView.webContents.getZoomFactor(),
     );
     if (host.layout === "focused") {
-      const bounds = focusedGameViewBounds(width, height, topInset);
       const selected = options.getGameViewRecord(host.selectedId);
       if (selected !== undefined) {
-        setGameViewBounds(selected.gameView, bounds);
+        selected.boundsLayout = "focused";
         if (host.stackedGameViewId !== host.selectedId) {
           host.window.contentView.addChildView(selected.gameView.native);
           host.stackedGameViewId = host.selectedId;
         }
       }
-
-      // Keep inactive views at their final focused size behind the selected
-      // view. Tab changes then only alter native stacking order.
-      for (const id of host.orderedIds) {
-        if (id === host.selectedId) continue;
-        const record = options.getGameViewRecord(id);
-        if (record !== undefined) setGameViewBounds(record.gameView, bounds);
-      }
     } else {
-      for (const [index, id] of host.orderedIds.entries()) {
+      for (const id of host.orderedIds) {
         const record = options.getGameViewRecord(id);
-        if (record !== undefined) {
-          setGameViewBounds(
-            record.gameView,
-            gridGameViewBounds(
+        if (record !== undefined) record.boundsLayout = "grid";
+      }
+    }
+
+    // Inactive views keep their last size behind the selected view, and a
+    // hidden tile keeps its bounds until the grid shows it. A resized view
+    // redraws everything at its new size, and views resized together compete
+    // for the GPU.
+    const focusedBounds = focusedGameViewBounds(width, height, topInset);
+    for (const [index, id] of host.orderedIds.entries()) {
+      const record = options.getGameViewRecord(id);
+      if (record === undefined) continue;
+      if (host.layout === "focused" && record.boundsLayout === "grid") continue;
+      setGameViewBounds(
+        record.gameView,
+        record.boundsLayout === "focused"
+          ? focusedBounds
+          : gridGameViewBounds(
               width,
               height,
               topInset,
               index,
               host.orderedIds.length,
             ),
-          );
-        }
-      }
+      );
     }
 
     applyGroupControlsLayout(host, width, height, topInset);
     applyHostViewLayout(host, width, height, topInset);
+    publishPresentations(host);
   };
 
   const finishResize = (host: DesktopGameHostRecord): void => {
@@ -327,7 +336,12 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
   const presentation = (
     host: DesktopGameHostRecord,
     id: DesktopWindowInstanceId,
-  ): GameViewPresentation => gameViewPresentation(host, id);
+  ): GameViewPresentation =>
+    gameViewPresentation(
+      host,
+      id,
+      options.getGameViewRecord(id)?.boundsLayout ?? host.layout,
+    );
 
   const publishPresentations = (host: DesktopGameHostRecord): void => {
     for (const id of host.orderedIds) {

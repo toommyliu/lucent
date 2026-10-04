@@ -513,6 +513,7 @@ const standaloneGameViewPresentation = (
 ): GameViewPresentation => ({
   active: true,
   layout: "focused",
+  tiled: false,
   windowActive: window.isFocused(),
 });
 
@@ -527,6 +528,7 @@ const publishStandaloneGameViewPresentation = (
   if (
     record.publishedPresentation?.active === presentation.active &&
     record.publishedPresentation.layout === presentation.layout &&
+    record.publishedPresentation.tiled === presentation.tiled &&
     record.publishedPresentation.windowActive === presentation.windowActive
   ) {
     return;
@@ -1428,6 +1430,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       const rendererId = view.webContents.id;
       const gameViewName = normalizeGameViewName(options?.gameViewName);
       const record: DesktopGameViewRecord = {
+        boundsLayout: layout,
         rendererId,
         gameHostRendererId: host.rendererId,
         gamePartition,
