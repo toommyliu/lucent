@@ -9,8 +9,25 @@ import {
   AccountSessions,
   layer as sessionsLayer,
 } from "../../internal/accounts/AccountSessions";
-import { DesktopWindows } from "../../window/DesktopWindows";
-import { close, closeCurrent, reopen } from "./gameViews";
+import {
+  DesktopWindowError,
+  DesktopWindows,
+  type GameViewHostChange,
+} from "../../window/DesktopWindows";
+import {
+  close,
+  closeCurrent,
+  reopen,
+  select,
+  reorder,
+  setLayout,
+  setGroupControlsOpen,
+  setTabMenuOpen,
+  setGroupTargets,
+  syncTabBarLayout,
+  dispatchGroupOptionHotkey,
+} from "./gameViews";
+import { DesktopIpc } from "../DesktopIpc";
 
 const hostState: GameViewHostState = {
   capacity: 7,
@@ -151,5 +168,102 @@ describe("game view lifecycle IPC", () => {
           },
         ]);
       }),
+  );
+});
+
+describe("game view host command IPC", () => {
+  it.effect(
+    "decodes tab ids and preserves each command's result contract",
+    () =>
+      Effect.gen(function* () {
+        const changes: [number, GameViewHostChange][] = [];
+        const dependencies = Layer.mock(DesktopWindows, {
+          updateGameViewHost: (id, change) =>
+            Effect.sync(() => {
+              changes.push([id, change]);
+              return hostState;
+            }),
+        });
+        const run = <A, E>(effect: Effect.Effect<A, E, DesktopWindows>) =>
+          effect.pipe(Effect.provide(dependencies));
+        expect(
+          yield* run(select.handler({ id: "42", focus: "view" }, sender)),
+        ).toEqual(hostState);
+        expect(yield* run(reorder.handler({ ids: ["42"] }, sender))).toEqual(
+          hostState,
+        );
+        expect(
+          yield* run(setLayout.handler({ layout: "grid" }, sender)),
+        ).toEqual(hostState);
+        expect(
+          yield* run(
+            setGroupControlsOpen.handler(
+              { open: true },
+              { kind: "game-group-controls", rendererId: 101 },
+            ),
+          ),
+        ).toEqual(hostState);
+        expect(
+          yield* run(setGroupTargets.handler({ ids: ["42"] }, sender)),
+        ).toEqual(hostState);
+        expect(yield* run(setTabMenuOpen.handler({ open: true }, sender))).toBe(
+          true,
+        );
+        expect(
+          yield* run(setTabMenuOpen.handler({ open: false }, sender)),
+        ).toBe(false);
+        expect(
+          yield* run(syncTabBarLayout.handler(undefined, sender)),
+        ).toBeUndefined();
+        expect(changes).toEqual([
+          [100, { type: "select", id: 42, focus: "view" }],
+          [100, { type: "reorder", ids: [42] }],
+          [100, { type: "layout", layout: "grid" }],
+          [101, { type: "group-controls", open: true }],
+          [100, { type: "group-targets", ids: [42] }],
+          [100, { type: "tab-menu", open: true }],
+          [100, { type: "tab-menu", open: false }],
+          [100, { type: "tab-bar-layout" }],
+        ]);
+        const error = new DesktopWindowError({
+          id: "100",
+          detail: "Failed to update the tab menu.",
+        });
+        expect(
+          yield* setTabMenuOpen.handler({ open: true }, sender).pipe(
+            Effect.provide(
+              Layer.mock(DesktopWindows, {
+                updateGameViewHost: () => Effect.fail(error),
+              }),
+            ),
+            Effect.flip,
+          ),
+        ).toBe(error);
+      }),
+  );
+
+  it.effect("resolves a group hotkey's host using the requesting tab", () =>
+    Effect.gen(function* () {
+      const queried: number[] = [];
+      const dependencies = Layer.mergeAll(
+        Layer.mock(DesktopWindows, {
+          getGameViewHostState: (id) =>
+            Effect.sync(() => {
+              queried.push(id);
+              return hostState;
+            }),
+        }),
+        Layer.mock(DesktopIpc, {}),
+      );
+      expect(
+        yield* dispatchGroupOptionHotkey
+          .handler(
+            { commandId: "toggleInfiniteRange" },
+            { kind: "game", rendererId: 42 },
+          )
+          .pipe(Effect.provide(dependencies)),
+      ).toEqual({ recipientCount: 0, skippedCount: 0, status: "sent" });
+      expect(queried).toEqual([42]);
+    }),
   );
 });

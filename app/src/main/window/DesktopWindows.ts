@@ -86,7 +86,24 @@ export class DesktopWindowError extends Schema.TaggedError<DesktopWindowError>()
   }
 }
 
+export type GameViewHostChange =
+  | {
+      readonly type: "select";
+      readonly id: number;
+      readonly focus: GameViewSelectionFocus;
+    }
+  | { readonly type: "reorder"; readonly ids: readonly number[] }
+  | { readonly type: "layout"; readonly layout: GameViewLayout }
+  | { readonly type: "group-controls"; readonly open: boolean }
+  | { readonly type: "tab-menu"; readonly open: boolean }
+  | { readonly type: "group-targets"; readonly ids: readonly number[] }
+  | { readonly type: "tab-bar-layout" };
+
 export interface DesktopWindowsShape {
+  readonly updateGameViewHost: (
+    rendererId: number,
+    change: GameViewHostChange,
+  ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly closeRenderer: (rendererId: number) => Effect.Effect<boolean>;
   readonly getRendererIds: (
     kind: DesktopWindowKind,
@@ -122,9 +139,6 @@ export interface DesktopWindowsShape {
   readonly getGameViewHostState: (
     hostRendererId: number,
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
-  readonly getGameViewHostRendererId: (
-    gameRendererId: number,
-  ) => Effect.Effect<number, DesktopWindowError>;
   readonly getGameViewPresentation: (
     gameRendererId: number,
   ) => Effect.Effect<GameViewPresentation, DesktopWindowError>;
@@ -161,44 +175,16 @@ export interface DesktopWindowsShape {
     options?: DesktopWindowOpenOptions,
   ) => Effect.Effect<number, DesktopWindowError>;
   readonly revealRenderer: (rendererId: number) => Effect.Effect<boolean>;
-  readonly reorderGameViews: (
-    hostRendererId: number,
-    ids: readonly number[],
-  ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   /** Reloads the tab strip and selected client when they form one focused view. */
   readonly reloadFocusedGameContents: (
     nativeWindowId: number,
     focusedRendererId: number,
     bypassCache: boolean,
   ) => Effect.Effect<boolean, DesktopWindowError>;
-  readonly selectGameView: (
-    hostRendererId: number,
-    id: number,
-    focus: GameViewSelectionFocus,
-  ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly setBackgroundColor: (backgroundColor: string) => Effect.Effect<void>;
-  readonly setGameViewLayout: (
-    hostRendererId: number,
-    layout: GameViewLayout,
-  ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
-  readonly setGameViewGroupControlsOpen: (
-    hostRendererId: number,
-    open: boolean,
-  ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
-  readonly setGameViewGroupTargets: (
-    hostRendererId: number,
-    ids: readonly number[],
-  ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly setGameViewName: (
     gameRendererId: number,
     name: string,
-  ) => Effect.Effect<void, DesktopWindowError>;
-  readonly setGameViewTabMenuOpen: (
-    hostRendererId: number,
-    open: boolean,
-  ) => Effect.Effect<boolean, DesktopWindowError>;
-  readonly syncGameViewTabBarLayout: (
-    hostRendererId: number,
   ) => Effect.Effect<void, DesktopWindowError>;
   readonly withGameViewGroupControlsNativeDialog: <A, E, R>(
     hostRendererId: number,
@@ -571,6 +557,8 @@ const makeDesktopWindows = Effect.gen(function* () {
   };
   const findGameHost = (id: number): DesktopGameHostRecord | null => {
     const record = renderers.get(id);
+    if (record !== undefined && "gameHostRendererId" in record)
+      return findGameHost(record.gameHostRendererId);
     return record !== undefined &&
       "host" in record &&
       record.host.scope.state._tag !== "Closed" &&
@@ -1480,59 +1468,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     hostRendererId,
   ) => requireGameHost(hostRendererId).pipe(Effect.map(gameHosts.state));
 
-  const getGameViewHostRendererId: DesktopWindowsShape["getGameViewHostRendererId"] =
-    (gameRendererId) =>
-      Effect.try({
-        try: () => {
-          const host = findGameHostForView(gameRendererId);
-          if (host === null)
-            throw new Error(`Game view host is not open: ${gameRendererId}`);
-          return host.rendererId;
-        },
-        catch: (cause) =>
-          new DesktopWindowError({
-            cause,
-            detail: `Failed to resolve game view host: ${gameRendererId}`,
-            id: String(gameRendererId),
-          }),
-      });
-
-  const setGameViewTabMenuOpen: DesktopWindowsShape["setGameViewTabMenuOpen"] =
-    (hostRendererId, open) =>
-      Effect.gen(function* () {
-        const host = yield* requireGameHost(hostRendererId);
-        yield* Effect.try({
-          try: () => {
-            if (open && host.groupControlsOpen) {
-              gameHosts.setGroupControlsOpen(host, false);
-            }
-            gameHosts.setTabMenuOpen(host, open);
-          },
-          catch: (cause) =>
-            new DesktopWindowError({
-              cause,
-              detail: "Failed to update the tab menu.",
-              id: String(hostRendererId),
-            }),
-        });
-        return host.tabMenuOpen;
-      });
-
-  const syncGameViewTabBarLayout: DesktopWindowsShape["syncGameViewTabBarLayout"] =
-    (hostRendererId) =>
-      Effect.gen(function* () {
-        const host = yield* requireGameHost(hostRendererId);
-        yield* Effect.try({
-          try: () => gameHosts.syncTabBarLayout(host),
-          catch: (cause) =>
-            new DesktopWindowError({
-              cause,
-              detail: "Failed to synchronize the game view tab bar layout.",
-              id: String(hostRendererId),
-            }),
-        });
-      });
-
   const addGameView: DesktopWindowsShape["addGameView"] = (hostRendererId) =>
     Effect.gen(function* () {
       const host = yield* requireGameHost(hostRendererId);
@@ -1585,109 +1520,118 @@ const makeDesktopWindows = Effect.gen(function* () {
       yield* closeScope(record.scope, Exit.void);
     });
 
-  const selectGameView: DesktopWindowsShape["selectGameView"] = (
-    hostRendererId,
-    id,
-    focus,
+  const updateGameViewHost: DesktopWindowsShape["updateGameViewHost"] = (
+    rendererId,
+    change,
   ) =>
     Effect.gen(function* () {
-      const host = yield* requireGameHost(hostRendererId);
-      if (!host.tabs.some((record) => record.rendererId === id)) {
-        return yield* new DesktopWindowError({
-          detail: `Game view does not belong to this host: ${id}`,
-          id: String(id),
-        });
-      }
-
-      yield* Effect.try({
-        try: () => gameHosts.select(host, id, focus),
-        catch: (cause) =>
-          new DesktopWindowError({
-            cause,
-            detail: `Failed to select game view: ${id}`,
-            id: String(id),
-          }),
-      });
-      return gameHosts.state(host);
-    });
-
-  const reorderGameViews: DesktopWindowsShape["reorderGameViews"] = (
-    hostRendererId,
-    ids,
-  ) =>
-    Effect.gen(function* () {
-      const host = yield* requireGameHost(hostRendererId);
-      const uniqueIds = new Set(ids);
+      const host = yield* requireGameHost(rendererId);
       if (
-        ids.length !== host.tabs.length ||
-        uniqueIds.size !== ids.length ||
-        ids.some((id) => !host.tabs.some((record) => record.rendererId === id))
+        change.type === "select" &&
+        !host.tabs.some((record) => record.rendererId === change.id)
       ) {
         return yield* new DesktopWindowError({
-          detail: "Game view order must contain every open view exactly once.",
-          id: String(hostRendererId),
+          id: String(change.id),
+          detail: `Game view does not belong to this host: ${change.id}`,
         });
       }
-      if (ids.every((id, index) => host.tabs[index]?.rendererId === id)) {
-        return gameHosts.state(host);
+      if (change.type === "reorder" || change.type === "group-targets") {
+        const uniqueIds = new Set(change.ids);
+        if (
+          uniqueIds.size !== change.ids.length ||
+          change.ids.some(
+            (id) => !host.tabs.some((record) => record.rendererId === id),
+          ) ||
+          (change.type === "reorder" && change.ids.length !== host.tabs.length)
+        ) {
+          return yield* new DesktopWindowError({
+            id: String(rendererId),
+            detail:
+              change.type === "reorder"
+                ? "Game view order must contain every open view exactly once."
+                : "Group targets must be unique tabs in this game window.",
+          });
+        }
       }
-
-      host.tabs.splice(
-        0,
-        host.tabs.length,
-        ...ids.map(
-          (id) => host.tabs.find((record) => record.rendererId === id)!,
-        ),
-      );
       yield* Effect.try({
-        try: () => gameHosts.refresh(host),
-        catch: (cause) =>
-          new DesktopWindowError({
+        try: () => {
+          switch (change.type) {
+            case "select":
+              gameHosts.select(host, change.id, change.focus);
+              break;
+            case "reorder":
+              if (
+                change.ids.every(
+                  (id, index) => host.tabs[index]?.rendererId === id,
+                )
+              )
+                break;
+              host.tabs.splice(
+                0,
+                host.tabs.length,
+                ...change.ids.map(
+                  (id) => host.tabs.find((record) => record.rendererId === id)!,
+                ),
+              );
+              gameHosts.refresh(host);
+              break;
+            case "layout":
+              if (host.layout === change.layout) break;
+              host.layout = change.layout;
+              gameHosts.refresh(host);
+              break;
+            case "group-controls":
+              gameHosts.setGroupControlsOpen(host, change.open);
+              break;
+            case "tab-menu":
+              if (change.open && host.groupControlsOpen)
+                gameHosts.setGroupControlsOpen(host, false);
+              gameHosts.setTabMenuOpen(host, change.open);
+              break;
+            case "group-targets": {
+              const targets = host.tabs.filter((record) =>
+                change.ids.includes(record.rendererId),
+              );
+              if (
+                targets.length === host.groupTargets.size &&
+                targets.every((record) => host.groupTargets.has(record))
+              )
+                break;
+              host.groupTargets.clear();
+              for (const record of targets) host.groupTargets.add(record);
+              gameHosts.publishState(host);
+              break;
+            }
+            case "tab-bar-layout":
+              gameHosts.syncTabBarLayout(host);
+              break;
+            default:
+              change satisfies never;
+          }
+        },
+        catch: (cause) => {
+          const detail = (
+            {
+              select: `Failed to select game view: ${change.type === "select" ? change.id : ""}`,
+              reorder: "Failed to reorder game views.",
+              layout: `Failed to use ${change.type === "layout" ? change.layout : ""} game view layout.`,
+              "group-controls": `Failed to ${change.type === "group-controls" && change.open ? "open" : "close"} group controls.`,
+              "tab-menu": "Failed to update the tab menu.",
+              "group-targets": undefined,
+              "tab-bar-layout":
+                "Failed to synchronize the game view tab bar layout.",
+            } satisfies Record<GameViewHostChange["type"], string | undefined>
+          )[change.type];
+          if (detail === undefined) throw cause;
+          return new DesktopWindowError({
             cause,
-            detail: "Failed to reorder game views.",
-            id: String(hostRendererId),
-          }),
+            detail,
+            id: String(change.type === "select" ? change.id : rendererId),
+          });
+        },
       });
       return gameHosts.state(host);
     });
-
-  const setGameViewLayout: DesktopWindowsShape["setGameViewLayout"] = (
-    hostRendererId,
-    layout,
-  ) =>
-    Effect.gen(function* () {
-      const host = yield* requireGameHost(hostRendererId);
-      if (host.layout === layout) {
-        return gameHosts.state(host);
-      }
-      host.layout = layout;
-      yield* Effect.try({
-        try: () => gameHosts.refresh(host),
-        catch: (cause) =>
-          new DesktopWindowError({
-            cause,
-            detail: `Failed to use ${layout} game view layout.`,
-            id: String(hostRendererId),
-          }),
-      });
-      return gameHosts.state(host);
-    });
-
-  const setGameViewGroupControlsOpen: DesktopWindowsShape["setGameViewGroupControlsOpen"] =
-    (hostRendererId, open) =>
-      Effect.gen(function* () {
-        const host = yield* requireGameHost(hostRendererId);
-        yield* Effect.try({
-          try: () => gameHosts.setGroupControlsOpen(host, open),
-          catch: (cause) =>
-            new DesktopWindowError({
-              cause,
-              detail: `Failed to ${open ? "open" : "close"} group controls.`,
-              id: String(hostRendererId),
-            }),
-        });
-        return gameHosts.state(host);
-      });
 
   const withGameViewGroupControlsNativeDialog: DesktopWindowsShape["withGameViewGroupControlsNativeDialog"] =
     (hostRendererId, use) =>
@@ -1712,38 +1656,6 @@ const makeDesktopWindows = Effect.gen(function* () {
             }),
           ),
         );
-      });
-
-  const setGameViewGroupTargets: DesktopWindowsShape["setGameViewGroupTargets"] =
-    (hostRendererId, ids) =>
-      Effect.gen(function* () {
-        const host = yield* requireGameHost(hostRendererId);
-        const uniqueIds = new Set(ids);
-        if (
-          uniqueIds.size !== ids.length ||
-          ids.some(
-            (id) => !host.tabs.some((record) => record.rendererId === id),
-          )
-        ) {
-          return yield* new DesktopWindowError({
-            detail: "Group targets must be unique tabs in this game window.",
-            id: String(hostRendererId),
-          });
-        }
-        const orderedIds = host.tabs.filter((record) =>
-          uniqueIds.has(record.rendererId),
-        );
-        if (
-          orderedIds.length === host.groupTargets.size &&
-          orderedIds.every((id) => host.groupTargets.has(id))
-        ) {
-          return gameHosts.state(host);
-        }
-
-        host.groupTargets.clear();
-        for (const id of orderedIds) host.groupTargets.add(id);
-        gameHosts.publishState(host);
-        return gameHosts.state(host);
       });
 
   const getGameViewPresentation: DesktopWindowsShape["getGameViewPresentation"] =
@@ -2124,13 +2036,13 @@ const makeDesktopWindows = Effect.gen(function* () {
   }
 
   return DesktopWindows.of({
+    updateGameViewHost,
     addGameView,
     closeRenderer,
     closeGameView,
     getRendererIds,
     getNativeWindowId,
     getRendererKind,
-    getGameViewHostRendererId,
     getGameViewHostState,
     getGameViewPresentation,
     getOwnedRendererIds,
@@ -2146,16 +2058,9 @@ const makeDesktopWindows = Effect.gen(function* () {
     onRendererReady: rendererReadyEvents.subscribe,
     open,
     revealRenderer,
-    reorderGameViews,
     reloadFocusedGameContents,
-    selectGameView,
     setBackgroundColor,
-    setGameViewGroupControlsOpen,
-    setGameViewGroupTargets,
-    setGameViewLayout,
     setGameViewName,
-    setGameViewTabMenuOpen,
-    syncGameViewTabBarLayout,
     withGameViewGroupControlsNativeDialog,
   });
 });

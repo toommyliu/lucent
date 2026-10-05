@@ -15,6 +15,7 @@ import { parseGameViewTabId } from "../../window/DesktopGameHost";
 import {
   DesktopWindowError,
   DesktopWindows,
+  type GameViewHostChange,
 } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 
@@ -53,6 +54,11 @@ const confirmClose = Effect.fn("desktop.ipc.gameViews.confirmClose")(function* (
   );
   return result.response === 1;
 });
+
+const updateHost = (rendererId: number, change: GameViewHostChange) =>
+  Effect.flatMap(DesktopWindows, (windows) =>
+    windows.updateGameViewHost(rendererId, change),
+  );
 
 export const getRecentlyClosed = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.getRecentlyClosed,
@@ -119,15 +125,12 @@ export const add = makeDesktopIpcMethod({
 export const select = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.select,
   allowedSenders: hostSenders,
-  handler: Effect.fn("desktop.ipc.gameViews.select")(
-    function* (payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.selectGameView(
-        sender.rendererId,
-        parseGameViewTabId(payload.id),
-        payload.focus,
-      );
-    },
+  handler: Effect.fn("desktop.ipc.gameViews.select")((payload, sender) =>
+    updateHost(sender.rendererId, {
+      type: "select",
+      id: parseGameViewTabId(payload.id),
+      focus: payload.focus,
+    }),
   ),
 });
 
@@ -154,28 +157,22 @@ export const close = makeDesktopIpcMethod({
 export const reorder = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.reorder,
   allowedSenders: hostSenders,
-  handler: Effect.fn("desktop.ipc.gameViews.reorder")(
-    function* (payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.reorderGameViews(
-        sender.rendererId,
-        payload.ids.map(parseGameViewTabId),
-      );
-    },
+  handler: Effect.fn("desktop.ipc.gameViews.reorder")((payload, sender) =>
+    updateHost(sender.rendererId, {
+      type: "reorder",
+      ids: payload.ids.map(parseGameViewTabId),
+    }),
   ),
 });
 
 export const setLayout = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.setLayout,
   allowedSenders: hostSenders,
-  handler: Effect.fn("desktop.ipc.gameViews.setLayout")(
-    function* (payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.setGameViewLayout(
-        sender.rendererId,
-        payload.layout,
-      );
-    },
+  handler: Effect.fn("desktop.ipc.gameViews.setLayout")((payload, sender) =>
+    updateHost(sender.rendererId, {
+      type: "layout",
+      layout: payload.layout,
+    }),
   ),
 });
 
@@ -183,13 +180,11 @@ export const setGroupControlsOpen = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.setGroupControlsOpen,
   allowedSenders: hostSenders,
   handler: Effect.fn("desktop.ipc.gameViews.setGroupControlsOpen")(
-    function* (payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.setGameViewGroupControlsOpen(
-        sender.rendererId,
-        payload.open,
-      );
-    },
+    (payload, sender) =>
+      updateHost(sender.rendererId, {
+        type: "group-controls",
+        open: payload.open,
+      }),
   ),
 });
 
@@ -197,13 +192,11 @@ export const setTabMenuOpen = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.setTabMenuOpen,
   allowedSenders: gameHostSenders,
   handler: Effect.fn("desktop.ipc.gameViews.setTabMenuOpen")(
-    function* (payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.setGameViewTabMenuOpen(
-        sender.rendererId,
-        payload.open,
-      );
-    },
+    (payload, sender) =>
+      updateHost(sender.rendererId, {
+        type: "tab-menu",
+        open: payload.open,
+      }).pipe(Effect.as(payload.open)),
   ),
 });
 
@@ -211,10 +204,10 @@ export const syncTabBarLayout = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.syncTabBarLayout,
   allowedSenders: gameHostSenders,
   handler: Effect.fn("desktop.ipc.gameViews.syncTabBarLayout")(
-    function* (_payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.syncGameViewTabBarLayout(sender.rendererId);
-    },
+    (_payload, sender) =>
+      updateHost(sender.rendererId, {
+        type: "tab-bar-layout",
+      }).pipe(Effect.asVoid),
   ),
 });
 
@@ -222,13 +215,11 @@ export const setGroupTargets = makeDesktopIpcMethod({
   descriptor: GameViewsIpc.setGroupTargets,
   allowedSenders: hostSenders,
   handler: Effect.fn("desktop.ipc.gameViews.setGroupTargets")(
-    function* (payload, sender) {
-      const windows = yield* DesktopWindows;
-      return yield* windows.setGameViewGroupTargets(
-        sender.rendererId,
-        payload.ids.map(parseGameViewTabId),
-      );
-    },
+    (payload, sender) =>
+      updateHost(sender.rendererId, {
+        type: "group-targets",
+        ids: payload.ids.map(parseGameViewTabId),
+      }),
   ),
 });
 
@@ -348,10 +339,7 @@ export const dispatchGroupOptionHotkey = makeDesktopIpcMethod({
     function* ({ commandId }, sender) {
       const ipc = yield* DesktopIpc;
       const windows = yield* DesktopWindows;
-      const hostRendererId = yield* windows.getGameViewHostRendererId(
-        sender.rendererId,
-      );
-      const state = yield* windows.getGameViewHostState(hostRendererId);
+      const state = yield* windows.getGameViewHostState(sender.rendererId);
       if (state.layout !== "grid") {
         return {
           recipientCount: 0,
