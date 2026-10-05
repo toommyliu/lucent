@@ -484,7 +484,7 @@ const bridges = {
     accountSettings: accountSettingsBridge,
     army: {
       fail: (payload) => invoke(ArmyIpc.fail, payload),
-      leave: (payload) => invoke(ArmyIpc.leave, payload),
+      leave: () => invoke(ArmyIpc.leave, undefined),
       loadConfig: (configName) => invoke(ArmyIpc.loadConfig, { configName }),
       loopTauntAwait: (payload) => invoke(ArmyIpc.loopTauntAwait, payload),
       loopTauntLeave: (payload) => invoke(ArmyIpc.loopTauntLeave, payload),

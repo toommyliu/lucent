@@ -28,7 +28,6 @@ import type {
 import type {
   ArmyConfigPayload,
   ArmyFailPayload,
-  ArmyLeavePayload,
   ArmyLoopTauntCommandPayload,
   ArmyLoopTauntLeavePayload,
   ArmyLoopTauntRegisterPayload,
@@ -483,7 +482,7 @@ export interface DesktopEnvironmentBridge {
 
 export interface DesktopArmyBridge {
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
-  readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
+  readonly leave: () => Promise<void>;
   readonly loadConfig: (configName: string) => Promise<ArmyConfigPayload>;
   readonly loopTauntAwait: (
     payload: ArmyLoopTauntRunPayload,
