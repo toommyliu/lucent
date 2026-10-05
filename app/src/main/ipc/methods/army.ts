@@ -49,9 +49,9 @@ export const start = makeDesktopIpcMethod({
 export const leave = makeDesktopIpcMethod({
   descriptor: ArmyIpc.leave,
   allowedSenders: gameSenders,
-  handler: Effect.fn("desktop.ipc.army.leave")(function* (payload, sender) {
+  handler: Effect.fn("desktop.ipc.army.leave")(function* (_payload, sender) {
     const coordinator = yield* ArmyCoordinator;
-    return yield* coordinator.leave(payload.sessionId, sender.rendererId);
+    return yield* coordinator.leave(sender.rendererId);
   }),
 });
 
