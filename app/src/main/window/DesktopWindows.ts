@@ -99,6 +99,15 @@ export type GameViewHostChange =
   | { readonly type: "group-targets"; readonly ids: readonly number[] }
   | { readonly type: "tab-bar-layout" };
 
+export interface DesktopRendererInfo {
+  readonly rendererId: number;
+  readonly kind: DesktopRendererKind;
+  readonly windowId: number;
+  readonly ownerId: number | undefined;
+  readonly generation: number;
+  readonly ready: boolean;
+}
+
 export interface DesktopWindowsShape {
   readonly updateGameViewHost: (
     rendererId: number,
@@ -108,23 +117,13 @@ export interface DesktopWindowsShape {
   readonly getRendererIds: (
     kind: DesktopWindowKind,
   ) => Effect.Effect<readonly number[]>;
-  readonly getNativeWindowId: (
+  readonly describe: (
     rendererId: number,
-  ) => Effect.Effect<number, DesktopWindowError>;
-  readonly getRendererKind: (
-    rendererId: number,
-  ) => Effect.Effect<DesktopRendererKind | null>;
+  ) => Effect.Effect<DesktopRendererInfo | undefined>;
   readonly getOwnedRendererIds: (
     ownerRendererId: number,
     kind?: DesktopWindowKind,
   ) => Effect.Effect<readonly number[], DesktopWindowError>;
-  readonly getOwnerRendererId: (
-    rendererId: number,
-  ) => Effect.Effect<number | null>;
-  readonly getRendererGeneration: (
-    rendererId: number,
-  ) => Effect.Effect<number, DesktopWindowError>;
-  readonly isRendererReady: (rendererId: number) => Effect.Effect<boolean>;
   readonly markRendererReady: (
     rendererId: number,
     generation: number,
@@ -196,6 +195,21 @@ export class DesktopWindows extends Context.Service<
   DesktopWindows,
   DesktopWindowsShape
 >()("lucent/desktop/window/DesktopWindows") {}
+
+export const requireRenderer = (
+  windows: Pick<DesktopWindowsShape, "describe">,
+  rendererId: number,
+): Effect.Effect<DesktopRendererInfo, DesktopWindowError> =>
+  Effect.flatMap(windows.describe(rendererId), (info) =>
+    info === undefined
+      ? Effect.fail(
+          new DesktopWindowError({
+            id: String(rendererId),
+            detail: `Desktop renderer is not open: ${rendererId}`,
+          }),
+        )
+      : Effect.succeed(info),
+  );
 
 export interface DesktopWindowOpenOptions {
   readonly gameHostTarget?: DesktopGameHostTarget;
@@ -763,25 +777,21 @@ const makeDesktopWindows = Effect.gen(function* () {
           }),
       });
 
-  const getNativeWindowId: DesktopWindowsShape["getNativeWindowId"] = (
-    rendererId,
-  ) =>
-    Effect.try({
-      try: () => {
-        const record = renderers.get(rendererId);
-        if (record === undefined) {
-          throw new Error(`Desktop renderer is not open: ${rendererId}`);
-        }
-        return "host" in record
+  const describe: DesktopWindowsShape["describe"] = (rendererId) =>
+    Effect.sync(() => {
+      const record = renderers.get(rendererId);
+      if (record === undefined) return undefined;
+      const chrome = "host" in record;
+      return {
+        rendererId,
+        kind: record.kind,
+        windowId: chrome
           ? record.host.window.id
-          : nativeWindowForRenderer(record).id;
-      },
-      catch: (cause) =>
-        new DesktopWindowError({
-          cause,
-          detail: `Failed to resolve native window: ${rendererId}`,
-          id: String(rendererId),
-        }),
+          : nativeWindowForRenderer(record).id,
+        ownerId: chrome ? undefined : record.ownerId,
+        generation: chrome ? 0 : record.generation,
+        ready: chrome ? false : record.rendererReady,
+      };
     });
 
   const getRendererIds: DesktopWindowsShape["getRendererIds"] = (kind) =>
@@ -790,37 +800,6 @@ const makeDesktopWindows = Effect.gen(function* () {
         .filter((record) => record.kind === kind)
         .map((record) => record.rendererId),
     );
-
-  const getRendererKind: DesktopWindowsShape["getRendererKind"] = (
-    rendererId,
-  ) => Effect.sync(() => renderers.get(rendererId)?.kind ?? null);
-
-  const getOwnerRendererId: DesktopWindowsShape["getOwnerRendererId"] = (
-    rendererId,
-  ) => Effect.sync(() => getWindowRenderer(rendererId)?.ownerId ?? null);
-
-  const isRendererReady: DesktopWindowsShape["isRendererReady"] = (
-    rendererId,
-  ) => Effect.sync(() => getWindowRenderer(rendererId)?.rendererReady ?? false);
-
-  const getRendererGeneration: DesktopWindowsShape["getRendererGeneration"] = (
-    rendererId,
-  ) =>
-    Effect.try({
-      try: () => {
-        const record = getWindowRenderer(rendererId);
-        if (record === undefined) {
-          throw new Error(`Desktop window is not open: ${rendererId}`);
-        }
-        return record.generation;
-      },
-      catch: (cause) =>
-        new DesktopWindowError({
-          id: String(rendererId),
-          detail: `Failed to read renderer generation: ${rendererId}`,
-          cause,
-        }),
-    });
 
   const markRendererReady: DesktopWindowsShape["markRendererReady"] = (
     rendererId,
@@ -2041,14 +2020,10 @@ const makeDesktopWindows = Effect.gen(function* () {
     closeRenderer,
     closeGameView,
     getRendererIds,
-    getNativeWindowId,
-    getRendererKind,
+    describe,
     getGameViewHostState,
     getGameViewPresentation,
     getOwnedRendererIds,
-    getOwnerRendererId,
-    getRendererGeneration,
-    isRendererReady,
     markRendererReady,
     onClosed: closedEvents.subscribe,
     onCreated: createdEvents.subscribe,

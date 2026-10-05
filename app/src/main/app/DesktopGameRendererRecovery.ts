@@ -49,12 +49,7 @@ export type RecoverableGameWebContents = Pick<
 
 export interface DesktopGameRendererRecoveryDependencies {
   readonly allWebContents: () => readonly RecoverableGameWebContents[];
-  readonly getNativeWindowId: (
-    rendererId: number,
-  ) => Effect.Effect<number, unknown>;
-  readonly getRendererKind: (
-    rendererId: number,
-  ) => Effect.Effect<string | null>;
+  readonly describe: DesktopWindows["Service"]["describe"];
   readonly onWebContentsCreated: (
     listener: (contents: RecoverableGameWebContents) => void,
   ) => () => void;
@@ -155,8 +150,8 @@ export const makeDesktopGameRendererRecovery = (
       const rendererId = target.id;
       if (appIsQuitting) return;
 
-      const kind = yield* dependencies.getRendererKind(rendererId);
-      if (kind !== "game" || !hasActiveExecution(rendererId)) return;
+      const info = yield* dependencies.describe(rendererId);
+      if (info?.kind !== "game" || !hasActiveExecution(rendererId)) return;
 
       if (!isExclusiveRendererProcess(target, dependencies.allWebContents)) {
         yield* dependencies.warn(
@@ -166,14 +161,8 @@ export const makeDesktopGameRendererRecovery = (
         return;
       }
 
-      const parentWindowId = yield* dependencies
-        .getNativeWindowId(rendererId)
-        .pipe(
-          Effect.match({
-            onFailure: (): undefined => undefined,
-            onSuccess: (id): number => id,
-          }),
-        );
+      const parentWindowId = (yield* dependencies.describe(rendererId))
+        ?.windowId;
       if (appIsQuitting) return;
 
       const response = yield* dependencies.showRecoveryPrompt(parentWindowId);
@@ -220,22 +209,16 @@ export const makeDesktopGameRendererRecovery = (
       const rendererId = target.id;
       if (appIsQuitting) return;
 
-      const kind = yield* dependencies.getRendererKind(rendererId);
-      if (kind !== "game") return;
+      const info = yield* dependencies.describe(rendererId);
+      if (info?.kind !== "game") return;
 
       yield* dependencies.warn("Game renderer crashed", {
         reason: crash.reason,
         rendererId,
       });
 
-      const parentWindowId = yield* dependencies
-        .getNativeWindowId(rendererId)
-        .pipe(
-          Effect.match({
-            onFailure: (): undefined => undefined,
-            onSuccess: (id): number => id,
-          }),
-        );
+      const parentWindowId = (yield* dependencies.describe(rendererId))
+        ?.windowId;
       if (appIsQuitting) return;
 
       const response =
@@ -419,8 +402,7 @@ const makeLiveDesktopGameRendererRecovery = Effect.gen(function* () {
 
   return makeDesktopGameRendererRecovery({
     allWebContents: () => webContents.getAllWebContents(),
-    getNativeWindowId: windows.getNativeWindowId,
-    getRendererKind: windows.getRendererKind,
+    describe: windows.describe,
     onWebContentsCreated: (listener) => {
       const handleCreated = (
         _event: ElectronEvent,

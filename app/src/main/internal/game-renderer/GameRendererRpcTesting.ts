@@ -79,7 +79,15 @@ export const makeTestGameRenderer = Effect.fn(function* (
   const windows = {
     getOwnedRendererIds: (rendererId: number) =>
       Effect.succeed([rendererId + 100]),
-    isRendererReady: () => Effect.sync(() => rendererReady),
+    describe: (rendererId: number) =>
+      Effect.sync(() => ({
+        rendererId,
+        kind: "game",
+        windowId: 1,
+        ownerId: undefined,
+        generation: 1,
+        ready: rendererReady,
+      })),
     onClosed: unsubscribed,
     onRendererDestroyed: unsubscribed,
     onRendererReady: subscribe(readyListeners),

@@ -67,7 +67,15 @@ describe("game view lifecycle IPC", () => {
         }),
         Layer.mock(DesktopWindows, {
           getGameViewHostState: () => Effect.succeed(hostState),
-          getNativeWindowId: () => Effect.succeed(1),
+          describe: (rendererId) =>
+            Effect.succeed({
+              rendererId,
+              kind: rendererId === 100 ? "game-host" : "game",
+              windowId: 1,
+              ownerId: undefined,
+              generation: 1,
+              ready: false,
+            }),
           closeGameView: (_hostId, id) =>
             Effect.sync(() => {
               closed.push(id);
@@ -140,7 +148,15 @@ describe("game view lifecycle IPC", () => {
                   phase: "ready" as const,
                 })),
               }),
-            getNativeWindowId: () => Effect.succeed(1),
+            describe: (rendererId) =>
+              Effect.succeed({
+                rendererId,
+                kind: rendererId === 100 ? "game-host" : "game",
+                windowId: 1,
+                ownerId: undefined,
+                generation: 1,
+                ready: false,
+              }),
           }),
           Layer.mock(Accounts, {
             reopenGameWindow: (request) =>

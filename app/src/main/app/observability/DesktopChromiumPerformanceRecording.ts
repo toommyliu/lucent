@@ -434,31 +434,21 @@ const makeDesktopChromiumPerformanceRecording = Effect.gen(function* () {
   )(function* (
     target: ElectronChromiumRendererTarget,
   ): Effect.fn.Return<ChromiumRendererTargetMetadata | undefined> {
-    const kind = yield* windows.getRendererKind(target.rendererId);
+    const info = yield* windows.describe(target.rendererId);
     if (
-      kind === null ||
-      kind === "game-group-controls" ||
-      kind === "game-host"
+      info === undefined ||
+      info.kind === "game-group-controls" ||
+      info.kind === "game-host"
     ) {
       return undefined;
     }
 
-    const generation = yield* windows
-      .getRendererGeneration(target.rendererId)
-      .pipe(Effect.catch(() => Effect.void));
-    if (generation === undefined) {
-      return undefined;
-    }
-
-    const ownerRendererId = yield* windows.getOwnerRendererId(
-      target.rendererId,
-    );
     return {
       rendererId: target.rendererId,
-      generation,
-      kind,
+      generation: info.generation,
+      kind: info.kind,
       osProcessId: target.osProcessId,
-      ownerRendererId,
+      ownerRendererId: info.ownerId ?? null,
     };
   });
 

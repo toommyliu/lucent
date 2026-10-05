@@ -90,9 +90,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const menuSymbol = (name: string): Pick<MenuItemConstructorOptions, "icon"> =>
     usesMenuSymbols ? { icon: nativeImage.createMenuSymbol(name) } : {};
   const removeRendererWindowMenu = (rendererId: number) =>
-    windows
-      .getNativeWindowId(rendererId)
-      .pipe(Effect.map((id) => BaseWindow.fromId(id)?.setMenu(null)));
+    windows.describe(rendererId).pipe(
+      Effect.map((info) => {
+        if (info !== undefined) BaseWindow.fromId(info.windowId)?.setMenu(null);
+      }),
+    );
 
   const logMenuFailure = (operation: string, cause: unknown) =>
     Effect.logWarning("Application menu action failed").pipe(
