@@ -36,6 +36,7 @@ import {
 import type { Inventory } from "./Inventory";
 import type { Drops } from "./Drops";
 import type { Events } from "./Events";
+import type { Map } from "./Map";
 import type { MonsterLookup } from "./Monsters";
 import type { Player } from "./Player";
 import type { Players } from "./Players";
@@ -143,6 +144,7 @@ export const makeCombat = (
   drops: Drops,
   events: Events,
   inventory: Inventory,
+  map: Map,
   monsters: MonsterLookup,
   player: Player,
   players: Players,
@@ -577,19 +579,39 @@ export const makeCombat = (
         candidate.matches(selector),
       );
       if (monster === undefined) return false;
+      yield* map.setSpawnPoint();
 
-      const death = yield* wait.forEvent(
-        {
-          monsterMapId: monster.monsterMapId,
-          type: "monster-death",
-        },
-        {
-          trigger: Effect.forkScoped(fight(selector, options, runtime)).pipe(
-            Effect.as(true),
+      const death = wait
+        .forEvent(
+          {
+            monsterMapId: monster.monsterMapId,
+            type: "monster-death",
+          },
+          {
+            trigger: Effect.forkScoped(fight(selector, options, runtime)).pipe(
+              Effect.as(true),
+            ),
+          },
+        )
+        .pipe(Effect.map((event) => event !== null));
+      const projectedEnd = wait.untilSome(
+        store.world
+          .getMonster(monster.monsterMapId)
+          .pipe(
+            Effect.map((current) =>
+              current !== monster
+                ? Option.some(false)
+                : current.dead
+                  ? Option.some(true)
+                  : Option.none(),
+            ),
           ),
-        },
+        { interval: "250 millis" },
       );
-      return death !== null;
+      return yield* Effect.raceFirst(
+        death,
+        projectedEnd.pipe(Effect.map((dead) => dead === true)),
+      );
     });
 
   const kill = (selector: MonsterQuery, options?: CombatKillOptions) =>

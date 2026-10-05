@@ -815,15 +815,9 @@ interface ScriptCombatApi {
     canUseSkill(skill: SkillSlot): Effect<boolean, never>;
     exit(): Effect<boolean, never>;
     getSkillCooldownRemainingMs(skill: SkillSlot): Effect<number | null, never>;
-  /** Finds a matching monster and returns it after reaching its cell, or `null` if the target cannot be found or reached. */
     hunt(query: MonsterQuery, options?: HuntOptions): Effect<LiveMonster | null, never>;
     kill(query: MonsterQuery, options?: CombatKillOptions): Effect<boolean, never>;
   /**
-  * Fights monsters in the current cell until your inventory has the requested
-  * quantity. Counts items you already own and accepts matching drops.
-  * Keeps trying until the goal is reached or the action is interrupted.
-  * A timeout stops farming; items already collected stay in your inventory.
-  *
   * @example
   * ```js
   * const script = require("lucent/script");
