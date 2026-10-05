@@ -77,37 +77,25 @@ export const layer = Layer.effect(
           : Effect.void,
       );
 
-    const open: AccountGameWindows["Service"]["open"] = (options) =>
-      Effect.gen(function* () {
-        let gameWindowId: number | undefined;
-        const onCreated = options?.onCreated;
-        const instanceId = yield* windows.open("game", {
-          gameHostTarget: resolveGameHostTarget(options?.windowTarget),
-          ...(options?.managedProfileKey === undefined
-            ? {}
-            : { managedGameProfileKey: options.managedProfileKey }),
-          ...(options?.name === undefined
-            ? {}
-            : { gameViewName: options.name }),
-          ...(options?.gameViewLayout === undefined
-            ? {}
-            : { gameViewLayout: options.gameViewLayout }),
-          ...(onCreated === undefined
-            ? {}
-            : {
-                onCreated: (event) =>
-                  toAccountGameWindowEvent(event).pipe(
-                    Effect.tap((accountEvent) =>
-                      Effect.sync(() => {
-                        gameWindowId = accountEvent.gameWindowId;
-                      }),
-                    ),
-                    Effect.flatMap(onCreated),
-                  ),
-              }),
-        });
-        return gameWindowId ?? (yield* windows.getRendererId(instanceId));
+    const open: AccountGameWindows["Service"]["open"] = (options) => {
+      const onCreated = options?.onCreated;
+      return windows.open("game", {
+        gameHostTarget: resolveGameHostTarget(options?.windowTarget),
+        ...(options?.managedProfileKey === undefined
+          ? {}
+          : { managedGameProfileKey: options.managedProfileKey }),
+        ...(options?.name === undefined ? {} : { gameViewName: options.name }),
+        ...(options?.gameViewLayout === undefined
+          ? {}
+          : { gameViewLayout: options.gameViewLayout }),
+        ...(onCreated === undefined
+          ? {}
+          : {
+              onCreated: (event) =>
+                toAccountGameWindowEvent(event).pipe(Effect.flatMap(onCreated)),
+            }),
       });
+    };
 
     const reveal: AccountGameWindows["Service"]["reveal"] = (gameWindowId) =>
       windows.revealRenderer(gameWindowId);

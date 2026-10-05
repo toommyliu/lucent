@@ -17,8 +17,8 @@ const hostState: GameViewHostState = {
   groupControlsOpen: false,
   groupTargetIds: [],
   layout: "focused",
-  selectedId: "tab-1",
-  sessions: [{ id: "tab-1", name: "Alice", phase: "ready" }],
+  selectedId: "42",
+  sessions: [{ id: "42", name: "Alice", phase: "ready" }],
 };
 const sender = { kind: "game-host", rendererId: 100 } as const;
 
@@ -38,7 +38,7 @@ describe("game view lifecycle IPC", () => {
         },
       });
       let response = 0;
-      const closed: string[] = [];
+      const closed: number[] = [];
       const parents: (number | undefined)[] = [];
       const dependencies = Layer.mergeAll(
         Layer.mock(ElectronDialog, {
@@ -50,7 +50,6 @@ describe("game view lifecycle IPC", () => {
         }),
         Layer.mock(DesktopWindows, {
           getGameViewHostState: () => Effect.succeed(hostState),
-          getRendererId: () => Effect.succeed(42),
           getNativeWindowId: () => Effect.succeed(1),
           closeGameView: (_hostId, id) =>
             Effect.sync(() => {
@@ -60,7 +59,7 @@ describe("game view lifecycle IPC", () => {
         }),
       );
       yield* close
-        .handler({ id: "tab-1" }, sender)
+        .handler({ id: "42" }, sender)
         .pipe(Effect.provide(dependencies));
       expect(
         sessions
@@ -71,9 +70,9 @@ describe("game view lifecycle IPC", () => {
       expect(sessions.recentlyClosed(1)).toEqual([]);
       response = 1;
       yield* close
-        .handler({ id: "tab-1" }, sender)
+        .handler({ id: "42" }, sender)
         .pipe(Effect.provide(dependencies));
-      expect(closed).toEqual(["tab-1"]);
+      expect(closed).toEqual([42]);
       expect(parents).toEqual([1, 1]);
       expect(sessions.recentlyClosed(1)).toEqual([
         {
@@ -119,12 +118,11 @@ describe("game view lifecycle IPC", () => {
               Effect.succeed({
                 ...hostState,
                 sessions: Array.from({ length: count }, (_, index) => ({
-                  id: `tab-${index + 1}`,
+                  id: String(index + 42),
                   name: "Tab",
                   phase: "ready" as const,
                 })),
               }),
-            getRendererId: () => Effect.succeed(42),
             getNativeWindowId: () => Effect.succeed(1),
           }),
           Layer.mock(Accounts, {

@@ -1,4 +1,3 @@
-import { randomBytes } from "crypto";
 import { join } from "path";
 
 import {
@@ -76,8 +75,6 @@ import {
   observeWindowReloads,
 } from "./WindowGeneration";
 
-export type DesktopWindowInstanceId = string;
-
 export class DesktopWindowError extends Schema.TaggedError<DesktopWindowError>()(
   "DesktopWindowError",
   {
@@ -96,9 +93,6 @@ export interface DesktopWindowsShape {
   readonly getRendererIds: (
     kind: DesktopWindowKind,
   ) => Effect.Effect<readonly number[]>;
-  readonly getRendererId: (
-    id: DesktopWindowInstanceId,
-  ) => Effect.Effect<number, DesktopWindowError>;
   readonly getNativeWindowId: (
     rendererId: number,
   ) => Effect.Effect<number, DesktopWindowError>;
@@ -125,7 +119,7 @@ export interface DesktopWindowsShape {
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly closeGameView: (
     hostRendererId: number,
-    id: DesktopWindowInstanceId,
+    id: number,
   ) => Effect.Effect<void, DesktopWindowError>;
   readonly getGameViewHostState: (
     hostRendererId: number,
@@ -167,11 +161,11 @@ export interface DesktopWindowsShape {
   readonly open: (
     kind: DesktopWindowKind,
     options?: DesktopWindowOpenOptions,
-  ) => Effect.Effect<DesktopWindowInstanceId, DesktopWindowError>;
+  ) => Effect.Effect<number, DesktopWindowError>;
   readonly revealRenderer: (rendererId: number) => Effect.Effect<boolean>;
   readonly reorderGameViews: (
     hostRendererId: number,
-    ids: readonly DesktopWindowInstanceId[],
+    ids: readonly number[],
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   /** Reloads the tab strip and selected client when they form one focused view. */
   readonly reloadFocusedGameContents: (
@@ -181,7 +175,7 @@ export interface DesktopWindowsShape {
   ) => Effect.Effect<boolean, DesktopWindowError>;
   readonly selectGameView: (
     hostRendererId: number,
-    id: DesktopWindowInstanceId,
+    id: number,
     focus: GameViewSelectionFocus,
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly setBackgroundColor: (backgroundColor: string) => Effect.Effect<void>;
@@ -195,7 +189,7 @@ export interface DesktopWindowsShape {
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly setGameViewGroupTargets: (
     hostRendererId: number,
-    ids: readonly DesktopWindowInstanceId[],
+    ids: readonly number[],
   ) => Effect.Effect<GameViewHostState, DesktopWindowError>;
   readonly setGameViewName: (
     gameRendererId: number,
@@ -397,7 +391,7 @@ interface DesktopRendererRecordBase {
   generation: number;
   readonly kind: DesktopWindowKind;
   // ownerId is logical ownership only; Electron parent windows are intentionally not used.
-  readonly ownerId?: DesktopWindowInstanceId;
+  readonly ownerId?: number;
   rendererReady: boolean;
   /** Rejects delayed readiness from a failed generation until navigation advances it. */
   unavailableGeneration?: number;
@@ -416,20 +410,17 @@ type DesktopRendererRecord = DesktopBrowserWindowRecord | DesktopGameViewRecord;
 
 export interface DesktopWindowClosedEvent {
   readonly rendererId: number;
-  readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
 }
 
 export interface DesktopWindowCreatedEvent {
   readonly rendererId: number;
   readonly generation: number;
-  readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
 }
 
 export interface DesktopWindowRendererDestroyedEvent {
   readonly rendererId: number;
-  readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
 }
 
@@ -441,26 +432,20 @@ export interface DesktopWindowRendererUnavailableFailure {
 export interface DesktopWindowRendererUnavailableEvent {
   readonly failure: DesktopWindowRendererUnavailableFailure;
   readonly rendererId: number;
-  readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
 }
 
 export interface DesktopWindowRendererReloadedEvent {
   readonly rendererId: number;
   readonly generation: number;
-  readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
 }
 
 export interface DesktopWindowRendererReadyEvent {
   readonly rendererId: number;
   readonly generation: number;
-  readonly id: DesktopWindowInstanceId;
   readonly kind: DesktopWindowKind;
 }
-
-const makeInstanceId = (kind: DesktopWindowKind): DesktopWindowInstanceId =>
-  `${kind}-${Date.now().toString(36)}-${randomBytes(6).toString("hex")}`;
 
 const isGameViewRecord = (
   record: DesktopRendererRecord,
@@ -552,8 +537,8 @@ const makeDesktopWindows = Effect.gen(function* () {
   const initialSettings = yield* getBootstrapSettings;
   let showGameUsernameInWindowTitle =
     initialSettings.preferences.showGameUsernameInWindowTitle;
-  const renderers = new Map<DesktopWindowInstanceId, DesktopRendererRecord>();
-  const hiddenTopLevelWindowIds = new Set<DesktopWindowInstanceId>();
+  const renderers = new Map<number, DesktopRendererRecord>();
+  const hiddenTopLevelWindowIds = new Set<number>();
   const setGameWindowTitle = (
     window: ElectronNativeWindowHandle,
     username: string | undefined,
@@ -668,7 +653,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   };
 
   const forgetUnusableWindowRecord = (
-    id: DesktopWindowInstanceId,
+    id: number,
     record: DesktopRendererRecord,
   ): void => {
     // Hosted game views are removed by their host lifecycle so it can still
@@ -684,7 +669,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   // An in-flight top-level open is recoverable UI during a concurrent close.
   let openingTopLevelWindowCount = 0;
 
-  const forgetWindow = (id: DesktopWindowInstanceId): void => {
+  const forgetWindow = (id: number): void => {
     renderers.delete(id);
     hiddenTopLevelWindowIds.delete(id);
   };
@@ -750,7 +735,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   };
 
   const destroyFailedWindow = Effect.fn("DesktopWindows.destroyFailedWindow")(
-    function* (id: DesktopWindowInstanceId, kind: DesktopWindowKind) {
+    function* (id: number, kind: DesktopWindowKind) {
       yield* Effect.try({
         try: () => {
           const record = renderers.get(id);
@@ -776,7 +761,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         catch: (cause) => {
           forgetWindow(id);
           return new DesktopWindowError({
-            id,
+            id: String(id),
             detail: `Failed to destroy incomplete desktop window: ${kind}`,
             cause,
           });
@@ -794,7 +779,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     },
   );
 
-  const revealExisting = (id: DesktopWindowInstanceId) => {
+  const revealExisting = (id: number) => {
     const record = renderers.get(id);
     if (record === undefined) {
       forgetWindow(id);
@@ -824,58 +809,27 @@ const makeDesktopWindows = Effect.gen(function* () {
     );
   };
 
-  const findRendererEntry = (
-    rendererId: number,
-  ): readonly [DesktopWindowInstanceId, DesktopRendererRecord] | null => {
-    for (const entry of renderers.entries()) {
-      const [id, record] = entry;
-      if (record.rendererId === rendererId) {
-        if (
-          isElectronWindowUsable(nativeWindowForRenderer(record)) &&
-          (!isGameViewRecord(record) ||
-            !record.gameView.webContents.isDestroyed())
-        ) {
-          return entry;
-        }
-
-        forgetUnusableWindowRecord(id, record);
-        return null;
-      }
+  const findRenderer = (rendererId: number): DesktopRendererRecord | null => {
+    const record = renderers.get(rendererId);
+    if (record === undefined) return null;
+    if (
+      isElectronWindowUsable(nativeWindowForRenderer(record)) &&
+      (!isGameViewRecord(record) || !record.gameView.webContents.isDestroyed())
+    ) {
+      return record;
     }
+    forgetUnusableWindowRecord(rendererId, record);
     return null;
   };
-
-  const getRendererId: DesktopWindowsShape["getRendererId"] = (id) =>
-    Effect.sync(() => {
-      const record = renderers.get(id);
-      if (
-        record === undefined ||
-        !isElectronWindowUsable(nativeWindowForRenderer(record)) ||
-        (isGameViewRecord(record) && record.gameView.webContents.isDestroyed())
-      ) {
-        throw new Error(`Desktop window is not open: ${id}`);
-      }
-
-      return record.rendererId;
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id,
-            detail: `Failed to resolve Electron window id: ${id}`,
-            cause,
-          }),
-      ),
-    );
 
   const findGameHostForView = (
     rendererId: number,
   ): DesktopGameHostRecord | null => {
-    const entry = findRendererEntry(rendererId);
-    if (entry === null || !isGameViewRecord(entry[1])) {
+    const record = findRenderer(rendererId);
+    if (record === null || !isGameViewRecord(record)) {
       return null;
     }
-    return gameHosts.find(entry[1].gameHostRendererId);
+    return gameHosts.find(record.gameHostRendererId);
   };
 
   const findGameHostForNativeWindow = (
@@ -940,11 +894,11 @@ const makeDesktopWindows = Effect.gen(function* () {
       try: () => {
         const host = gameHosts.find(rendererId);
         if (host !== null) return host.window.id;
-        const entry = findRendererEntry(rendererId);
-        if (entry === null) {
+        const record = findRenderer(rendererId);
+        if (record === null) {
           throw new Error(`Desktop renderer is not open: ${rendererId}`);
         }
-        return nativeWindowForRenderer(entry[1]).id;
+        return nativeWindowForRenderer(record).id;
       },
       catch: (cause) =>
         new DesktopWindowError({
@@ -971,9 +925,9 @@ const makeDesktopWindows = Effect.gen(function* () {
     rendererId,
   ) =>
     Effect.sync(() => {
-      const entry = findRendererEntry(rendererId);
-      if (entry !== null) {
-        return entry[1].kind;
+      const record = findRenderer(rendererId);
+      if (record !== null) {
+        return record.kind;
       }
       if (
         gameHosts.hasGroupControlsRenderer(rendererId) &&
@@ -988,12 +942,12 @@ const makeDesktopWindows = Effect.gen(function* () {
     rendererId,
   ) =>
     Effect.sync(() => {
-      const entry = findRendererEntry(rendererId);
-      if (entry === null) {
+      const record = findRenderer(rendererId);
+      if (record === null) {
         return null;
       }
 
-      const ownerId = entry[1].ownerId;
+      const ownerId = record.ownerId;
       if (ownerId === undefined) {
         return null;
       }
@@ -1009,8 +963,8 @@ const makeDesktopWindows = Effect.gen(function* () {
     rendererId,
   ) =>
     Effect.sync(() => {
-      const entry = findRendererEntry(rendererId);
-      return entry !== null && entry[1].rendererReady;
+      const record = findRenderer(rendererId);
+      return record !== null && record.rendererReady;
     });
 
   const getRendererGeneration: DesktopWindowsShape["getRendererGeneration"] = (
@@ -1018,11 +972,11 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
-        const entry = findRendererEntry(rendererId);
-        if (entry === null) {
+        const record = findRenderer(rendererId);
+        if (record === null) {
           throw new Error(`Desktop window is not open: ${rendererId}`);
         }
-        return entry[1].generation;
+        return record.generation;
       },
       catch: (cause) =>
         new DesktopWindowError({
@@ -1039,12 +993,11 @@ const makeDesktopWindows = Effect.gen(function* () {
     Effect.gen(function* () {
       const readyEvent = yield* Effect.try({
         try: () => {
-          const entry = findRendererEntry(rendererId);
-          if (entry === null) {
+          const record = findRenderer(rendererId);
+          if (record === null) {
             throw new Error(`Desktop window is not open: ${rendererId}`);
           }
 
-          const [id, record] = entry;
           if (record.generation !== generation) {
             throw new Error(
               `Renderer generation ${generation} is stale; current generation is ${record.generation}.`,
@@ -1071,7 +1024,6 @@ const makeDesktopWindows = Effect.gen(function* () {
           return {
             rendererId,
             generation: record.generation,
-            id,
             kind: record.kind,
           } satisfies DesktopWindowRendererReadyEvent;
         },
@@ -1096,14 +1048,14 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
-        const owner = findRendererEntry(ownerRendererId);
+        const owner = findRenderer(ownerRendererId);
         if (owner === null) {
           throw new Error(
             `Desktop window owner is not open: ${ownerRendererId}`,
           );
         }
 
-        const [ownerId] = owner;
+        const ownerId = owner.rendererId;
         return [...renderers.values()]
           .filter(
             (record) =>
@@ -1121,7 +1073,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         }),
     });
 
-  const destroyOwnedWindows = (ownerId: DesktopWindowInstanceId): void => {
+  const destroyOwnedWindows = (ownerId: number): void => {
     for (const record of renderers.values()) {
       const nativeWindow = nativeWindowForRenderer(record);
       if (record.ownerId === ownerId && isElectronWindowUsable(nativeWindow)) {
@@ -1130,20 +1082,16 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
   };
 
-  const publishClosed = (
-    id: DesktopWindowInstanceId,
-    record: DesktopRendererRecord,
-  ): void => {
+  const publishClosed = (record: DesktopRendererRecord): void => {
     const event: DesktopWindowClosedEvent = {
       rendererId: record.rendererId,
-      id,
       kind: record.kind,
     };
     run(closedEvents.publish(event));
   };
 
   const closeGameViewRecord = (
-    id: DesktopWindowInstanceId,
+    id: number,
     record: DesktopGameViewRecord,
   ): void => {
     const host = gameHosts.find(record.gameHostRendererId);
@@ -1162,7 +1110,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
     electronGameView.destroy(record.gameView);
     electronSession.releaseGamePartition(record.gamePartition);
-    publishClosed(id, record);
+    publishClosed(record);
 
     if (host === null || removedIndex < 0) {
       return;
@@ -1192,24 +1140,23 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   const revealRenderer: DesktopWindowsShape["revealRenderer"] = (rendererId) =>
     Effect.gen(function* () {
-      const entry = findRendererEntry(rendererId);
-      if (entry === null) {
+      const record = findRenderer(rendererId);
+      if (record === null) {
         return false;
       }
 
-      return yield* revealExisting(entry[0]);
+      return yield* revealExisting(record.rendererId);
     });
 
   const closeRenderer: DesktopWindowsShape["closeRenderer"] = (rendererId) =>
     Effect.sync(() => {
-      const entry = findRendererEntry(rendererId);
-      if (entry === null) {
+      const record = findRenderer(rendererId);
+      if (record === null) {
         return false;
       }
 
-      const [, record] = entry;
       if (isGameViewRecord(record)) {
-        closeGameViewRecord(entry[0], record);
+        closeGameViewRecord(record.rendererId, record);
         return true;
       }
       record.window.close();
@@ -1237,7 +1184,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           },
           catch: (cause) =>
             new DesktopWindowError({
-              id,
+              id: String(id),
               detail: `Failed to update desktop window background: ${id}`,
               cause,
             }),
@@ -1256,23 +1203,22 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   const findOpenInstance = (
     kind: DesktopWindowKind,
-    ownerId: DesktopWindowInstanceId | undefined,
-  ): readonly [DesktopWindowInstanceId, DesktopRendererRecord] | null => {
-    for (const entry of renderers.entries()) {
-      const [, record] = entry;
+    ownerId: number | undefined,
+  ): DesktopRendererRecord | null => {
+    for (const record of renderers.values()) {
       if (
         record.kind === kind &&
         record.ownerId === ownerId &&
         isElectronWindowUsable(nativeWindowForRenderer(record))
       ) {
-        return entry;
+        return record;
       }
     }
     return null;
   };
 
   const updateGameViewPhase = (
-    id: DesktopWindowInstanceId,
+    id: number,
     phase: DesktopGameViewRecord["gameViewPhase"],
     error?: string,
   ): void => {
@@ -1300,7 +1246,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const createGameViewInHost = Effect.fn("DesktopWindows.createGameViewInHost")(
     function* (
       host: DesktopGameHostRecord,
-      id: DesktopWindowInstanceId,
+      onRegistered: (rendererId: number) => void,
       bootstrapSettings: AppSettings,
       snapshot: AppearanceSnapshot,
       options?: DesktopWindowOpenOptions,
@@ -1321,7 +1267,7 @@ const makeDesktopWindows = Effect.gen(function* () {
               new DesktopWindowError({
                 cause,
                 detail: "Failed to prepare an isolated Flash session.",
-                id,
+                id: String(host.rendererId),
               }),
           ),
         );
@@ -1351,7 +1297,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           new DesktopWindowError({
             cause,
             detail: "Failed to attach a game view to its host window.",
-            id,
+            id: String(view.webContents.id),
           }),
       }).pipe(
         Effect.tapError(() =>
@@ -1384,23 +1330,23 @@ const makeDesktopWindows = Effect.gen(function* () {
       // user-chosen subset.
       const allViewsTargeted =
         host.groupTargetIds.size === host.orderedIds.length;
-      renderers.set(id, record);
-      host.orderedIds.push(id);
+      renderers.set(rendererId, record);
+      onRegistered(rendererId);
+      host.orderedIds.push(rendererId);
       if (allViewsTargeted) {
-        host.groupTargetIds.add(id);
+        host.groupTargetIds.add(rendererId);
       }
-      host.selectedId = id;
+      host.selectedId = rendererId;
       host.layout = layout;
+      if (host.orderedIds.length === 1) gameHosts.register(host);
 
       const createdEvent: DesktopWindowCreatedEvent = {
         rendererId,
         generation: INITIAL_WINDOW_GENERATION,
-        id,
         kind: "game",
       };
       const rendererDestroyedEvent: DesktopWindowRendererDestroyedEvent = {
         rendererId,
-        id,
         kind: "game",
       };
       const stopObservingAvailability = observeRendererAvailability(
@@ -1408,18 +1354,21 @@ const makeDesktopWindows = Effect.gen(function* () {
         rendererDestroyedEvent,
         () => {
           markRendererUnavailable(record);
-          updateGameViewPhase(id, "error", "The game stopped unexpectedly.");
+          updateGameViewPhase(
+            rendererId,
+            "error",
+            "The game stopped unexpectedly.",
+          );
         },
       );
       record.stopObservingReloads = observeWindowReloads(
         view.webContents,
         (generation) => {
           beginRendererGeneration(record, generation);
-          updateGameViewPhase(id, "loading");
+          updateGameViewPhase(rendererId, "loading");
           const reloadedEvent: DesktopWindowRendererReloadedEvent = {
             rendererId,
             generation,
-            id,
             kind: "game",
           };
           run(rendererReloadedEvents.publish(reloadedEvent));
@@ -1444,10 +1393,10 @@ const makeDesktopWindows = Effect.gen(function* () {
 
       view.webContents.on("did-start-loading", () => {
         record.rendererReady = false;
-        updateGameViewPhase(id, "loading");
+        updateGameViewPhase(rendererId, "loading");
       });
       record.stopObservingFocus = electronGameView.onFocus(view, () => {
-        gameHosts.activate(host, id);
+        gameHosts.activate(host, rendererId);
         if (host.groupControlsOpen && !host.groupControlsNativeDialogOpen) {
           gameHosts.setGroupControlsOpen(host, false);
         }
@@ -1458,7 +1407,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           if (isMainFrame === false) {
             return;
           }
-          updateGameViewPhase(id, "error", errorDescription);
+          updateGameViewPhase(rendererId, "error", errorDescription);
         },
       );
       view.webContents.on("destroyed", () => {
@@ -1476,7 +1425,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           .onCreated(createdEvent)
           .pipe(
             Effect.tapError(() =>
-              Effect.sync(() => closeGameViewRecord(id, record)),
+              Effect.sync(() => closeGameViewRecord(rendererId, record)),
             ),
           );
       }
@@ -1491,7 +1440,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           ),
           Effect.catch((cause) =>
             Effect.sync(() => {
-              updateGameViewPhase(id, "error", cause.message);
+              updateGameViewPhase(rendererId, "error", cause.message);
             }),
           ),
         ),
@@ -1503,8 +1452,8 @@ const makeDesktopWindows = Effect.gen(function* () {
           catch: (cause) =>
             new DesktopWindowError({
               cause,
-              detail: `Failed to open game view DevTools: ${id}`,
-              id,
+              detail: `Failed to open game view DevTools: ${rendererId}`,
+              id: String(rendererId),
             }),
         }).pipe(
           Effect.catch((cause) =>
@@ -1513,21 +1462,21 @@ const makeDesktopWindows = Effect.gen(function* () {
                 component: "window",
                 data: {
                   cause,
-                  id,
+                  rendererId,
                 },
               }),
             ),
           ),
         );
       }
-      return id;
+      return rendererId;
     },
   );
 
   const createMultiGameWindow = Effect.fn(
     "DesktopWindows.createMultiGameWindow",
   )(function* (
-    id: DesktopWindowInstanceId,
+    onRegistered: (rendererId: number) => void,
     definition: DesktopWindowDefinition,
     bootstrapSettings: AppSettings,
     snapshot: AppearanceSnapshot,
@@ -1570,7 +1519,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         new DesktopWindowError({
           cause,
           detail: "Failed to attach the game host view.",
-          id,
+          id: String(hostView.webContents.id),
         }),
     }).pipe(
       Effect.tapError(() =>
@@ -1592,13 +1541,12 @@ const makeDesktopWindows = Effect.gen(function* () {
       layout: "focused",
       orderedIds: [],
       rendererId: hostWebContents.id,
-      selectedId: id,
+      selectedId: Number.NaN,
       shortcutModifierPressed: false,
       stopObservingShortcutInput: () => {},
       tabMenuOpen: false,
       window,
     };
-    gameHosts.register(host);
     hostWebContents.once("destroyed", () => {
       gameHosts.unregister(host);
     });
@@ -1628,6 +1576,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       } catch {}
     });
     window.on("resize", () => {
+      if (host.orderedIds.length === 0) return;
       if (host.tabMenuOpen) {
         try {
           gameHosts.setTabMenuOpen(host, false);
@@ -1635,7 +1584,9 @@ const makeDesktopWindows = Effect.gen(function* () {
       }
       gameHosts.scheduleResize(host);
     });
-    window.on("resized", () => gameHosts.finishResize(host));
+    window.on("resized", () => {
+      if (host.orderedIds.length > 0) gameHosts.finishResize(host);
+    });
     window.on("focus", () => gameHosts.publishPresentations(host));
     window.on("blur", () => {
       gameHosts.publishPresentations(host);
@@ -1691,7 +1642,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         } finally {
           electronSession.releaseGamePartition(record.gamePartition);
         }
-        publishClosed(gameViewId, record);
+        publishClosed(record);
       }
       try {
         electronGameView.destroy(groupControlsView);
@@ -1728,9 +1679,9 @@ const makeDesktopWindows = Effect.gen(function* () {
     });
 
     return yield* Effect.gen(function* () {
-      yield* createGameViewInHost(
+      const id = yield* createGameViewInHost(
         host,
-        id,
+        onRegistered,
         bootstrapSettings,
         snapshot,
         options,
@@ -1876,12 +1827,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         systemPrefersDark,
       );
       yield* electronSession.prepareGameNetworking;
-      yield* createGameViewInHost(
-        host,
-        makeInstanceId("game"),
-        bootstrapSettings,
-        snapshot,
-      );
+      yield* createGameViewInHost(host, () => {}, bootstrapSettings, snapshot);
       return gameHosts.state(host);
     }).pipe(
       Effect.mapError((cause) =>
@@ -1909,7 +1855,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       ) {
         return yield* new DesktopWindowError({
           detail: `Game view does not belong to this host: ${id}`,
-          id,
+          id: String(id),
         });
       }
       yield* Effect.sync(() => closeGameViewRecord(id, record));
@@ -1925,7 +1871,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       if (!host.orderedIds.includes(id)) {
         return yield* new DesktopWindowError({
           detail: `Game view does not belong to this host: ${id}`,
-          id,
+          id: String(id),
         });
       }
 
@@ -1935,7 +1881,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           new DesktopWindowError({
             cause,
             detail: `Failed to select game view: ${id}`,
-            id,
+            id: String(id),
           }),
       });
       return gameHosts.state(host);
@@ -2070,11 +2016,10 @@ const makeDesktopWindows = Effect.gen(function* () {
     (gameRendererId) =>
       Effect.try({
         try: () => {
-          const entry = findRendererEntry(gameRendererId);
-          if (entry === null || entry[1].kind !== "game") {
+          const record = findRenderer(gameRendererId);
+          if (record === null || record.kind !== "game") {
             throw new Error(`Game renderer is not open: ${gameRendererId}`);
           }
-          const [id, record] = entry;
           if (!isGameViewRecord(record)) {
             return standaloneGameViewPresentation(record.window);
           }
@@ -2082,7 +2027,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           if (host === null) {
             throw new Error(`Game view host is not open: ${gameRendererId}`);
           }
-          return gameHosts.presentation(host, id);
+          return gameHosts.presentation(host, record.rendererId);
         },
         catch: (cause) =>
           new DesktopWindowError({
@@ -2098,11 +2043,10 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
-        const entry = findRendererEntry(gameRendererId);
-        if (entry === null || entry[1].kind !== "game") {
+        const record = findRenderer(gameRendererId);
+        if (record === null || record.kind !== "game") {
           throw new Error(`Game renderer is not open: ${gameRendererId}`);
         }
-        const [, record] = entry;
         const gameViewName = normalizeGameViewName(name);
         if (!isGameViewRecord(record)) {
           if (record.loggedInUsername === gameViewName) return;
@@ -2158,18 +2102,18 @@ const makeDesktopWindows = Effect.gen(function* () {
             throw new Error(`${kind} requires an owning game window.`);
           }
 
-          const owner = findRendererEntry(options.ownerRendererId);
+          const owner = findRenderer(options.ownerRendererId);
           if (
             owner === null ||
-            owner[1].kind !== "game" ||
-            owner[1].ownerId !== undefined
+            owner.kind !== "game" ||
+            owner.ownerId !== undefined
           ) {
             throw new Error(
               `The owning window must be an open root game: ${options.ownerRendererId}`,
             );
           }
 
-          return owner[0];
+          return owner.rendererId;
         },
         catch: (cause) =>
           new DesktopWindowError({
@@ -2181,13 +2125,15 @@ const makeDesktopWindows = Effect.gen(function* () {
       if (definition.singleInstance) {
         const existing = findOpenInstance(kind, ownerId);
         if (existing !== null) {
-          const [id] = existing;
-          yield* revealExisting(id);
-          return id;
+          yield* revealExisting(existing.rendererId);
+          return existing.rendererId;
         }
       }
 
-      const id = makeInstanceId(kind);
+      let registeredRendererId: number | undefined;
+      const onRegistered = (rendererId: number): void => {
+        registeredRendererId = rendererId;
+      };
       const isTopLevelWindow = definition.scope !== "game-child";
       if (isTopLevelWindow) {
         openingTopLevelWindowCount += 1;
@@ -2215,26 +2161,26 @@ const makeDesktopWindows = Effect.gen(function* () {
                   )
                 : (findGameHostForView(gameHostTarget.rendererId) ?? undefined);
             if (reusableHost !== undefined) {
-              yield* createGameViewInHost(
+              const rendererId = yield* createGameViewInHost(
                 reusableHost,
-                id,
+                onRegistered,
                 bootstrapSettings,
                 snapshot,
                 options,
               );
               yield* electronWindow.reveal(reusableHost.window);
-              return id;
+              return rendererId;
             }
             if (gameHostTarget.kind === "game-view") {
               return yield* new DesktopWindowError({
                 detail: `The target game window is not open: ${gameHostTarget.rendererId}`,
-                id,
+                id: String(gameHostTarget.rendererId),
               });
             }
           }
 
           return yield* createMultiGameWindow(
-            id,
+            onRegistered,
             definition,
             bootstrapSettings,
             snapshot,
@@ -2284,7 +2230,8 @@ const makeDesktopWindows = Effect.gen(function* () {
           rendererReady: false,
           window,
         };
-        renderers.set(id, record);
+        renderers.set(rendererId, record);
+        onRegistered(rendererId);
         if (kind === "game" && !isGameViewRecord(record)) {
           window.on("page-title-updated", (event) => {
             event.preventDefault();
@@ -2301,12 +2248,10 @@ const makeDesktopWindows = Effect.gen(function* () {
         const createdEvent: DesktopWindowCreatedEvent = {
           rendererId,
           generation: INITIAL_WINDOW_GENERATION,
-          id,
           kind,
         };
         const rendererDestroyedEvent: DesktopWindowRendererDestroyedEvent = {
           rendererId,
-          id,
           kind,
         };
         const stopObservingAvailability = observeRendererAvailability(
@@ -2323,7 +2268,6 @@ const makeDesktopWindows = Effect.gen(function* () {
             const reloadedEvent: DesktopWindowRendererReloadedEvent = {
               rendererId,
               generation,
-              id,
               kind,
             };
             run(rendererReloadedEvents.publish(reloadedEvent));
@@ -2346,7 +2290,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             preventWindowClose(event);
             window.hide();
             if (isTopLevelWindow) {
-              hiddenTopLevelWindowIds.add(id);
+              hiddenTopLevelWindowIds.add(rendererId);
               quitIfNoTopLevelWindow();
             }
           });
@@ -2359,13 +2303,15 @@ const makeDesktopWindows = Effect.gen(function* () {
           }
           const closedEvent: DesktopWindowClosedEvent = {
             rendererId,
-            id,
             kind,
           };
-          forgetWindow(id);
+          forgetWindow(rendererId);
           for (const record of renderers.values()) {
             const nativeWindow = nativeWindowForRenderer(record);
-            if (record.ownerId === id && isElectronWindowUsable(nativeWindow)) {
+            if (
+              record.ownerId === rendererId &&
+              isElectronWindowUsable(nativeWindow)
+            ) {
               nativeWindow.destroy();
             }
           }
@@ -2393,8 +2339,8 @@ const makeDesktopWindows = Effect.gen(function* () {
             try: () => webContents.openDevTools({ mode: "detach" }),
             catch: (cause) =>
               new DesktopWindowError({
-                id,
-                detail: `Failed to open DevTools for desktop window: ${id}`,
+                id: String(rendererId),
+                detail: `Failed to open DevTools for desktop window: ${rendererId}`,
                 cause,
               }),
           }).pipe(
@@ -2404,7 +2350,7 @@ const makeDesktopWindows = Effect.gen(function* () {
                   component: "window",
                   data: {
                     cause,
-                    id,
+                    rendererId,
                     kind,
                   },
                 }),
@@ -2414,29 +2360,33 @@ const makeDesktopWindows = Effect.gen(function* () {
         }
         yield* electronWindow.reveal(window);
         if (isTopLevelWindow) {
-          hiddenTopLevelWindowIds.delete(id);
+          hiddenTopLevelWindowIds.delete(rendererId);
           hasOpenedTopLevelWindow = true;
         }
         yield* Effect.logInfo("Desktop window opened").pipe(
           Effect.annotateLogs({
             component: "window",
             data: {
-              id,
+              rendererId,
               kind,
             },
           }),
         );
-        return id;
+        return rendererId;
       }).pipe(
         Effect.mapError(
           (cause) =>
             new DesktopWindowError({
-              id,
+              id: String(registeredRendererId ?? kind),
               detail: `Failed to open desktop window: ${kind}`,
               cause,
             }),
         ),
-        Effect.onError(() => destroyFailedWindow(id, kind)),
+        Effect.onError(() =>
+          registeredRendererId === undefined
+            ? Effect.void
+            : destroyFailedWindow(registeredRendererId, kind),
+        ),
         Effect.ensuring(
           Effect.sync(() => {
             if (!isTopLevelWindow) {
@@ -2465,8 +2415,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
       const accountManager = findOpenInstance("account-manager", undefined);
       if (accountManager !== null) {
-        const [accountManagerId] = accountManager;
-        if (yield* revealExisting(accountManagerId)) {
+        if (yield* revealExisting(accountManager.rendererId)) {
           return;
         }
       }
@@ -2502,7 +2451,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     closeRenderer,
     closeGameView,
     getRendererIds,
-    getRendererId,
     getNativeWindowId,
     getRendererKind,
     getGameViewHostRendererId,

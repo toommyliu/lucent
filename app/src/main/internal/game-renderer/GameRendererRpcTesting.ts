@@ -92,7 +92,6 @@ export const makeTestGameRenderer = Effect.fn(function* (
       (listener) =>
         listener({
           generation: 1,
-          id: "game",
           kind: "game",
           rendererId: TEST_GAME_RENDERER_ID,
         }).pipe(Effect.orDie),
