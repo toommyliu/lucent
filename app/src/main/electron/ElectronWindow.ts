@@ -168,7 +168,7 @@ const create: ElectronWindowShape["create"] = (options, onWindowOpenRequest) =>
     }),
     (window) =>
       Effect.sync(() => {
-        if (!window.isDestroyed()) window.destroy();
+        if (isElectronWindowUsable(window)) window.destroy();
       }),
   ).pipe(
     Effect.tap((window) =>
