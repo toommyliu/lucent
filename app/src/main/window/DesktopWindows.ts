@@ -91,9 +91,7 @@ export class DesktopWindowError extends Schema.TaggedError<DesktopWindowError>()
 }
 
 export interface DesktopWindowsShape {
-  readonly closeRenderer: (
-    rendererId: number,
-  ) => Effect.Effect<boolean, DesktopWindowError>;
+  readonly closeRenderer: (rendererId: number) => Effect.Effect<boolean>;
   readonly getRendererIds: (
     kind: DesktopWindowKind,
   ) => Effect.Effect<readonly number[]>;
@@ -105,20 +103,18 @@ export interface DesktopWindowsShape {
   ) => Effect.Effect<number, DesktopWindowError>;
   readonly getRendererKind: (
     rendererId: number,
-  ) => Effect.Effect<DesktopRendererKind | null, DesktopWindowError>;
+  ) => Effect.Effect<DesktopRendererKind | null>;
   readonly getOwnedRendererIds: (
     ownerRendererId: number,
     kind?: DesktopWindowKind,
   ) => Effect.Effect<readonly number[], DesktopWindowError>;
   readonly getOwnerRendererId: (
     rendererId: number,
-  ) => Effect.Effect<number | null, DesktopWindowError>;
+  ) => Effect.Effect<number | null>;
   readonly getRendererGeneration: (
     rendererId: number,
   ) => Effect.Effect<number, DesktopWindowError>;
-  readonly isRendererReady: (
-    rendererId: number,
-  ) => Effect.Effect<boolean, DesktopWindowError>;
+  readonly isRendererReady: (rendererId: number) => Effect.Effect<boolean>;
   readonly markRendererReady: (
     rendererId: number,
     generation: number,
@@ -171,15 +167,7 @@ export interface DesktopWindowsShape {
     kind: DesktopWindowKind,
     options?: DesktopWindowOpenOptions,
   ) => Effect.Effect<DesktopWindowInstanceId, DesktopWindowError>;
-  readonly reveal: (
-    id: DesktopWindowInstanceId,
-  ) => Effect.Effect<boolean, DesktopWindowError>;
-  readonly revealRenderer: (
-    rendererId: number,
-  ) => Effect.Effect<boolean, DesktopWindowError>;
-  readonly retireManagedGameProfile: (
-    key: string,
-  ) => Effect.Effect<void, DesktopWindowError>;
+  readonly revealRenderer: (rendererId: number) => Effect.Effect<boolean>;
   readonly reorderGameViews: (
     hostRendererId: number,
     ids: readonly DesktopWindowInstanceId[],
@@ -832,18 +820,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     );
   };
 
-  const reveal: DesktopWindowsShape["reveal"] = (id) =>
-    revealExisting(id).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id,
-            detail: `Failed to reveal desktop window: ${id}`,
-            cause,
-          }),
-      ),
-    );
-
   const findRendererEntry = (
     rendererId: number,
   ): readonly [DesktopWindowInstanceId, DesktopRendererRecord] | null => {
@@ -1002,16 +978,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         return "game-group-controls";
       }
       return gameHosts.find(rendererId) === null ? null : "game-host";
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id: String(rendererId),
-            detail: `Failed to resolve Electron window kind: ${rendererId}`,
-            cause,
-          }),
-      ),
-    );
+    });
 
   const getOwnerRendererId: DesktopWindowsShape["getOwnerRendererId"] = (
     rendererId,
@@ -1032,16 +999,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         !isElectronWindowUsable(nativeWindowForRenderer(owner))
         ? null
         : owner.rendererId;
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id: String(rendererId),
-            detail: `Failed to resolve Electron window owner: ${rendererId}`,
-            cause,
-          }),
-      ),
-    );
+    });
 
   const isRendererReady: DesktopWindowsShape["isRendererReady"] = (
     rendererId,
@@ -1049,16 +1007,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     Effect.sync(() => {
       const entry = findRendererEntry(rendererId);
       return entry !== null && entry[1].rendererReady;
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id: String(rendererId),
-            detail: `Failed to read renderer readiness: ${rendererId}`,
-            cause,
-          }),
-      ),
-    );
+    });
 
   const getRendererGeneration: DesktopWindowsShape["getRendererGeneration"] = (
     rendererId,
@@ -1245,16 +1194,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       }
 
       return yield* revealExisting(entry[0]);
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id: String(rendererId),
-            detail: `Failed to reveal Electron window: ${rendererId}`,
-            cause,
-          }),
-      ),
-    );
+    });
 
   const closeRenderer: DesktopWindowsShape["closeRenderer"] = (rendererId) =>
     Effect.sync(() => {
@@ -1270,16 +1210,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       }
       record.window.close();
       return true;
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopWindowError({
-            id: String(rendererId),
-            detail: `Failed to close Electron window: ${rendererId}`,
-            cause,
-          }),
-      ),
-    );
+    });
 
   const setBackgroundColor: DesktopWindowsShape["setBackgroundColor"] = (
     backgroundColor,
@@ -2595,19 +2526,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     onRendererReloaded: rendererReloadedEvents.subscribe,
     onRendererReady: rendererReadyEvents.subscribe,
     open,
-    reveal,
     revealRenderer,
-    retireManagedGameProfile: (key) =>
-      electronSession.retireManagedGameProfile(key).pipe(
-        Effect.mapError(
-          (cause) =>
-            new DesktopWindowError({
-              cause,
-              detail: "Failed to retire managed game profile.",
-              id: "game-profile",
-            }),
-        ),
-      ),
     reorderGameViews,
     reloadFocusedGameContents,
     selectGameView,

@@ -48,14 +48,7 @@ export const makeDesktopIpcSenders = (
     allowedKinds: DesktopIpcSenderKinds,
   ) {
     const rendererId = event.sender.id;
-    const kind = yield* windows.getRendererKind(rendererId).pipe(
-      Effect.mapError(
-        () =>
-          new DesktopIpcSenderError({
-            detail: `Failed to resolve IPC sender window: ${rendererId}`,
-          }),
-      ),
-    );
+    const kind = yield* windows.getRendererKind(rendererId);
     if (kind === null || !allowedKinds.includes(kind)) {
       return yield* new DesktopIpcSenderError({
         detail: `IPC sender must be one of: ${allowedKinds.join(", ")}`,

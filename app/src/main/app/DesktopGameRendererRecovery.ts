@@ -54,7 +54,7 @@ export interface DesktopGameRendererRecoveryDependencies {
   ) => Effect.Effect<number, unknown>;
   readonly getRendererKind: (
     rendererId: number,
-  ) => Effect.Effect<string | null, unknown>;
+  ) => Effect.Effect<string | null>;
   readonly onWebContentsCreated: (
     listener: (contents: RecoverableGameWebContents) => void,
   ) => () => void;
@@ -155,9 +155,7 @@ export const makeDesktopGameRendererRecovery = (
       const rendererId = target.id;
       if (appIsQuitting) return;
 
-      const kind = yield* dependencies
-        .getRendererKind(rendererId)
-        .pipe(Effect.catch(() => Effect.succeed(null)));
+      const kind = yield* dependencies.getRendererKind(rendererId);
       if (kind !== "game" || !hasActiveExecution(rendererId)) return;
 
       if (!isExclusiveRendererProcess(target, dependencies.allWebContents)) {
@@ -222,9 +220,7 @@ export const makeDesktopGameRendererRecovery = (
       const rendererId = target.id;
       if (appIsQuitting) return;
 
-      const kind = yield* dependencies
-        .getRendererKind(rendererId)
-        .pipe(Effect.catch(() => Effect.succeed(null)));
+      const kind = yield* dependencies.getRendererKind(rendererId);
       if (kind !== "game") return;
 
       yield* dependencies.warn("Game renderer crashed", {
