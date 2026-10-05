@@ -42,7 +42,6 @@ import * as DesktopWindows from "../window/DesktopWindows";
 import * as ElectronApp from "../electron/ElectronApp";
 import * as ElectronChromiumPerformance from "../electron/ElectronChromiumPerformance";
 import * as ElectronDialog from "../electron/ElectronDialog";
-import * as ElectronGameView from "../electron/ElectronGameView";
 import * as ElectronSession from "../electron/ElectronSession";
 import * as ElectronShell from "../electron/ElectronShell";
 import * as ElectronTheme from "../electron/ElectronTheme";
@@ -63,7 +62,6 @@ export const makeDesktopLayer = (
     ElectronApp.layer,
     ElectronChromiumPerformance.layer,
     ElectronDialog.layer,
-    ElectronGameView.layer,
     ElectronShell.layer,
     ElectronTheme.layer,
     ElectronWindow.layer,
