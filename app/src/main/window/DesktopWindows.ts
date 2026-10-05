@@ -11,6 +11,7 @@ import {
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
@@ -539,8 +540,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const electronShell = yield* ElectronShell;
   const settings = yield* DesktopSettings;
   const theme = yield* ElectronTheme;
-  const context = yield* Effect.context<never>();
-  const runPromise = Effect.runPromiseWith(context);
+  const run = yield* FiberSet.makeRuntime<never, void>();
   const activeBranding = env.isDev ? appBranding.dev : appBranding.production;
   const getBootstrapSettings = settings.get.pipe(
     Effect.catch((cause) =>
@@ -589,7 +589,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         : undefined;
     },
     onShortcutError: ({ cause, hostRendererId, id }) => {
-      void runPromise(
+      run(
         Effect.logWarning("Failed to use game view shortcut").pipe(
           Effect.annotateLogs({
             component: "window",
@@ -600,7 +600,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             },
           }),
         ),
-      ).catch(() => undefined);
+      );
     },
     onStateChanged: refreshGameHostWindowTitle,
     platform: env.platform,
@@ -650,9 +650,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     ): void => {
       onUnavailable(failure);
       const unavailableEvent = { ...event, failure };
-      void runPromise(
-        rendererUnavailableEvents.publish(unavailableEvent),
-      ).catch(() => undefined);
+      run(rendererUnavailableEvents.publish(unavailableEvent));
     };
     const handleRenderProcessGone = (
       _event: ElectronEvent,
@@ -697,7 +695,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       return;
     }
 
-    void runPromise(
+    run(
       electronShell.openExternal(url).pipe(
         Effect.flatMap((opened) =>
           opened
@@ -712,7 +710,7 @@ const makeDesktopWindows = Effect.gen(function* () {
               ),
         ),
       ),
-    ).catch(() => undefined);
+    );
   };
 
   const unsubscribeBeforeQuit = yield* app.on("before-quit", () => {
@@ -740,9 +738,15 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
 
     quitRequested = true;
-    void runPromise(app.quit).catch(() => {
-      quitRequested = false;
-    });
+    run(
+      app.quit.pipe(
+        Effect.catchCause(() =>
+          Effect.sync(() => {
+            quitRequested = false;
+          }),
+        ),
+      ),
+    );
   };
 
   const destroyFailedWindow = Effect.fn("DesktopWindows.destroyFailedWindow")(
@@ -1135,7 +1139,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       id,
       kind: record.kind,
     };
-    void runPromise(closedEvents.publish(event)).catch(() => undefined);
+    run(closedEvents.publish(event));
   };
 
   const closeGameViewRecord = (
@@ -1418,9 +1422,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             id,
             kind: "game",
           };
-          void runPromise(rendererReloadedEvents.publish(reloadedEvent)).catch(
-            () => undefined,
-          );
+          run(rendererReloadedEvents.publish(reloadedEvent));
         },
       );
       const shortcutInputListener = gameHosts.makeShortcutInputListener(host);
@@ -1465,9 +1467,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         record.stopObservingFocus();
         record.stopObservingReloads();
         record.stopObservingShortcutInput();
-        void runPromise(
-          rendererDestroyedEvents.publish(rendererDestroyedEvent),
-        ).catch(() => undefined);
+        run(rendererDestroyedEvents.publish(rendererDestroyedEvent));
       });
 
       yield* createdEvents.publish(createdEvent);
@@ -1482,7 +1482,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       }
 
       gameHosts.refresh(host);
-      void runPromise(
+      run(
         gameSocketRelayUrl.pipe(
           Effect.flatMap((socketProxy) =>
             electronGameView.loadFile(view, viewHtmlPath("game"), {
@@ -1495,7 +1495,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             }),
           ),
         ),
-      ).catch(() => undefined);
+      );
 
       if (env.debug === true) {
         yield* Effect.try({
@@ -1676,7 +1676,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           destroyOwnedWindows(gameViewId);
           electronGameView.destroy(record.gameView);
         } catch (cause) {
-          void runPromise(
+          run(
             Effect.logWarning("Failed to clean up game view").pipe(
               Effect.annotateLogs({
                 component: "window",
@@ -1687,7 +1687,7 @@ const makeDesktopWindows = Effect.gen(function* () {
                 },
               }),
             ),
-          ).catch(() => undefined);
+          );
         } finally {
           electronSession.releaseGamePartition(record.gamePartition);
         }
@@ -1696,7 +1696,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       try {
         electronGameView.destroy(groupControlsView);
       } catch (cause) {
-        void runPromise(
+        run(
           Effect.logWarning("Failed to clean up group controls").pipe(
             Effect.annotateLogs({
               component: "window",
@@ -1706,12 +1706,12 @@ const makeDesktopWindows = Effect.gen(function* () {
               },
             }),
           ),
-        ).catch(() => undefined);
+        );
       }
       try {
         electronGameView.destroy(hostView);
       } catch (cause) {
-        void runPromise(
+        run(
           Effect.logWarning("Failed to clean up game host").pipe(
             Effect.annotateLogs({
               component: "window",
@@ -1721,7 +1721,7 @@ const makeDesktopWindows = Effect.gen(function* () {
               },
             }),
           ),
-        ).catch(() => undefined);
+        );
       }
 
       quitIfNoTopLevelWindow();
@@ -2326,9 +2326,7 @@ const makeDesktopWindows = Effect.gen(function* () {
               id,
               kind,
             };
-            void runPromise(
-              rendererReloadedEvents.publish(reloadedEvent),
-            ).catch(() => undefined);
+            run(rendererReloadedEvents.publish(reloadedEvent));
           },
         );
 
@@ -2336,9 +2334,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           markRendererUnavailable(record);
           stopObservingAvailability();
           stopObservingWindowReloads();
-          void runPromise(
-            rendererDestroyedEvents.publish(rendererDestroyedEvent),
-          ).catch(() => undefined);
+          run(rendererDestroyedEvents.publish(rendererDestroyedEvent));
         });
 
         if (definition.closeBehavior === "hide") {
@@ -2373,9 +2369,7 @@ const makeDesktopWindows = Effect.gen(function* () {
               nativeWindow.destroy();
             }
           }
-          void runPromise(closedEvents.publish(closedEvent)).catch(
-            () => undefined,
-          );
+          run(closedEvents.publish(closedEvent));
           if (isTopLevelWindow) {
             quitIfNoTopLevelWindow();
           }
@@ -2488,7 +2482,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   if (env.platform === "darwin") {
     const unsubscribeActivate = yield* app.on("activate", () => {
-      void runPromise(
+      run(
         restorePrimaryWindow().pipe(
           Effect.catch((cause) =>
             Effect.logWarning(
@@ -2498,7 +2492,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             ),
           ),
         ),
-      ).catch(() => undefined);
+      );
     });
     yield* Effect.addFinalizer(() => Effect.sync(unsubscribeActivate));
   }
