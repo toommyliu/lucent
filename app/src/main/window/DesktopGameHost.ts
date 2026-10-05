@@ -1,4 +1,5 @@
 import type { Event as ElectronEvent, Input } from "electron";
+import type * as Scope from "effect/Scope";
 
 import {
   MAX_GAME_VIEWS_PER_WINDOW,
@@ -31,7 +32,7 @@ export interface DesktopGameViewRecord {
   /** The layout whose bounds this view has, which can differ from its host's. */
   boundsLayout: GameViewLayout;
   readonly gameHostRendererId: number;
-  readonly gamePartition: string;
+  readonly scope: Scope.Closeable;
   readonly gameView: ElectronGameViewHandle;
   gameViewError?: string;
   gameViewName?: string;
@@ -52,6 +53,7 @@ export interface DesktopGameViewRecord {
 }
 
 export interface DesktopGameHostRecord {
+  readonly scope: Scope.Closeable;
   closing: boolean;
   groupControlsNativeDialogOpen: boolean;
   readonly groupControlsView: ElectronGameViewHandle;
@@ -212,6 +214,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     if (
       host === undefined ||
       host.closing ||
+      host.scope.state._tag === "Closed" ||
       !isElectronWindowUsable(host.window) ||
       host.groupControlsView.webContents.isDestroyed() ||
       host.hostView.webContents.isDestroyed()
@@ -321,7 +324,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
 
   const finishResize = (host: DesktopGameHostRecord): void => {
     cancelResize(host);
-    if (host.closing) return;
+    if (host.closing || host.scope.state._tag === "Closed") return;
 
     try {
       applyLayout(host);
@@ -329,7 +332,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
   };
 
   const scheduleResize = (host: DesktopGameHostRecord): void => {
-    if (host.closing) return;
+    if (host.closing || host.scope.state._tag === "Closed") return;
 
     if (host.resizeSettleTimer !== undefined) {
       clearTimeout(host.resizeSettleTimer);

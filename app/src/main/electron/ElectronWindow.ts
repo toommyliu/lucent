@@ -11,6 +11,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
 
 export {
   isElectronWindowUsable,
@@ -96,11 +97,19 @@ export type ElectronWindowOpenRequestHandler = (url: string) => void;
 export interface ElectronWindowShape {
   readonly createHost: (
     options: ElectronHostWindowCreateOptions,
-  ) => Effect.Effect<ElectronNativeWindowHandle, ElectronWindowCreateError>;
+  ) => Effect.Effect<
+    ElectronNativeWindowHandle,
+    ElectronWindowCreateError,
+    Scope.Scope
+  >;
   readonly create: (
     options: ElectronWindowCreateOptions,
     onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
-  ) => Effect.Effect<ElectronWindowHandle, ElectronWindowCreateError>;
+  ) => Effect.Effect<
+    ElectronWindowHandle,
+    ElectronWindowCreateError,
+    Scope.Scope
+  >;
   readonly loadFile: (
     window: ElectronWindowHandle,
     path: string,
@@ -150,23 +159,38 @@ const makeCenteredOptions = <Options extends ElectronHostWindowCreateOptions>(
 };
 
 const create: ElectronWindowShape["create"] = (options, onWindowOpenRequest) =>
-  Effect.try({
-    try: () => {
-      const window = new BrowserWindow({
-        ...makeCenteredOptions(options),
-      });
-      electronRendererRegistry.register(window.webContents);
-      guardRendererNavigation(window.webContents, onWindowOpenRequest);
-      return window;
-    },
-    catch: (cause) => new ElectronWindowCreateError({ cause }),
-  });
+  Effect.acquireRelease(
+    Effect.try({
+      try: () => new BrowserWindow(makeCenteredOptions(options)),
+      catch: (cause) => new ElectronWindowCreateError({ cause }),
+    }),
+    (window) =>
+      Effect.sync(() => {
+        if (!window.isDestroyed()) window.destroy();
+      }),
+  ).pipe(
+    Effect.tap((window) =>
+      Effect.try({
+        try: () => {
+          electronRendererRegistry.register(window.webContents);
+          guardRendererNavigation(window.webContents, onWindowOpenRequest);
+        },
+        catch: (cause) => new ElectronWindowCreateError({ cause }),
+      }),
+    ),
+  );
 
 const createHost: ElectronWindowShape["createHost"] = (options) =>
-  Effect.try({
-    try: () => new BaseWindow(makeCenteredOptions(options)),
-    catch: (cause) => new ElectronWindowCreateError({ cause }),
-  });
+  Effect.acquireRelease(
+    Effect.try({
+      try: () => new BaseWindow(makeCenteredOptions(options)),
+      catch: (cause) => new ElectronWindowCreateError({ cause }),
+    }),
+    (window) =>
+      Effect.sync(() => {
+        if (!window.isDestroyed()) window.destroy();
+      }),
+  );
 
 const loadFile: ElectronWindowShape["loadFile"] = (window, path, options) =>
   Effect.tryPromise({
