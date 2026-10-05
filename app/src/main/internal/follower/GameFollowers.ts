@@ -230,29 +230,22 @@ export const makeGameFollowers = Effect.gen(function* () {
     yield* ipc.sendToRendererIds(targets, FollowerIpc.changed, state);
   });
 
-  const unsubscribers = yield* Effect.all([
-    windows.onClosed((event) =>
-      event.kind === "game" ? remove(event.rendererId) : Effect.void,
-    ),
-    windows.onRendererDestroyed((event) =>
-      event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
-    ),
-    windows.onRendererUnavailable((event) =>
-      event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
-    ),
-    windows.onRendererReloaded((event) =>
-      event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
-    ),
+  yield* windows.observe({ kind: "game" }, (event) => {
+    switch (event.type) {
+      case "closed":
+        return remove(event.rendererId);
+      case "crashed":
+      case "reloaded":
+        return invalidate(event.rendererId);
+      default:
+        return Effect.void;
+    }
+  });
+  yield* Effect.acquireRelease(
     rpc.onConnected((gameRendererId) =>
       reconcile(gameRendererId).pipe(Effect.ignore),
     ),
-  ]);
-  yield* Effect.addFinalizer(() =>
-    Effect.sync(() => {
-      for (const unsubscribe of unsubscribers) {
-        unsubscribe();
-      }
-    }),
+    (unsubscribe) => Effect.sync(unsubscribe),
   );
 
   return GameFollowers.of({

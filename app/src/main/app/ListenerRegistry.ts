@@ -4,7 +4,10 @@ import * as Effect from "effect/Effect";
 type Listener<Value> = (value: Value) => void | Effect.Effect<void, unknown>;
 
 export interface ListenerRegistry<Value> {
-  readonly publish: (value: Value) => Effect.Effect<void>;
+  readonly publish: (
+    value: Value,
+    concurrency?: 1 | "unbounded",
+  ) => Effect.Effect<void>;
   readonly subscribe: (listener: Listener<Value>) => Effect.Effect<() => void>;
 }
 
@@ -13,7 +16,10 @@ export const makeListenerRegistry = <Value>(
 ): ListenerRegistry<Value> => {
   const listeners = new Set<Listener<Value>>();
 
-  const publish: ListenerRegistry<Value>["publish"] = (value) =>
+  const publish: ListenerRegistry<Value>["publish"] = (
+    value,
+    concurrency = options.concurrency,
+  ) =>
     Effect.forEach(
       [...listeners],
       (listener) =>
@@ -27,7 +33,7 @@ export const makeListenerRegistry = <Value>(
               : Effect.logError("Event listener failed", cause),
           ),
         ),
-      { concurrency: options.concurrency, discard: true },
+      { concurrency, discard: true },
     );
 
   const subscribe: ListenerRegistry<Value>["subscribe"] = (listener) =>

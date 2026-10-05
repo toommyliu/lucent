@@ -555,14 +555,13 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const install: DesktopApplicationMenuShape["install"] = Effect.gen(
     function* () {
       if (!isDarwin) {
-        const unsubscribeWindows = yield* windows.onCreated((event) =>
-          event.kind === "about"
+        yield* windows.observe({ kind: "about" }, (event) =>
+          event.type === "created"
             ? removeRendererWindowMenu(event.rendererId).pipe(
                 Effect.catch(() => Effect.void),
               )
             : Effect.void,
         );
-        yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
       }
       yield* rebuild;
       const unsubscribe = yield* settings.onChanged(() => {
