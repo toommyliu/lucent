@@ -16,7 +16,6 @@ import {
 import { GameRendererRpcs } from "../../../shared/gameRendererRpc";
 import { GAME_RENDERER_RPC_PORT_CHANNEL } from "../../../shared/ipc";
 import { electronRendererRegistry } from "../../electron/ElectronRendererRegistry";
-import type { DesktopWindowKind } from "../../window/DesktopWindowCatalog";
 import { DesktopWindows } from "../../window/DesktopWindows";
 
 export type GameRendererRpcClient = RpcClient.FromGroup<
@@ -71,15 +70,6 @@ interface Connection {
 }
 
 const isRpcClientError = Schema.is(RpcClientError);
-
-const forGame =
-  (
-    f: (
-      rendererId: number,
-    ) => Effect.Effect<void, GameRendererUnavailableError>,
-  ) =>
-  (event: { readonly kind: DesktopWindowKind; readonly rendererId: number }) =>
-    event.kind === "game" ? f(event.rendererId) : Effect.void;
 
 const makePortProtocol = Effect.fnUntraced(function* (
   port: GameRendererRpcPort,
@@ -255,20 +245,18 @@ export const makeGameRendererRpc = Effect.fn("makeGameRendererRpc")(function* (
       };
     });
 
-  const unsubscribers = yield* Effect.all([
-    windows.onRendererReady(forGame(connect)),
-    windows.onRendererReloaded(forGame(disconnect)),
-    windows.onRendererDestroyed(forGame(disconnect)),
-    windows.onRendererUnavailable(forGame(disconnect)),
-    windows.onClosed(forGame(disconnect)),
-  ]);
-  yield* Effect.addFinalizer(() =>
-    Effect.sync(() => {
-      for (const unsubscribe of unsubscribers) {
-        unsubscribe();
-      }
-    }),
-  );
+  yield* windows.observe({ kind: "game" }, (event) => {
+    switch (event.type) {
+      case "ready":
+        return connect(event.rendererId);
+      case "reloaded":
+      case "crashed":
+      case "closed":
+        return disconnect(event.rendererId);
+      default:
+        return Effect.void;
+    }
+  });
 
   return GameRendererRpc.of({ call, onConnected });
 });

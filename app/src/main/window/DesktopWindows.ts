@@ -141,34 +141,10 @@ export interface DesktopWindowsShape {
   readonly getGameViewPresentation: (
     gameRendererId: number,
   ) => Effect.Effect<GameViewPresentation, DesktopWindowError>;
-  readonly onClosed: (
-    listener: (event: DesktopWindowClosedEvent) => Effect.Effect<void, unknown>,
-  ) => Effect.Effect<() => void>;
-  readonly onCreated: (
-    listener: (
-      event: DesktopWindowCreatedEvent,
-    ) => Effect.Effect<void, unknown>,
-  ) => Effect.Effect<() => void>;
-  readonly onRendererDestroyed: (
-    listener: (
-      event: DesktopWindowRendererDestroyedEvent,
-    ) => Effect.Effect<void, unknown>,
-  ) => Effect.Effect<() => void>;
-  readonly onRendererUnavailable: (
-    listener: (
-      event: DesktopWindowRendererUnavailableEvent,
-    ) => Effect.Effect<void, unknown>,
-  ) => Effect.Effect<() => void>;
-  readonly onRendererReloaded: (
-    listener: (
-      event: DesktopWindowRendererReloadedEvent,
-    ) => Effect.Effect<void, unknown>,
-  ) => Effect.Effect<() => void>;
-  readonly onRendererReady: (
-    listener: (
-      event: DesktopWindowRendererReadyEvent,
-    ) => Effect.Effect<void, unknown>,
-  ) => Effect.Effect<() => void>;
+  readonly observe: (
+    filter: { readonly kind?: DesktopRendererKind },
+    listener: (event: DesktopRendererEvent) => Effect.Effect<void, unknown>,
+  ) => Effect.Effect<void, never, Scope.Scope>;
   readonly open: (
     kind: DesktopWindowKind,
     options?: DesktopWindowOpenOptions,
@@ -384,44 +360,26 @@ interface DesktopChromeRendererRecord {
 
 type DesktopRendererRecord = DesktopWindowRecord | DesktopChromeRendererRecord;
 
-export interface DesktopWindowClosedEvent {
-  readonly rendererId: number;
-  readonly kind: DesktopWindowKind;
-}
-
 export interface DesktopWindowCreatedEvent {
   readonly rendererId: number;
   readonly generation: number;
   readonly kind: DesktopWindowKind;
 }
 
-export interface DesktopWindowRendererDestroyedEvent {
+export type DesktopRendererEvent = {
   readonly rendererId: number;
-  readonly kind: DesktopWindowKind;
-}
-
-export interface DesktopWindowRendererUnavailableFailure {
-  readonly reason: RenderProcessGoneDetails["reason"];
-  readonly type: "render-process-gone";
-}
-
-export interface DesktopWindowRendererUnavailableEvent {
-  readonly failure: DesktopWindowRendererUnavailableFailure;
-  readonly rendererId: number;
-  readonly kind: DesktopWindowKind;
-}
-
-export interface DesktopWindowRendererReloadedEvent {
-  readonly rendererId: number;
-  readonly generation: number;
-  readonly kind: DesktopWindowKind;
-}
-
-export interface DesktopWindowRendererReadyEvent {
-  readonly rendererId: number;
-  readonly generation: number;
-  readonly kind: DesktopWindowKind;
-}
+  readonly kind: DesktopRendererKind;
+} & (
+  | {
+      readonly type: "created" | "ready" | "reloaded";
+      readonly generation: number;
+    }
+  | {
+      readonly type: "crashed";
+      readonly reason: RenderProcessGoneDetails["reason"];
+    }
+  | { readonly type: "closed" }
+);
 
 const isGameViewRecord = (
   record: DesktopWindowRecord | undefined,
@@ -627,24 +585,21 @@ const makeDesktopWindows = Effect.gen(function* () {
     },
   );
   yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindowTitleSettings));
-  const createdEvents = makeListenerRegistry<DesktopWindowCreatedEvent>();
-  const closedEvents = makeListenerRegistry<DesktopWindowClosedEvent>({
-    concurrency: "unbounded",
-  });
-  const rendererDestroyedEvents =
-    makeListenerRegistry<DesktopWindowRendererDestroyedEvent>({
-      concurrency: "unbounded",
-    });
-  const rendererUnavailableEvents =
-    makeListenerRegistry<DesktopWindowRendererUnavailableEvent>({
-      concurrency: "unbounded",
-    });
-  const rendererReloadedEvents =
-    makeListenerRegistry<DesktopWindowRendererReloadedEvent>({
-      concurrency: "unbounded",
-    });
-  const rendererReadyEvents =
-    makeListenerRegistry<DesktopWindowRendererReadyEvent>();
+  const events = makeListenerRegistry<DesktopRendererEvent>();
+  const publish = (event: DesktopRendererEvent) =>
+    events.publish(
+      event,
+      event.type === "created" || event.type === "ready" ? 1 : "unbounded",
+    );
+  const observe: DesktopWindowsShape["observe"] = (filter, listener) =>
+    Effect.acquireRelease(
+      events.subscribe((event) =>
+        filter.kind === undefined || filter.kind === event.kind
+          ? listener(event)
+          : Effect.void,
+      ),
+      (unsubscribe) => Effect.sync(unsubscribe),
+    ).pipe(Effect.asVoid);
 
   let appIsQuitting = false;
   let hasOpenedTopLevelWindow = false;
@@ -837,10 +792,11 @@ const makeDesktopWindows = Effect.gen(function* () {
             }
           }
           return {
+            type: "ready",
             rendererId,
             generation: record.generation,
             kind: record.kind,
-          } satisfies DesktopWindowRendererReadyEvent;
+          } satisfies DesktopRendererEvent;
         },
         catch: (cause) =>
           new DesktopWindowError({
@@ -854,7 +810,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         return;
       }
 
-      yield* rendererReadyEvents.publish(readyEvent);
+      yield* publish(readyEvent);
     });
 
   const getOwnedRendererIds: DesktopWindowsShape["getOwnedRendererIds"] = (
@@ -897,7 +853,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       scope,
       Effect.sync(() => {
         if (rendererId !== undefined) {
-          run(closedEvents.publish({ rendererId, kind }));
+          run(publish({ type: "closed", rendererId, kind }));
         }
       }),
     ).pipe(
@@ -1041,10 +997,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         : record.window.webContents;
       const { rendererId, kind } = record;
       let initialNavigationStarted = false;
-      contents.once("destroyed", () => {
-        dispose(record.scope);
-        run(rendererDestroyedEvents.publish({ rendererId, kind }));
-      });
+      contents.once("destroyed", () => dispose(record.scope));
       yield* listen(
         contents,
         "render-process-gone",
@@ -1059,10 +1012,11 @@ const makeDesktopWindows = Effect.gen(function* () {
             );
           }
           run(
-            rendererUnavailableEvents.publish({
+            publish({
+              type: "crashed",
               rendererId,
               kind,
-              failure: { reason: details.reason, type: "render-process-gone" },
+              reason: details.reason,
             }),
           );
         },
@@ -1084,7 +1038,8 @@ const makeDesktopWindows = Effect.gen(function* () {
           delete record.unavailableGeneration;
           if (host !== undefined) updateGameViewPhase(rendererId, "loading");
           run(
-            rendererReloadedEvents.publish({
+            publish({
+              type: "reloaded",
               rendererId,
               kind,
               generation: record.generation,
@@ -1221,7 +1176,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         gameHosts.makeShortcutInputListener(host),
       );
 
-      yield* createdEvents.publish(createdEvent);
+      yield* publish({ type: "created", ...createdEvent });
       if (options?.onCreated !== undefined) {
         yield* options.onCreated(createdEvent);
       }
@@ -1895,7 +1850,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
         window.once("closed", () => dispose(scope));
 
-        yield* createdEvents.publish(createdEvent);
+        yield* publish({ type: "created", ...createdEvent });
 
         if (options?.onCreated !== undefined) {
           yield* options.onCreated(createdEvent);
@@ -2025,12 +1980,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     getGameViewPresentation,
     getOwnedRendererIds,
     markRendererReady,
-    onClosed: closedEvents.subscribe,
-    onCreated: createdEvents.subscribe,
-    onRendererDestroyed: rendererDestroyedEvents.subscribe,
-    onRendererUnavailable: rendererUnavailableEvents.subscribe,
-    onRendererReloaded: rendererReloadedEvents.subscribe,
-    onRendererReady: rendererReadyEvents.subscribe,
+    observe,
     open,
     revealRenderer,
     reloadFocusedGameContents,

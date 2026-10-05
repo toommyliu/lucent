@@ -63,13 +63,13 @@ export const layer = Layer.effect(
       );
 
     const onClosed: AccountGameWindows["Service"]["onClosed"] = (listener) =>
-      windows.onClosed((event) =>
-        event.kind === "game" ? listener(event.rendererId) : Effect.void,
+      windows.observe({ kind: "game" }, (event) =>
+        event.type === "closed" ? listener(event.rendererId) : Effect.void,
       );
 
     const onCreated: AccountGameWindows["Service"]["onCreated"] = (listener) =>
-      windows.onCreated((event) =>
-        event.kind === "game"
+      windows.observe({ kind: "game" }, (event) =>
+        event.type === "created"
           ? toAccountGameWindowEvent(event).pipe(Effect.flatMap(listener))
           : Effect.void,
       );
@@ -77,8 +77,8 @@ export const layer = Layer.effect(
     const onReloaded: AccountGameWindows["Service"]["onReloaded"] = (
       listener,
     ) =>
-      windows.onRendererReloaded((event) =>
-        event.kind === "game"
+      windows.observe({ kind: "game" }, (event) =>
+        event.type === "reloaded"
           ? toAccountGameWindowEvent(event).pipe(Effect.flatMap(listener))
           : Effect.void,
       );
