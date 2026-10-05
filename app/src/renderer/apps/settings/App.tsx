@@ -1,22 +1,30 @@
 import {
+  Icon,
+  HelpTooltip,
   Alert,
-  AlertDescription,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDescription,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
   Button,
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   ColorPicker,
-  HelpTooltip,
-  Icon,
   Input,
+  Kbd,
+  KbdGroup,
   Slider,
   SliderValue,
-  Spinner,
   Switch,
   Tabs,
   TabsContent,
@@ -26,7 +34,7 @@ import {
   TooltipContent,
   TooltipIconButton,
   TooltipTrigger,
-  type IconName,
+  type ButtonProps,
   type TooltipProps,
 } from "@lucent/ui";
 import {
@@ -44,6 +52,7 @@ import {
   SETTING_COMMAND_CATEGORIES,
   SETTINGS_COMMANDS,
   formatHotkeyDisplay as displayHotkey,
+  formatHotkeyDisplayParts as displayHotkeyParts,
   normalizeHotkeyBindingValue,
   readHotkeyBinding,
   type HotkeyBinding,
@@ -60,28 +69,18 @@ import {
 } from "../../../shared/desktopBridge";
 import {
   DEFAULT_APP_SETTINGS,
-  THEME_FONT_MAX_LENGTH,
-  THEME_FONT_SIZE_MAX,
-  THEME_FONT_SIZE_MIN,
   THEME_TOKEN_NAMES,
   type AppSettings,
   type AppearancePatch,
   type MotionMode,
   type PreferencesPatch,
   type ThemeMode,
-  type ThemeProfile,
-  type ThemeProfilePatch,
   type ThemeRgb,
   type ThemeTokenName,
   type ThemeVariant,
 } from "@lucent/core/settings";
 import type { UpdateCheckState } from "../../../shared/updates";
 import { MAX_GAME_VIEWS_PER_WINDOW } from "../../../shared/gameViews";
-import {
-  findConflictingCommands,
-  groupCommandsByShortcut,
-} from "./hotkeyConflicts";
-import { THEME_COLOR_ROWS, themeTokenLabel } from "./themeColors";
 
 type HotkeyBindings = readonly HotkeyBinding[];
 type HotkeyListSegment =
@@ -96,7 +95,11 @@ type HotkeyListSegment =
     };
 
 const defaultSettings: AppSettings = DEFAULT_APP_SETTINGS;
-const DEFAULT_THEME_PROFILES = DEFAULT_APP_SETTINGS.appearance.themes;
+const DEFAULT_THEME_TOKENS = {
+  light: DEFAULT_APP_SETTINGS.appearance.themes.light.tokens,
+  dark: DEFAULT_APP_SETTINGS.appearance.themes.dark.tokens,
+} as const;
+const DEFAULT_THEME_PROFILE = DEFAULT_APP_SETTINGS.appearance.themes.dark;
 const GAME_COMMANDS = SETTINGS_COMMANDS;
 
 const segmentHotkeyCommands = (
@@ -217,34 +220,18 @@ const launchModes = [
 const commandCategories: readonly CommandCategory[] =
   SETTING_COMMAND_CATEGORIES;
 
-const parseFontSize = (text: string): number | undefined => {
-  const size = Number(text);
-  return text.trim() === "" || !Number.isFinite(size)
-    ? undefined
-    : clampFontSize(size);
-};
-
-const allowLineBreakAfterEachPlus = (shortcut: string): string =>
-  shortcut.split("+").join("+\u200B");
+const normalizeHotkeyBinding = (
+  value: string,
+  _platform: AppPlatform,
+): string | undefined => normalizeHotkeyBindingValue(value) ?? undefined;
 
 const clampFontSize = (value: number): number =>
-  Math.min(
-    THEME_FONT_SIZE_MAX,
-    Math.max(THEME_FONT_SIZE_MIN, Math.round(value)),
-  );
+  Math.min(24, Math.max(10, Math.round(value)));
 
-const isThemeProfileDefault = (
-  profile: ThemeProfile,
-  defaults: ThemeProfile,
-): boolean =>
-  profile.sansFont === defaults.sansFont &&
-  profile.monoFont === defaults.monoFont &&
-  profile.sansFontSize === defaults.sansFontSize &&
-  profile.monoFontSize === defaults.monoFontSize &&
-  profile.rounding === defaults.rounding &&
-  THEME_TOKEN_NAMES.every((name) =>
-    rgbEquals(profile.tokens[name], defaults.tokens[name]),
-  );
+const tokenLabel = (name: ThemeTokenName): string =>
+  name
+    .replace(/[A-Z]/g, (match) => ` ${match}`)
+    .replace(/^./, (match) => match.toUpperCase());
 
 const initialUpdateState = (settings: AppSettings): UpdateCheckState => ({
   status: settings.preferences.checkForUpdates ? "idle" : "disabled",
@@ -284,179 +271,165 @@ const updateStatusText = (state: UpdateCheckState): string => {
     case "disabled":
       return state.reason;
     case "checking":
-      return "Checking for updates…";
+      return "Checking for updates...";
     case "current":
       return `Lucent ${state.currentVersion} is current.`;
     case "available":
-      return `Lucent ${state.latestVersion} is available. You have ${state.currentVersion}.`;
+      return `Lucent ${state.latestVersion} is available. Current version: ${state.currentVersion}.`;
     case "error":
       return state.message;
   }
 };
 
-const updateStatusIcon = (state: UpdateCheckState): IconName => {
-  switch (state.status) {
-    case "current":
-      return "circle_check";
-    case "available":
-      return "download";
-    case "error":
-      return "circle_alert";
-    default:
-      return "info";
-  }
-};
-
-const errorMessage = (cause: unknown, fallback: string): string =>
-  cause instanceof Error ? cause.message : fallback;
-
-const isInteractiveTarget = (target: EventTarget | null): boolean =>
-  !(target instanceof Element) ||
-  target.closest("a, button, input, label, select, textarea") !== null;
-
 function SettingsSection(props: {
-  readonly children?: JSX.Element;
-  readonly class?: string;
-  readonly control?: JSX.Element;
+  readonly action?: JSX.Element;
+  readonly children: JSX.Element;
   readonly description?: string;
   readonly id: string;
-  readonly onHeadingClick?: () => void;
   readonly title: string;
-  readonly titleAccessory?: JSX.Element;
 }): JSX.Element {
-  const headingId = () => `settings-section-${props.id}`;
+  const hasHeader = () =>
+    props.description !== undefined || props.action !== undefined;
+
   return (
-    <section
-      class={
-        props.class ? `settings-section ${props.class}` : "settings-section"
-      }
-      aria-labelledby={headingId()}
-    >
-      <div
-        class="settings-section__heading"
-        data-toggle={props.onHeadingClick === undefined ? undefined : ""}
-        onClick={(event) => {
-          if (
-            props.onHeadingClick !== undefined &&
-            !isInteractiveTarget(event.target)
-          ) {
-            props.onHeadingClick();
-          }
-        }}
-      >
-        <div class="settings-section__label">
-          <div class="settings-section__title-line">
-            <h2 id={headingId()} class="settings-section__title">
-              {props.title}
-            </h2>
-            {props.titleAccessory}
-          </div>
+    <section aria-label={props.title} class="settings-section" id={props.id}>
+      <Show when={hasHeader()}>
+        <header class="settings-section__header">
           <Show when={props.description}>
-            {(description) => (
-              <p class="settings-section__description">{description()}</p>
+            {(description) => <p>{description()}</p>}
+          </Show>
+          <Show when={props.action}>
+            {(action) => (
+              <div class="settings-section__header-action">{action()}</div>
             )}
           </Show>
-        </div>
-        <Show when={props.control}>
-          {(control) => (
-            <div class="settings-section__control">{control()}</div>
-          )}
-        </Show>
-      </div>
-      {props.children}
+        </header>
+      </Show>
+      <div class="settings-section__content">{props.children}</div>
     </section>
   );
 }
 
-function SwitchSection(props: {
-  readonly checked: boolean;
+function SettingsRow(props: {
+  readonly action: JSX.Element;
   readonly children?: JSX.Element;
-  readonly description: string;
-  readonly id: string;
-  readonly onChange: (checked: boolean) => Promise<void>;
+  readonly class?: string;
+  readonly description?: string;
   readonly title: string;
-  readonly titleAccessory?: JSX.Element;
+  readonly titleAction?: JSX.Element;
 }): JSX.Element {
-  let input!: HTMLInputElement;
-
-  createEffect(() => {
-    input.checked = props.checked;
-  });
-
   return (
-    <SettingsSection
-      id={props.id}
-      title={props.title}
-      titleAccessory={props.titleAccessory}
-      description={props.description}
-      onHeadingClick={() => input.click()}
-      control={
-        <Switch
-          ref={(element: HTMLInputElement) => {
-            input = element;
-          }}
-          size="sm"
-          class="settings-section__switch"
-          aria-label={props.title}
-          onChange={(event) => void props.onChange(event.currentTarget.checked)}
-        />
-      }
+    <div class={props.class ? `settings-row ${props.class}` : "settings-row"}>
+      <div class="settings-row__content">
+        <div class="settings-row__title-line">
+          <div class="settings-row__title">{props.title}</div>
+          <Show when={props.titleAction}>
+            {(titleAction) => (
+              <div class="settings-row__title-action">{titleAction()}</div>
+            )}
+          </Show>
+        </div>
+        <Show when={props.description}>
+          {(description) => (
+            <div class="settings-row__description">{description()}</div>
+          )}
+        </Show>
+      </div>
+      <div class="settings-row__action">{props.action}</div>
+      <Show when={props.children}>
+        {(children) => <div class="settings-row__children">{children()}</div>}
+      </Show>
+    </div>
+  );
+}
+
+function SettingsErrorNotice(props: {
+  readonly id: number;
+  readonly message: string;
+  readonly scope?: "global" | "hotkeys";
+}): JSX.Element {
+  return (
+    <Alert
+      aria-live="polite"
+      class="settings-error"
+      data-error-id={props.id}
+      data-scope={props.scope}
+      role="alert"
+      variant="error"
     >
-      {props.children}
-    </SettingsSection>
-  );
-}
-
-function FieldLabel(props: {
-  readonly accessory?: JSX.Element;
-  readonly children: string;
-  readonly for?: string;
-  readonly id?: string;
-}): JSX.Element {
-  return (
-    <span class="settings-label">
-      <label for={props.for} id={props.id}>
-        {props.children}
-      </label>
-      {props.accessory}
-    </span>
-  );
-}
-
-function IssueAlert(props: { readonly message: string }): JSX.Element {
-  return (
-    <Alert class="settings-issue" role="alert" variant="error">
-      <AlertDescription class="settings-issue__message">
-        <Icon icon="circle_alert" aria-hidden="true" />
-        <span>{props.message}</span>
+      <AlertDescription class="settings-error__message">
+        <Icon
+          icon="circle_alert"
+          aria-hidden="true"
+          class="settings-error__icon"
+        />
+        <span class="settings-error__text">{props.message}</span>
       </AlertDescription>
     </Alert>
   );
 }
 
-function ConfirmDialog(props: {
+function ResetButton(props: {
   readonly confirmLabel: string;
   readonly description: string;
-  readonly onConfirm: () => void;
-  readonly onOpenChange: (open: boolean) => void;
-  readonly open: boolean;
+  readonly iconOnly?: boolean;
+  readonly label: string;
   readonly title: string;
+  readonly onConfirm: () => void;
 }): JSX.Element {
   return (
-    <AlertDialog
-      open={props.open}
-      onOpenChange={(details) => props.onOpenChange(details.open)}
-    >
+    <AlertDialog>
+      {props.iconOnly ? (
+        <Tooltip {...defaultTooltipProps}>
+          <AlertDialogTrigger
+            asChild={(dialogTriggerProps) => (
+              <TooltipTrigger
+                asChild={(tooltipTriggerProps) => (
+                  <Button
+                    {...(dialogTriggerProps(
+                      tooltipTriggerProps({
+                        "aria-label": props.label,
+                        children: (
+                          <Icon icon="rotate_ccw" class="button__icon" />
+                        ),
+                        class: "reset-settings-button",
+                        size: "icon-sm",
+                        type: "button",
+                        variant: "ghost",
+                      } as ButtonProps),
+                    ) as ButtonProps)}
+                  />
+                )}
+              />
+            )}
+          />
+          <TooltipContent>{props.label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <AlertDialogTrigger
+          asChild={(triggerProps) => (
+            <Button
+              {...(triggerProps({
+                children: props.label,
+                class: "reset-settings-button",
+                size: "sm",
+                variant: "outline",
+              } as ButtonProps) as ButtonProps)}
+            />
+          )}
+        />
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{props.title}</AlertDialogTitle>
           <AlertDialogDescription>{props.description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel size="sm">Cancel</AlertDialogCancel>
           <AlertDialogAction
+            onClick={props.onConfirm}
+            size="sm"
             variant="destructive"
-            onClick={() => props.onConfirm()}
           >
             {props.confirmLabel}
           </AlertDialogAction>
@@ -485,7 +458,7 @@ function HotkeyConflictPill(props: {
           <button
             {...tooltipTriggerProps({
               "aria-label": `${label()}: ${props.conflicts.join(", ")}`,
-              class: "settings-hotkey__conflict",
+              class: "hotkey-row__conflict-pill",
               type: "button",
             } as JSX.HTMLAttributes<HTMLButtonElement>)}
           >
@@ -494,11 +467,9 @@ function HotkeyConflictPill(props: {
           </button>
         )}
       />
-      <TooltipContent class="settings-hotkey__conflict-tooltip">
-        <span class="settings-hotkey__conflict-tooltip-title">
-          Also used by
-        </span>
-        <span class="settings-hotkey__conflict-tooltip-body">
+      <TooltipContent class="hotkey-row__conflict-tooltip">
+        <span class="hotkey-row__conflict-tooltip-title">Also used by</span>
+        <span class="hotkey-row__conflict-tooltip-body">
           {props.conflicts.join(", ")}
         </span>
       </TooltipContent>
@@ -517,18 +488,16 @@ function SegmentedControl<T extends string>(props: {
 }): JSX.Element {
   return (
     <Tabs
-      class="settings-segmented"
+      aria-label={props["aria-label"]}
+      class="segmented-control"
       onValueChange={(details) => props.onChange(details.value as T)}
       value={props.value}
     >
-      <TabsList
-        aria-label={props["aria-label"]}
-        class="settings-segmented__list"
-      >
+      <TabsList class="segmented-control__list">
         <For each={props.options}>
           {(option) => (
             <TabsTrigger
-              class="settings-segmented__trigger"
+              class="segmented-control__trigger"
               value={option.value}
             >
               {option.label}
@@ -540,43 +509,24 @@ function SegmentedControl<T extends string>(props: {
   );
 }
 
-function RestoreDefaultButton(props: {
-  readonly "aria-label": string;
-  readonly onClick: () => void;
-  readonly tooltip: string;
-}): JSX.Element {
-  return (
-    <TooltipIconButton
-      aria-label={props["aria-label"]}
-      class="settings-restore"
-      size="icon-xs"
-      onClick={() => props.onClick()}
-      tooltip={props.tooltip}
-    >
-      <Icon icon="rotate_ccw" class="button__icon" />
-    </TooltipIconButton>
-  );
-}
-
 function RoundingSlider(props: {
-  readonly "aria-labelledby": string;
+  readonly "aria-label": string;
   readonly value: number;
-  readonly onCommit: (value: number) => Promise<void>;
+  readonly onCommit: (value: number) => void;
 }): JSX.Element {
   const [draft, setDraft] = createSignal(props.value);
   const [dragging, setDragging] = createSignal(false);
 
   createEffect(() => {
-    const saved = props.value;
+    const value = props.value;
     if (!untrack(dragging)) {
-      setDraft(saved);
+      setDraft(value);
     }
   });
 
   return (
     <Slider
-      aria-labelledby={[props["aria-labelledby"]]}
-      class="settings-rounding"
+      aria-label={[props["aria-label"]]}
       max={2}
       min={0}
       onValueChange={(details) => {
@@ -584,8 +534,10 @@ function RoundingSlider(props: {
         setDraft(details.value[0] ?? draft());
       }}
       onValueChangeEnd={(details) => {
+        const value = details.value[0] ?? draft();
+        setDraft(value);
         setDragging(false);
-        void props.onCommit(details.value[0] ?? draft());
+        props.onCommit(value);
       }}
       step={0.05}
       value={[draft()]}
@@ -595,283 +547,283 @@ function RoundingSlider(props: {
   );
 }
 
-function FontInput(props: {
-  readonly id: string;
-  readonly value: string;
-  readonly onCommit: (value: string) => Promise<void>;
-}): JSX.Element {
-  let input!: HTMLInputElement;
-  const isEditing = () => document.activeElement === input;
-
-  createEffect(() => {
-    const saved = props.value;
-    if (!isEditing()) {
-      input.value = saved;
-    }
-  });
-
-  const commit = (): void => {
-    const font = input.value.trim();
-    if (font === "") {
-      input.value = props.value;
-      return;
-    }
-    void props.onCommit(font);
-  };
-
-  return (
-    <Input
-      ref={(element: HTMLInputElement) => {
-        input = element;
-      }}
-      id={props.id}
-      class="settings-font-input"
-      autocomplete="off"
-      maxLength={THEME_FONT_MAX_LENGTH}
-      spellcheck={false}
-      onChange={commit}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          input.value = props.value;
-          input.blur();
-        }
-      }}
-    />
-  );
-}
-
 function FontSizeInput(props: {
   readonly "aria-label": string;
-  readonly id: string;
   readonly value: number;
-  readonly onCommit: (value: number) => Promise<void>;
+  readonly onCommit: (value: number) => void;
 }): JSX.Element {
   const [draft, setDraft] = createSignal(String(props.value));
-  const [editing, setEditing] = createSignal(false);
-  const [pendingSaves, setPendingSaves] = createSignal(0);
+  const [focused, setFocused] = createSignal(false);
 
   createEffect(() => {
-    const saved = String(props.value);
-    if (!editing() && pendingSaves() === 0) {
-      setDraft(saved);
+    const value = props.value;
+    if (!untrack(focused)) {
+      setDraft(String(value));
     }
   });
 
-  const commit = (): void => {
-    const size = parseFontSize(draft());
-    if (size === undefined) {
-      setDraft(String(props.value));
-      return;
-    }
-    setDraft(String(size));
-    setPendingSaves((count) => count + 1);
-    void props.onCommit(size).finally(() => {
-      setPendingSaves((count) => count - 1);
-    });
+  const commit = () => {
+    const parsed = Number(draft());
+    const value = Number.isFinite(parsed) ? clampFontSize(parsed) : props.value;
+    setDraft(String(value));
+    props.onCommit(value);
   };
 
   return (
-    <div class="settings-number">
+    <div class="settings-number-wrapper">
       <Input
         aria-label={props["aria-label"]}
-        id={props.id}
-        class="settings-number__input"
-        max={THEME_FONT_SIZE_MAX}
-        min={THEME_FONT_SIZE_MIN}
-        onBlur={() => setEditing(false)}
-        onChange={commit}
-        onFocus={() => setEditing(true)}
-        onInput={(event) => setDraft(event.currentTarget.value)}
-        onKeyDown={(event) => {
+        class="settings-number-input"
+        max={24}
+        min={10}
+        onBlur={() => {
+          setFocused(false);
+          commit();
+        }}
+        onFocus={() => {
+          setFocused(true);
+        }}
+        onInput={(event: InputEvent & { currentTarget: HTMLInputElement }) =>
+          setDraft(event.currentTarget.value)
+        }
+        onKeyDown={(
+          event: KeyboardEvent & { currentTarget: HTMLInputElement },
+        ) => {
           if (event.key === "Enter") {
-            event.currentTarget.blur();
-          } else if (event.key === "Escape") {
-            setDraft(String(props.value));
-            event.currentTarget.blur();
+            commit();
           }
         }}
+        size="sm"
         step={1}
         type="number"
         value={draft()}
       />
-      <span class="settings-number__unit" aria-hidden="true">
-        px
-      </span>
+      <span class="settings-number-unit">px</span>
     </div>
   );
 }
 
-function ThemeColor(props: {
+function RestoreDefaultButton(props: {
+  readonly "aria-label": string;
+  readonly disabled: boolean;
+  readonly tooltip: string;
+  readonly onClick: () => void;
+}): JSX.Element {
+  return (
+    <TooltipIconButton
+      aria-label={props["aria-label"]}
+      class="restore-default-button"
+      disabled={props.disabled}
+      onClick={props.onClick}
+      tooltip={props.tooltip}
+    >
+      <Icon icon="rotate_ccw" class="button__icon" />
+    </TooltipIconButton>
+  );
+}
+
+function ThemeTokenRow(props: {
   readonly defaultValue: ThemeRgb;
   readonly name: ThemeTokenName;
-  readonly value: ThemeRgb;
-  readonly onChange: (value: ThemeRgb) => Promise<void>;
-  readonly onReset: () => Promise<void>;
+  readonly value: ThemeRgb | undefined;
+  readonly onChange: (value: ThemeRgb) => void;
+  readonly onReset: () => void;
 }): JSX.Element {
-  const [draft, setDraft] = createSignal(rgbToHex(props.value));
-
+  const isOverridden = createMemo(() => props.value !== undefined);
+  const hexValue = createMemo(() =>
+    rgbToHex(props.value ?? props.defaultValue),
+  );
+  const [draft, setDraft] = createSignal(hexValue());
   createEffect(() => {
-    setDraft(rgbToHex(props.value));
+    setDraft(hexValue());
   });
 
-  const commit = (hex: string): void => {
-    setDraft(hex);
-    const rgb = hexToRgb(hex);
-    if (rgb !== null) {
-      void props.onChange(rgb);
+  const commit = (value: string) => {
+    setDraft(value);
+    const rgb = hexToRgb(value);
+    if (rgb) {
+      props.onChange(rgb);
     }
   };
 
   return (
-    <div class="settings-color">
-      <ColorPicker
-        aria-label={`${themeTokenLabel(props.name)} color`}
-        onChange={(event) => commit(event.currentTarget.value)}
-        onInput={(event) => setDraft(event.currentTarget.value)}
-        value={draft()}
-      />
-      <Show
-        when={!rgbEquals(props.value, props.defaultValue)}
-        fallback={<span class="settings-color__spacer" />}
-      >
-        <RestoreDefaultButton
-          aria-label={`Restore default ${themeTokenLabel(props.name)} color`}
-          onClick={() => void props.onReset()}
-          tooltip="Restore default"
-        />
-      </Show>
-    </div>
-  );
-}
-
-function UpdateStatus(props: {
-  readonly checking: boolean;
-  readonly onCheckForUpdates: () => void;
-  readonly onOpenReleasePage: () => void;
-  readonly state: UpdateCheckState;
-}): JSX.Element {
-  const hasReleasePage = () =>
-    props.state.status === "available" &&
-    props.state.release.htmlUrl.length > 0;
-
-  return (
-    <div class="settings-update" data-status={props.state.status}>
-      <p class="settings-update__status" aria-live="polite">
-        <Show
-          when={props.checking}
-          fallback={
-            <Icon
-              icon={updateStatusIcon(props.state)}
-              aria-hidden="true"
-              class="settings-update__icon"
-            />
-          }
-        >
-          <Spinner class="settings-update__icon" size="sm" />
+    <div class="theme-token-row">
+      <div class="theme-token-row__name">
+        <span>{tokenLabel(props.name)}</span>
+        <Show when={isOverridden()}>
+          <RestoreDefaultButton
+            aria-label={`Restore default ${tokenLabel(props.name)} color`}
+            disabled={false}
+            onClick={props.onReset}
+            tooltip="Restore default color"
+          />
         </Show>
-        <span>{updateStatusText(props.state)}</span>
-      </p>
-      <Show
-        when={hasReleasePage()}
-        fallback={
-          <Button
-            class="settings-quiet-action"
-            disabled={props.checking}
-            onClick={() => props.onCheckForUpdates()}
-            size="xs"
-            variant="ghost"
-          >
-            Check now
-          </Button>
-        }
-      >
-        <Button onClick={() => props.onOpenReleasePage()} size="xs">
-          Open release page
-          <Icon icon="arrow_up_right" class="button__icon" />
-        </Button>
-      </Show>
+      </div>
+      <div class="theme-token-row__controls">
+        <ColorPicker
+          aria-label={`${tokenLabel(props.name)} color`}
+          onChange={(event) => commit(event.currentTarget.value)}
+          onInput={(event) => setDraft(event.currentTarget.value)}
+          value={draft()}
+        />
+      </div>
     </div>
   );
 }
 
 function GeneralSettings(props: {
   readonly settings: AppSettings;
-  readonly onPreferencesPatch: (patch: PreferencesPatch) => Promise<void>;
+  readonly onPreferencesPatch: (patch: PreferencesPatch) => void;
   readonly updateState: UpdateCheckState;
   readonly checking: boolean;
   readonly onCheckForUpdates: () => void;
   readonly onOpenReleasePage: () => void;
 }): JSX.Element {
+  const hasReleasePage = () =>
+    props.updateState.status === "available" &&
+    props.updateState.release.htmlUrl.length > 0;
+
   return (
-    <>
-      <SwitchSection
-        id="updates"
-        title="Check for updates"
-        description="Check for a new version when Lucent starts."
-        checked={props.settings.preferences.checkForUpdates}
-        onChange={(checkForUpdates) =>
-          props.onPreferencesPatch({ checkForUpdates })
+    <SettingsSection id="general" title="General">
+      <SettingsRow
+        action={
+          <Switch
+            aria-label="Check for updates"
+            size="lg"
+            checked={props.settings.preferences.checkForUpdates}
+            onChange={(event) =>
+              props.onPreferencesPatch({
+                checkForUpdates: event.currentTarget.checked,
+              })
+            }
+          />
         }
+        class="settings-row--switch settings-row--with-subitem"
+        description="Check for updates when the app starts."
+        title="Check for updates"
       >
-        <UpdateStatus
-          checking={props.checking}
-          onCheckForUpdates={props.onCheckForUpdates}
-          onOpenReleasePage={props.onOpenReleasePage}
-          state={props.updateState}
-        />
-      </SwitchSection>
-      <SettingsSection
-        id="launch-mode"
-        title="Launch mode"
-        description="Choose which window opens when Lucent starts."
-        control={
+        <div class="update-status-subitem">
+          <div class="update-status-subitem__content">
+            <div class="update-status-subitem__label">Update status</div>
+            <div class="update-status-subitem__description">
+              {updateStatusText(props.updateState)}
+            </div>
+          </div>
+          <Button
+            class="update-status-subitem__button"
+            disabled={props.checking}
+            onClick={() =>
+              hasReleasePage()
+                ? props.onOpenReleasePage()
+                : props.onCheckForUpdates()
+            }
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <span>
+              <Show fallback="Check for updates" when={hasReleasePage()}>
+                Open release page
+              </Show>
+            </span>
+            <Show when={hasReleasePage()}>
+              <Icon
+                icon="arrow_up_right"
+                class="update-status-subitem__icon"
+                size="sm"
+              />
+            </Show>
+          </Button>
+        </div>
+      </SettingsRow>
+      <SettingsRow
+        action={
           <SegmentedControl
             aria-label="Launch mode"
-            onChange={(launchMode) =>
-              void props.onPreferencesPatch({ launchMode })
-            }
+            onChange={(launchMode) => props.onPreferencesPatch({ launchMode })}
             options={launchModes}
             value={props.settings.preferences.launchMode}
           />
         }
-      />
-      <SwitchSection
-        id="game-tabs"
-        title="Use game tabs"
+        class="settings-row--with-subitem"
+        description="Choose which window opens when the app starts."
+        title="Launch mode"
+      >
+        <div class="settings-policy-note">
+          <div class="settings-policy-note__label">AQW settings</div>
+          <p class="settings-policy-note__description">
+            Each account saved in Lucent keeps its own AQW settings. Game
+            clients opened without a saved account use one shared set. A second
+            client using the same settings gets a temporary copy. Lucent
+            discards changes to that copy when the client closes.
+          </p>
+        </div>
+      </SettingsRow>
+      <SettingsRow
+        action={
+          <Switch
+            aria-label="Use game tabs"
+            checked={props.settings.preferences.useGameTabs}
+            onChange={(event) =>
+              props.onPreferencesPatch({
+                useGameTabs: event.currentTarget.checked,
+              })
+            }
+            size="lg"
+          />
+        }
+        class="settings-row--switch"
         description={`Open up to ${MAX_GAME_VIEWS_PER_WINDOW} tabs in one window. Existing windows are unchanged.`}
-        titleAccessory={
+        title="Use game tabs"
+        titleAction={
           <HelpTooltip
             aria-label="About game tabs memory use"
+            positioning={{ placement: "top-start" }}
             tooltip="Each additional tab starts another Flash process and increases memory use."
           />
         }
-        checked={props.settings.preferences.useGameTabs}
-        onChange={(useGameTabs) => props.onPreferencesPatch({ useGameTabs })}
       />
-      <SwitchSection
-        id="window-titles"
-        title="Show username in game window titles"
-        description="Add the logged-in username to each game window's title. With tabs, the title follows the selected tab."
-        checked={props.settings.preferences.showGameUsernameInWindowTitle}
-        onChange={(showGameUsernameInWindowTitle) =>
-          props.onPreferencesPatch({ showGameUsernameInWindowTitle })
+      <SettingsRow
+        action={
+          <Switch
+            aria-label="Show username in game window titles"
+            checked={props.settings.preferences.showGameUsernameInWindowTitle}
+            onChange={(event) =>
+              props.onPreferencesPatch({
+                showGameUsernameInWindowTitle: event.currentTarget.checked,
+              })
+            }
+            size="lg"
+          />
         }
+        class="settings-row--switch"
+        description="Add the logged-in username to each game window's title. With tabs, the title follows the selected tab."
+        title="Show username in game window titles"
       />
-    </>
+    </SettingsSection>
   );
 }
 
-const readHotkey = (bindings: HotkeyBindings, id: GameCommandId): string =>
-  readHotkeyBinding(bindings, id);
+const readHotkey = (bindings: HotkeyBindings, id: GameCommandId): string => {
+  return readHotkeyBinding(bindings, id);
+};
 
-const areHotkeysDefault = (bindings: HotkeyBindings): boolean =>
-  GAME_COMMANDS.every(
-    (command) => readHotkey(bindings, command.id) === command.defaultHotkey,
-  );
+const getConflictingLabels = (
+  bindings: HotkeyBindings,
+  id: GameCommandId,
+  value: string,
+): readonly string[] => {
+  if (value === "") {
+    return [];
+  }
 
-function HotkeySettings(props: {
-  readonly active: boolean;
+  return GAME_COMMANDS.filter(
+    (command) =>
+      command.id !== id && readHotkey(bindings, command.id) === value,
+  ).map((command) => command.label);
+};
+
+function HotkeySettingsSection(props: {
   readonly platform: AppPlatform;
   readonly settings: AppSettings;
   readonly onHotkeysPatch: (patch: HotkeysPatch) => Promise<void>;
@@ -886,21 +838,6 @@ function HotkeySettings(props: {
   } | null>(null);
   let nextLocalErrorId = 0;
 
-  const commandsByShortcut = createMemo(() =>
-    groupCommandsByShortcut(props.settings.hotkeys.bindings, props.platform),
-  );
-
-  const getConflictingLabels = (
-    id: GameCommandId,
-    value: string,
-  ): readonly string[] =>
-    findConflictingCommands(
-      commandsByShortcut(),
-      id,
-      value,
-      props.platform,
-    ).map((command) => command.label);
-
   const showLocalError = (commandId: GameCommandId, message: string): void => {
     setLocalError({ commandId, id: ++nextLocalErrorId, message });
   };
@@ -912,13 +849,17 @@ function HotkeySettings(props: {
     const definition = GAME_COMMANDS.find((command) => command.id === id);
 
     if (value !== null) {
-      const normalized = normalizeHotkeyBindingValue(value);
-      if (normalized === null) {
+      const normalized = normalizeHotkeyBinding(value, props.platform);
+      if (normalized === undefined) {
         showLocalError(id, "That shortcut is not valid.");
         return;
       }
 
-      const conflicts = getConflictingLabels(id, normalized);
+      const conflicts = getConflictingLabels(
+        props.settings.hotkeys.bindings,
+        id,
+        normalized,
+      );
       if (conflicts.length > 0) {
         showLocalError(id, `Already assigned to ${conflicts.join(", ")}.`);
         return;
@@ -932,7 +873,11 @@ function HotkeySettings(props: {
     }
 
     const defaultValue = definition?.defaultHotkey ?? "";
-    const conflicts = getConflictingLabels(id, defaultValue);
+    const conflicts = getConflictingLabels(
+      props.settings.hotkeys.bindings,
+      id,
+      defaultValue,
+    );
     if (conflicts.length > 0) {
       showLocalError(
         id,
@@ -946,12 +891,6 @@ function HotkeySettings(props: {
     });
     setLocalError(null);
   };
-
-  createEffect(() => {
-    if (!props.active) {
-      setRecordingId(null);
-    }
-  });
 
   createEffect(() => {
     const activeId = recordingId();
@@ -975,10 +914,11 @@ function HotkeySettings(props: {
         return;
       }
 
-      const normalized = normalizeHotkeyBindingValue(
+      const normalized = normalizeHotkeyBinding(
         readHotkeyInputFromEvent(event),
+        props.platform,
       );
-      if (normalized === null || normalized === "") {
+      if (normalized === undefined) {
         showLocalError(activeId, "Press a complete shortcut.");
         return;
       }
@@ -996,314 +936,176 @@ function HotkeySettings(props: {
 
   const renderHotkeyRow = (command: CommandDefinition) => {
     const value = () => readHotkey(props.settings.hotkeys.bindings, command.id);
-    const conflicts = () => getConflictingLabels(command.id, value());
+    const conflicts = () =>
+      getConflictingLabels(
+        props.settings.hotkeys.bindings,
+        command.id,
+        value(),
+      );
     const isRecording = () => recordingId() === command.id;
-    const displayValue = () => displayHotkey(value(), props.platform);
+    const displayParts = () =>
+      isRecording()
+        ? ["Press keys"]
+        : displayHotkeyParts(value(), props.platform);
+
     const rowError = () => {
-      const error = localError();
-      return error?.commandId === command.id ? error : undefined;
+      const err = localError();
+      return err?.commandId === command.id ? err : undefined;
     };
-    const hintId = `settings-hotkey-hint-${command.id}`;
 
     return (
-      <li
-        class="settings-hotkey"
+      <div
+        class="hotkey-row"
         data-conflict={conflicts().length > 0 ? "" : undefined}
       >
-        <div class="settings-hotkey__main">
-          <div class="settings-hotkey__title">
-            <span class="settings-hotkey__label">{command.label}</span>
+        <div class="hotkey-row__content">
+          <div class="hotkey-row__title-line">
+            <div class="hotkey-row__title">{command.label}</div>
             <Show when={conflicts().length > 0}>
               <HotkeyConflictPill conflicts={conflicts()} />
             </Show>
           </div>
-          <div class="settings-hotkey__controls">
-            <button
-              type="button"
-              class="settings-hotkey__binding"
-              aria-describedby={isRecording() ? hintId : undefined}
-              aria-label={
-                isRecording()
-                  ? `Recording shortcut for ${command.label}`
-                  : `Change shortcut for ${command.label}, currently ${
-                      value() === "" ? "not set" : displayValue()
-                    }`
-              }
-              aria-pressed={isRecording()}
-              data-empty={value() === "" ? "" : undefined}
-              onBlur={() => {
-                if (isRecording()) {
-                  setRecordingId(null);
-                }
-              }}
-              onClick={() => {
-                setLocalError(null);
-                setRecordingId(isRecording() ? null : command.id);
-              }}
-            >
-              <Show
-                when={!isRecording()}
-                fallback={
-                  <span class="settings-hotkey__placeholder">Press keys…</span>
-                }
-              >
-                <Show
-                  when={value() !== ""}
-                  fallback={
-                    <span class="settings-hotkey__placeholder">Not set</span>
-                  }
-                >
-                  <span class="settings-hotkey__value">
-                    {allowLineBreakAfterEachPlus(displayValue())}
-                  </span>
-                </Show>
-              </Show>
-            </button>
-            <Show
-              when={
-                command.defaultHotkey !== "" &&
-                value() !== command.defaultHotkey
-              }
-              fallback={<span class="settings-hotkey__spacer" />}
-            >
+        </div>
+        <div class="hotkey-row__controls">
+          <div class="hotkey-row__binding">
+            <Show when={command.defaultHotkey !== ""}>
               <TooltipIconButton
                 aria-label={`Restore default shortcut for ${command.label}`}
-                class="settings-hotkey__action"
-                size="icon-xs"
+                class="hotkey-row__icon-action hotkey-row__default-action"
+                disabled={value() === command.defaultHotkey}
                 onClick={() => void commitBinding(command.id, null)}
-                tooltip={`Restore ${displayHotkey(
-                  command.defaultHotkey,
-                  props.platform,
-                )}`}
+                tooltip="Restore default shortcut"
               >
                 <Icon icon="rotate_ccw" class="button__icon" />
               </TooltipIconButton>
             </Show>
-            <TooltipIconButton
-              aria-label={`Clear shortcut for ${command.label}`}
-              class="settings-hotkey__action settings-hotkey__clear"
-              disabled={value() === ""}
-              size="icon-xs"
-              onClick={() => void commitBinding(command.id, "")}
-              tooltip="Clear shortcut"
+            <KbdGroup
+              aria-label={
+                isRecording()
+                  ? "Press keys"
+                  : displayHotkey(value(), props.platform)
+              }
+              class="hotkey-row__value"
             >
-              <Icon icon="x" class="button__icon" />
-            </TooltipIconButton>
+              <For each={displayParts()}>
+                {(part) => (
+                  <Kbd
+                    class="hotkey-row__key"
+                    data-empty={
+                      value() === "" && !isRecording() ? "" : undefined
+                    }
+                  >
+                    {part}
+                  </Kbd>
+                )}
+              </For>
+            </KbdGroup>
           </div>
+          <Button
+            class={
+              isRecording()
+                ? "hotkey-row__record-action hotkey-row__record-action--recording"
+                : "hotkey-row__record-action"
+            }
+            disabled={recordingId() !== null && !isRecording()}
+            onClick={() => {
+              setLocalError(null);
+              setRecordingId(isRecording() ? null : command.id);
+            }}
+            size="sm"
+            type="button"
+            variant={isRecording() ? "secondary" : "ghost"}
+          >
+            {isRecording() ? "Cancel" : "Record"}
+          </Button>
+          <TooltipIconButton
+            aria-label={`Clear shortcut for ${command.label}`}
+            class="hotkey-row__icon-action hotkey-row__clear-action"
+            disabled={value() === ""}
+            onClick={() => void commitBinding(command.id, "")}
+            tooltip="Clear shortcut"
+          >
+            <Icon icon="x" class="button__icon" />
+          </TooltipIconButton>
         </div>
-        <Show when={isRecording()}>
-          <p id={hintId} class="settings-hotkey__hint">
-            Press a shortcut. Esc cancels, Delete clears.
-          </p>
-        </Show>
         <Show when={rowError()}>
           {(error) => (
-            <p
-              class="settings-hotkey__error"
+            <div
+              class="hotkey-row__inline-error"
               data-error-id={error().id}
               role="status"
               aria-live="polite"
             >
-              <Icon icon="circle_alert" aria-hidden="true" size="xs" />
+              <Icon
+                icon="circle_alert"
+                aria-hidden="true"
+                class="hotkey-row__inline-error-icon"
+                size="xs"
+              />
               {error().message}
-            </p>
+            </div>
           )}
         </Show>
-      </li>
+      </div>
     );
   };
 
-  return (
-    <For each={commandCategories}>
-      {(category) => (
-        <SettingsSection
-          class="settings-section--list"
-          id={`hotkeys-${category.toLowerCase()}`}
-          title={category}
-        >
-          <ul class="settings-hotkeys">
-            <For
-              each={segmentHotkeyCommands(
-                GAME_COMMANDS.filter(
-                  (command) => command.category === category,
-                ),
-              )}
+  const renderHotkeysList = (commands: readonly CommandDefinition[]) => (
+    <CardContent class="hotkey-list">
+      <For each={segmentHotkeyCommands(commands)}>
+        {(segment) => {
+          if (segment.type === "command") {
+            return renderHotkeyRow(segment.command);
+          }
+
+          const headingId = `hotkey-group-${segment.commands[0]?.id ?? "unknown"}`;
+          return (
+            <div
+              class="hotkey-subgroup"
+              role="group"
+              aria-labelledby={headingId}
             >
-              {(segment) => {
-                if (segment.type === "command") {
-                  return renderHotkeyRow(segment.command);
-                }
-
-                const labelId = `settings-hotkey-group-${segment.commands[0]?.id ?? "unknown"}`;
-                return (
-                  <li
-                    class="settings-hotkey-group"
-                    role="group"
-                    aria-labelledby={labelId}
-                  >
-                    <span id={labelId} class="settings-label">
-                      {segment.label}
-                    </span>
-                    <ul class="settings-hotkeys settings-hotkeys--nested">
-                      <For each={segment.commands}>{renderHotkeyRow}</For>
-                    </ul>
-                  </li>
-                );
-              }}
-            </For>
-          </ul>
-        </SettingsSection>
-      )}
-    </For>
-  );
-}
-
-function ThemeProfileEditor(props: {
-  readonly profile: ThemeProfile;
-  readonly variant: ThemeVariant;
-  readonly onPatch: (patch: ThemeProfilePatch) => Promise<void>;
-}): JSX.Element {
-  const defaults = () => DEFAULT_THEME_PROFILES[props.variant];
-  const fieldId = (name: string) => `settings-${props.variant}-${name}`;
-
-  const restore = (
-    field: keyof Omit<ThemeProfile, "tokens">,
-    label: string,
-  ): JSX.Element => (
-    <Show when={props.profile[field] !== defaults()[field]}>
-      <RestoreDefaultButton
-        aria-label={`Restore default ${props.variant} theme ${label}`}
-        onClick={() => void props.onPatch({ [field]: defaults()[field] })}
-        tooltip="Restore default"
-      />
-    </Show>
+              <h4 class="hotkey-subgroup__title" id={headingId}>
+                {segment.label}
+              </h4>
+              <div class="hotkey-subgroup__rows">
+                <For each={segment.commands}>{renderHotkeyRow}</For>
+              </div>
+            </div>
+          );
+        }}
+      </For>
+    </CardContent>
   );
 
   return (
-    <>
-      <div class="settings-type-fields">
-        <div class="settings-field">
-          <FieldLabel
-            for={fieldId("sans-font")}
-            accessory={restore("sansFont", "sans font")}
-          >
-            Sans font
-          </FieldLabel>
-          <FontInput
-            id={fieldId("sans-font")}
-            value={props.profile.sansFont}
-            onCommit={(sansFont) => props.onPatch({ sansFont })}
-          />
-        </div>
-        <div class="settings-field">
-          <FieldLabel
-            for={fieldId("sans-size")}
-            accessory={restore("sansFontSize", "sans font size")}
-          >
-            Size
-          </FieldLabel>
-          <FontSizeInput
-            aria-label="Sans font size"
-            id={fieldId("sans-size")}
-            value={props.profile.sansFontSize}
-            onCommit={(sansFontSize) => props.onPatch({ sansFontSize })}
-          />
-        </div>
-        <div class="settings-field">
-          <FieldLabel
-            for={fieldId("mono-font")}
-            accessory={restore("monoFont", "mono font")}
-          >
-            Mono font
-          </FieldLabel>
-          <FontInput
-            id={fieldId("mono-font")}
-            value={props.profile.monoFont}
-            onCommit={(monoFont) => props.onPatch({ monoFont })}
-          />
-        </div>
-        <div class="settings-field">
-          <FieldLabel
-            for={fieldId("mono-size")}
-            accessory={restore("monoFontSize", "mono font size")}
-          >
-            Size
-          </FieldLabel>
-          <FontSizeInput
-            aria-label="Mono font size"
-            id={fieldId("mono-size")}
-            value={props.profile.monoFontSize}
-            onCommit={(monoFontSize) => props.onPatch({ monoFontSize })}
-          />
-        </div>
+    <SettingsSection id="hotkeys" title="Hotkeys">
+      <div class="hotkey-layouts--continuous">
+        <For each={commandCategories}>
+          {(category) => (
+            <div class="hotkey-category-section">
+              <h3 class="hotkey-category-title">{category}</h3>
+              <Card class="hotkey-group">
+                {renderHotkeysList(
+                  GAME_COMMANDS.filter((c) => c.category === category),
+                )}
+              </Card>
+            </div>
+          )}
+        </For>
       </div>
-      <div class="settings-field settings-field--rounding">
-        <FieldLabel
-          id={fieldId("rounding")}
-          accessory={restore("rounding", "rounding")}
-        >
-          Rounding
-        </FieldLabel>
-        <RoundingSlider
-          aria-labelledby={fieldId("rounding")}
-          value={props.profile.rounding}
-          onCommit={(rounding) => props.onPatch({ rounding })}
-        />
-      </div>
-      <div
-        class="settings-colors"
-        role="group"
-        aria-labelledby={fieldId("colors")}
-      >
-        <div class="settings-colors__head" aria-hidden="true">
-          <span class="settings-label" id={fieldId("colors")}>
-            Colors
-          </span>
-          <span class="settings-colors__columns">
-            <span class="settings-label">Base</span>
-            <span class="settings-label">Foreground</span>
-          </span>
-        </div>
-        <ul class="settings-colors__rows">
-          <For each={THEME_COLOR_ROWS}>
-            {(row) => {
-              const color = (name: ThemeTokenName) => (
-                <ThemeColor
-                  defaultValue={defaults().tokens[name]}
-                  name={name}
-                  value={props.profile.tokens[name]}
-                  onChange={(value) =>
-                    props.onPatch({ tokens: { [name]: value } })
-                  }
-                  onReset={() => props.onPatch({ tokens: { [name]: null } })}
-                />
-              );
-              return (
-                <li class="settings-color-row">
-                  <span class="settings-color-row__label">{row.label}</span>
-                  <div class="settings-colors__columns">
-                    {color(row.base)}
-                    <Show when={row.foreground}>{(name) => color(name())}</Show>
-                  </div>
-                </li>
-              );
-            }}
-          </For>
-        </ul>
-      </div>
-    </>
+    </SettingsSection>
   );
 }
 
 function AppearanceSettings(props: {
   readonly settings: AppSettings;
-  readonly onAppearancePatch: (patch: AppearancePatch) => Promise<void>;
+  readonly onAppearancePatch: (patch: AppearancePatch) => void;
 }): JSX.Element {
   const [activeThemeVariant, setActiveThemeVariant] =
     createSignal<ThemeVariant>(
       themeVariantForMode(props.settings.appearance.themeMode),
     );
-  const [resetDialogOpen, setResetDialogOpen] = createSignal(false);
   let observedThemeMode = props.settings.appearance.themeMode;
   createEffect(() => {
     const nextThemeMode = props.settings.appearance.themeMode;
@@ -1312,117 +1114,320 @@ function AppearanceSettings(props: {
       setActiveThemeVariant(themeVariantForMode(nextThemeMode));
     }
   });
-
-  const activeProfile = () =>
-    props.settings.appearance.themes[activeThemeVariant()];
-  const activeProfileIsDefault = createMemo(() =>
-    isThemeProfileDefault(
-      activeProfile(),
-      DEFAULT_THEME_PROFILES[activeThemeVariant()],
-    ),
-  );
-
-  const patchThemeProfile = (
+  const resetThemeProfile = (variant: ThemeVariant) => {
+    props.onAppearancePatch({
+      themes: {
+        [variant]: {
+          tokens: Object.fromEntries(
+            THEME_TOKEN_NAMES.map((name) => [name, null]),
+          ) as Partial<Record<ThemeTokenName, null>>,
+          sansFont: DEFAULT_THEME_PROFILE.sansFont,
+          monoFont: DEFAULT_THEME_PROFILE.monoFont,
+          sansFontSize: DEFAULT_THEME_PROFILE.sansFontSize,
+          monoFontSize: DEFAULT_THEME_PROFILE.monoFontSize,
+          rounding: DEFAULT_THEME_PROFILE.rounding,
+        },
+      },
+    });
+  };
+  const updateThemeProfile = (
     variant: ThemeVariant,
-    patch: ThemeProfilePatch,
-  ): Promise<void> => props.onAppearancePatch({ themes: { [variant]: patch } });
-
-  const resetThemeProfile = (variant: ThemeVariant): Promise<void> => {
-    const defaults = DEFAULT_THEME_PROFILES[variant];
-    return patchThemeProfile(variant, {
-      tokens: Object.fromEntries(THEME_TOKEN_NAMES.map((name) => [name, null])),
-      sansFont: defaults.sansFont,
-      monoFont: defaults.monoFont,
-      sansFontSize: defaults.sansFontSize,
-      monoFontSize: defaults.monoFontSize,
-      rounding: defaults.rounding,
+    patch: {
+      readonly tokens?: Partial<Record<ThemeTokenName, ThemeRgb | null>>;
+      readonly sansFont?: string;
+      readonly monoFont?: string;
+      readonly sansFontSize?: number;
+      readonly monoFontSize?: number;
+      readonly rounding?: number;
+    },
+  ) => {
+    props.onAppearancePatch({
+      themes: {
+        [variant]: patch,
+      },
     });
   };
 
+  const renderProfileEditor = (variant: ThemeVariant) => {
+    const profile = () => props.settings.appearance.themes[variant];
+
+    return (
+      <Card class="theme-profile">
+        <CardHeader>
+          <CardTitle>
+            {variant === "light" ? "Light theme" : "Dark theme"}
+          </CardTitle>
+          <CardDescription>
+            Fonts, rounding, and color tokens for this theme.
+          </CardDescription>
+          <CardAction>
+            <div class="theme-profile__actions">
+              <SegmentedControl
+                aria-label="Theme profile"
+                onChange={(value) => setActiveThemeVariant(value)}
+                options={themeVariants}
+                value={activeThemeVariant()}
+              />
+              <ResetButton
+                confirmLabel="Reset"
+                description={`This restores the theme's fonts, font sizes, rounding, and color token overrides.`}
+                iconOnly
+                label={`Reset ${variant} theme`}
+                onConfirm={() => resetThemeProfile(variant)}
+                title={`Reset ${variant} theme customizations?`}
+              />
+            </div>
+          </CardAction>
+        </CardHeader>
+        <CardContent class="theme-profile__rows">
+          <div class="theme-profile__typography">
+            <SettingsRow
+              action={
+                <Input
+                  class="settings-text-input"
+                  fullWidth
+                  onChange={(event) =>
+                    updateThemeProfile(variant, {
+                      sansFont: event.currentTarget.value,
+                    })
+                  }
+                  size="sm"
+                  value={profile().sansFont}
+                />
+              }
+              title="Sans font"
+              titleAction={
+                profile().sansFont ===
+                DEFAULT_THEME_PROFILE.sansFont ? undefined : (
+                  <RestoreDefaultButton
+                    aria-label={`Restore default ${variant} theme sans font`}
+                    disabled={false}
+                    onClick={() =>
+                      updateThemeProfile(variant, {
+                        sansFont: DEFAULT_THEME_PROFILE.sansFont,
+                      })
+                    }
+                    tooltip="Restore default sans font"
+                  />
+                )
+              }
+            />
+            <SettingsRow
+              action={
+                <FontSizeInput
+                  aria-label={`${variant} theme sans font size`}
+                  onCommit={(sansFontSize) =>
+                    updateThemeProfile(variant, {
+                      sansFontSize,
+                    })
+                  }
+                  value={profile().sansFontSize}
+                />
+              }
+              title="Sans size"
+              titleAction={
+                profile().sansFontSize ===
+                DEFAULT_THEME_PROFILE.sansFontSize ? undefined : (
+                  <RestoreDefaultButton
+                    aria-label={`Restore default ${variant} theme sans font size`}
+                    disabled={false}
+                    onClick={() =>
+                      updateThemeProfile(variant, {
+                        sansFontSize: DEFAULT_THEME_PROFILE.sansFontSize,
+                      })
+                    }
+                    tooltip="Restore default sans size"
+                  />
+                )
+              }
+            />
+            <SettingsRow
+              action={
+                <Input
+                  class="settings-text-input"
+                  fullWidth
+                  onChange={(event) =>
+                    updateThemeProfile(variant, {
+                      monoFont: event.currentTarget.value,
+                    })
+                  }
+                  size="sm"
+                  value={profile().monoFont}
+                />
+              }
+              title="Mono font"
+              titleAction={
+                profile().monoFont ===
+                DEFAULT_THEME_PROFILE.monoFont ? undefined : (
+                  <RestoreDefaultButton
+                    aria-label={`Restore default ${variant} theme mono font`}
+                    disabled={false}
+                    onClick={() =>
+                      updateThemeProfile(variant, {
+                        monoFont: DEFAULT_THEME_PROFILE.monoFont,
+                      })
+                    }
+                    tooltip="Restore default mono font"
+                  />
+                )
+              }
+            />
+            <SettingsRow
+              action={
+                <FontSizeInput
+                  aria-label={`${variant} theme mono font size`}
+                  onCommit={(monoFontSize) =>
+                    updateThemeProfile(variant, {
+                      monoFontSize,
+                    })
+                  }
+                  value={profile().monoFontSize}
+                />
+              }
+              title="Mono size"
+              titleAction={
+                profile().monoFontSize ===
+                DEFAULT_THEME_PROFILE.monoFontSize ? undefined : (
+                  <RestoreDefaultButton
+                    aria-label={`Restore default ${variant} theme mono font size`}
+                    disabled={false}
+                    onClick={() =>
+                      updateThemeProfile(variant, {
+                        monoFontSize: DEFAULT_THEME_PROFILE.monoFontSize,
+                      })
+                    }
+                    tooltip="Restore default mono size"
+                  />
+                )
+              }
+            />
+            <SettingsRow
+              action={
+                <div class="rounding-control">
+                  <RoundingSlider
+                    aria-label={`${variant} theme rounding`}
+                    onCommit={(rounding) =>
+                      updateThemeProfile(variant, {
+                        rounding,
+                      })
+                    }
+                    value={profile().rounding}
+                  />
+                </div>
+              }
+              class="settings-row--rounding"
+              description="Adjust corner rounding across most interface elements."
+              title="Rounding"
+              titleAction={
+                profile().rounding ===
+                DEFAULT_THEME_PROFILE.rounding ? undefined : (
+                  <RestoreDefaultButton
+                    aria-label={`Restore default ${variant} theme rounding`}
+                    disabled={false}
+                    onClick={() =>
+                      updateThemeProfile(variant, {
+                        rounding: DEFAULT_THEME_PROFILE.rounding,
+                      })
+                    }
+                    tooltip="Restore default rounding"
+                  />
+                )
+              }
+            />
+          </div>
+          <div class="theme-token-list">
+            <For each={THEME_TOKEN_NAMES}>
+              {(name) => (
+                <ThemeTokenRow
+                  defaultValue={DEFAULT_THEME_TOKENS[variant][name]}
+                  name={name}
+                  onChange={(value) =>
+                    updateThemeProfile(variant, {
+                      tokens: {
+                        [name]: value,
+                      },
+                    })
+                  }
+                  onReset={() =>
+                    updateThemeProfile(variant, {
+                      tokens: {
+                        [name]: null,
+                      },
+                    })
+                  }
+                  value={
+                    rgbEquals(
+                      profile().tokens[name],
+                      DEFAULT_THEME_TOKENS[variant][name],
+                    )
+                      ? undefined
+                      : profile().tokens[name]
+                  }
+                />
+              )}
+            </For>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
-    <>
-      <SettingsSection
-        id="theme"
-        title="Theme"
-        description="Choose the app color mode."
-        control={
+    <SettingsSection id="appearance" title="Appearance">
+      <SettingsRow
+        action={
           <SegmentedControl
             aria-label="Theme mode"
             onChange={(themeMode) => {
               setActiveThemeVariant(themeVariantForMode(themeMode));
-              void props.onAppearancePatch({ themeMode });
+              props.onAppearancePatch({ themeMode });
             }}
             options={themeModes}
             value={props.settings.appearance.themeMode}
           />
         }
+        description="Choose the app color mode."
+        title="Theme"
       />
-      <SettingsSection
-        id="motion"
-        title="Reduce motion"
-        description="Limit animations and transitions."
-        control={
+      <SettingsRow
+        action={
           <SegmentedControl
             aria-label="Reduce motion"
             onChange={(reduceMotion) =>
-              void props.onAppearancePatch({ reduceMotion })
+              props.onAppearancePatch({ reduceMotion })
             }
             options={motionModes}
             value={props.settings.appearance.reduceMotion}
           />
         }
+        description="Limit animations and transitions."
+        title="Reduce motion"
       />
-      <SwitchSection
-        id="cursor-pointers"
-        title="Use cursor pointers"
+      <SettingsRow
+        action={
+          <Switch
+            aria-label="Use cursor pointers"
+            checked={props.settings.appearance.useCursorPointers}
+            onChange={(event) =>
+              props.onAppearancePatch({
+                useCursorPointers: event.currentTarget.checked,
+              })
+            }
+            size="lg"
+          />
+        }
+        class="settings-row--switch"
         description="Show a pointer cursor over clickable controls."
-        checked={props.settings.appearance.useCursorPointers}
-        onChange={(useCursorPointers) =>
-          props.onAppearancePatch({ useCursorPointers })
-        }
+        title="Use cursor pointers"
       />
-      <SettingsSection
-        id="theme-profile"
-        title={activeThemeVariant() === "light" ? "Light theme" : "Dark theme"}
-        description="Fonts, rounding, and colors for this theme."
-        control={
-          <>
-            <TooltipIconButton
-              aria-label={`Reset ${activeThemeVariant()} theme`}
-              class="settings-quiet-action"
-              disabled={activeProfileIsDefault()}
-              onClick={() => setResetDialogOpen(true)}
-              tooltip={`Reset ${activeThemeVariant()} theme`}
-            >
-              <Icon icon="rotate_ccw" class="button__icon" />
-            </TooltipIconButton>
-            <SegmentedControl
-              aria-label="Theme to customize"
-              onChange={(value) => setActiveThemeVariant(value)}
-              options={themeVariants}
-              value={activeThemeVariant()}
-            />
-          </>
-        }
-      >
-        <ThemeProfileEditor
-          profile={activeProfile()}
-          variant={activeThemeVariant()}
-          onPatch={(patch) => patchThemeProfile(activeThemeVariant(), patch)}
-        />
-      </SettingsSection>
-      <ConfirmDialog
-        open={resetDialogOpen()}
-        onOpenChange={setResetDialogOpen}
-        title={`Reset ${activeThemeVariant()} theme?`}
-        description="This restores the theme's fonts, font sizes, rounding, and colors."
-        confirmLabel="Reset theme"
-        onConfirm={() => void resetThemeProfile(activeThemeVariant())}
-      />
-    </>
+      <div class="theme-profile-panel">
+        {renderProfileEditor(activeThemeVariant())}
+      </div>
+    </SettingsSection>
   );
 }
 
+/** Renders Settings from typed application and updater state. */
 export function SettingsView(props: SettingsViewProps): JSX.Element {
   const [settings, setSettings] = createSignal<AppSettings>(
     props.fixture.settings,
@@ -1442,32 +1447,10 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
   const [activeTab, setActiveTab] = createSignal<SettingsTabId>(
     props.fixture.activeTab ?? "general",
   );
-  const [resetHotkeysOpen, setResetHotkeysOpen] = createSignal(false);
-  const scrollPositions = new Map<SettingsTabId, number>();
-  let sheet: HTMLElement | undefined;
-  let tabList: HTMLElement | undefined;
   let nextErrorId = 0;
 
   const showError = (message: string): void => {
     setError({ id: ++nextErrorId, message });
-  };
-
-  const selectTab = (tab: SettingsTabId): void => {
-    if (sheet !== undefined) {
-      scrollPositions.set(activeTab(), sheet.scrollTop);
-    }
-    setActiveTab(tab);
-    if (sheet !== undefined) {
-      sheet.scrollTop = scrollPositions.get(tab) ?? 0;
-    }
-    const selectedTrigger = tabList?.querySelector<HTMLElement>(
-      `[data-value="${tab}"]`,
-    );
-    selectedTrigger?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  };
-
-  const resyncControlsWithSavedSettings = (): void => {
-    setSettings((saved) => ({ ...saved }));
   };
 
   const runSettingsUpdate = async (
@@ -1478,8 +1461,9 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
       setError(null);
     } catch (cause) {
       console.error("Failed to update settings:", cause);
-      showError(errorMessage(cause, "Settings update failed"));
-      resyncControlsWithSavedSettings();
+      showError(
+        cause instanceof Error ? cause.message : "Settings update failed",
+      );
     }
   };
 
@@ -1524,7 +1508,9 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
       .then((state) => applyUpdateState(state, { allowWhenDisabled: true }))
       .catch((cause: unknown) => {
         console.error("Failed to check for updates:", cause);
-        showError(errorMessage(cause, "Update check failed"));
+        showError(
+          cause instanceof Error ? cause.message : "Update check failed",
+        );
       })
       .finally(() => {
         setUpdateCheckPending(false);
@@ -1535,7 +1521,9 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
     void (props.onOpenReleasePage?.() ?? Promise.resolve(false)).catch(
       (cause: unknown) => {
         console.error("Failed to open release page:", cause);
-        showError(errorMessage(cause, "Release page unavailable"));
+        showError(
+          cause instanceof Error ? cause.message : "Release page unavailable",
+        );
       },
     );
   };
@@ -1556,7 +1544,9 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
         .catch((cause: unknown) => {
           if (!disposed) {
             console.error("Failed to load settings:", cause);
-            showError(errorMessage(cause, "Settings unavailable"));
+            showError(
+              cause instanceof Error ? cause.message : "Settings unavailable",
+            );
           }
         });
     }
@@ -1578,113 +1568,121 @@ export function SettingsView(props: SettingsViewProps): JSX.Element {
   });
 
   return (
-    <div class="standalone-window settings-root">
-      <Tabs
-        class="settings-tabs"
-        onValueChange={(details) => selectTab(details.value as SettingsTabId)}
-        value={activeTab()}
-      >
-        <header class="standalone-window__header settings-header">
-          <TabsList
-            ref={(element: HTMLElement) => {
-              tabList = element;
-            }}
+    <div class="settings-app">
+      <div class="settings-layout">
+        <main class="settings-main">
+          <Tabs
             aria-label="Settings sections"
-            class="settings-tabs__list"
-            variant="underline"
+            class="settings-tabs"
+            onValueChange={(details) =>
+              setActiveTab(details.value as SettingsTabId)
+            }
+            value={activeTab()}
           >
-            <For each={settingsTabs}>
-              {(tab) => (
-                <TabsTrigger value={tab.value}>{tab.label}</TabsTrigger>
-              )}
-            </For>
-          </TabsList>
-          <Show when={activeTab() === "hotkeys"}>
-            <div class="settings-header__end">
-              <Button
-                aria-label="Reset hotkeys"
-                class="settings-reset-hotkeys"
-                disabled={areHotkeysDefault(settings().hotkeys.bindings)}
-                onClick={() => setResetHotkeysOpen(true)}
-                size="sm"
-                variant="outline"
-              >
-                <Icon icon="rotate_ccw" class="button__icon" />
-                <span class="settings-reset-hotkeys__label">Reset hotkeys</span>
-              </Button>
+            <div class="settings-tabs__bar">
+              <div class="settings-tabs__bar-inner">
+                <TabsList class="settings-tabs__list" variant="underline">
+                  <For each={settingsTabs}>
+                    {(tab) => (
+                      <TabsTrigger value={tab.value}>{tab.label}</TabsTrigger>
+                    )}
+                  </For>
+                </TabsList>
+                <Show when={activeTab() === "hotkeys"}>
+                  <div class="settings-tabs__bar-action settings-tabs__bar-action--full">
+                    <ResetButton
+                      confirmLabel="Reset hotkeys"
+                      description="This restores every game-window shortcut to its default binding."
+                      label="Reset hotkeys"
+                      onConfirm={() =>
+                        void runSettingsUpdate(
+                          props.onResetHotkeys?.() ??
+                            Promise.resolve(settings()),
+                        )
+                      }
+                      title="Reset all hotkeys?"
+                    />
+                  </div>
+                  <div class="settings-tabs__bar-action settings-tabs__bar-action--compact">
+                    <ResetButton
+                      confirmLabel="Reset hotkeys"
+                      description="This restores every game-window shortcut to its default binding."
+                      iconOnly
+                      label="Reset hotkeys"
+                      onConfirm={() =>
+                        void runSettingsUpdate(
+                          props.onResetHotkeys?.() ??
+                            Promise.resolve(settings()),
+                        )
+                      }
+                      title="Reset all hotkeys?"
+                    />
+                  </div>
+                </Show>
+              </div>
             </div>
-          </Show>
-        </header>
-
-        <Show when={error()}>
-          {(notice) => <IssueAlert message={notice().message} />}
-        </Show>
-
-        <main
-          ref={(element) => {
-            sheet = element;
-          }}
-          class="settings-sheet"
-        >
-          <TabsContent class="settings-panel" value="general">
-            <GeneralSettings
-              checking={
-                updateCheckPending() || liveUpdateState().status === "checking"
-              }
-              onCheckForUpdates={checkForUpdates}
-              onOpenReleasePage={openReleasePage}
-              onPreferencesPatch={(patch) =>
-                runSettingsUpdate(
-                  props.onPreferencesPatch?.(patch) ??
-                    Promise.resolve(settings()),
-                )
-              }
-              settings={settings()}
-              updateState={liveUpdateState()}
-            />
-          </TabsContent>
-          <TabsContent class="settings-panel" value="hotkeys">
-            <HotkeySettings
-              active={activeTab() === "hotkeys"}
-              onHotkeysPatch={(patch) =>
-                runSettingsUpdate(
-                  props.onHotkeysPatch?.(patch) ?? Promise.resolve(settings()),
-                )
-              }
-              platform={props.platform}
-              settings={settings()}
-            />
-          </TabsContent>
-          <TabsContent class="settings-panel" value="appearance">
-            <AppearanceSettings
-              onAppearancePatch={(patch) =>
-                runSettingsUpdate(
-                  props.onAppearancePatch?.(patch) ??
-                    Promise.resolve(settings()),
-                )
-              }
-              settings={settings()}
-            />
-          </TabsContent>
+            <div class="settings-content-scroller">
+              <div class="settings-content-wrapper">
+                <Show when={error()}>
+                  {(notice) => (
+                    <SettingsErrorNotice
+                      id={notice().id}
+                      message={notice().message}
+                      scope="global"
+                    />
+                  )}
+                </Show>
+                <TabsContent value="general">
+                  <GeneralSettings
+                    checking={
+                      updateCheckPending() ||
+                      liveUpdateState().status === "checking"
+                    }
+                    onCheckForUpdates={checkForUpdates}
+                    onOpenReleasePage={openReleasePage}
+                    onPreferencesPatch={(patch) =>
+                      void runSettingsUpdate(
+                        props.onPreferencesPatch?.(patch) ??
+                          Promise.resolve(settings()),
+                      )
+                    }
+                    settings={settings()}
+                    updateState={liveUpdateState()}
+                  />
+                </TabsContent>
+                <TabsContent value="hotkeys">
+                  <HotkeySettingsSection
+                    onHotkeysPatch={(patch) =>
+                      runSettingsUpdate(
+                        props.onHotkeysPatch?.(patch) ??
+                          Promise.resolve(settings()),
+                      )
+                    }
+                    platform={props.platform}
+                    settings={settings()}
+                  />
+                </TabsContent>
+                <TabsContent value="appearance">
+                  <AppearanceSettings
+                    onAppearancePatch={(patch) =>
+                      void runSettingsUpdate(
+                        props.onAppearancePatch?.(patch) ??
+                          Promise.resolve(settings()),
+                      )
+                    }
+                    settings={settings()}
+                  />
+                </TabsContent>
+              </div>
+            </div>
+          </Tabs>
         </main>
-      </Tabs>
-
-      <ConfirmDialog
-        open={resetHotkeysOpen()}
-        onOpenChange={setResetHotkeysOpen}
-        title="Reset all hotkeys?"
-        description="This restores every game-window shortcut to its default binding."
-        confirmLabel="Reset hotkeys"
-        onConfirm={() =>
-          void runSettingsUpdate(
-            props.onResetHotkeys?.() ?? Promise.resolve(settings()),
-          )
-        }
-      />
+      </div>
     </div>
   );
 }
 
+/** Connects the fixture-driven Settings view to the Electron bridge. */
 export function App(props: {
   readonly initialSettings: AppSettings | null;
   readonly platform: AppPlatform;

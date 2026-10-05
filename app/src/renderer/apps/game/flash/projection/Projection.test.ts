@@ -672,6 +672,38 @@ describe("Projection", () => {
     }),
   );
 
+  it.effect("projects which monsters are aggressive", () =>
+    Effect.gen(function* () {
+      const { store, pipeline } = yield* makeWorldProjection();
+      yield* pipeline.packet(
+        extension("moveToArea", {
+          areaId: 12,
+          areaName: "xantown-1",
+          monBranch: [
+            { MonID: 678, MonMapID: 1, bRed: true },
+            { MonID: 863, MonMapID: 14, bRed: false },
+          ],
+          monmap: [
+            { MonMapID: 1, strFrame: "Enter" },
+            { MonMapID: 14, strFrame: "r7" },
+          ],
+          uoBranch: [
+            { entID: 10, intHP: 100, intHPMax: 100, strUsername: "Hero" },
+          ],
+        }),
+      );
+      expect(
+        (yield* store.world.getMonsters).map((monster) => [
+          monster.cell,
+          monster.aggressive,
+        ]),
+      ).toEqual([
+        ["Enter", true],
+        ["r7", false],
+      ]);
+    }),
+  );
+
   it.effect(
     "tracks movement and refreshes location only after the world loads",
     () =>

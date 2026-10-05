@@ -291,7 +291,6 @@ export interface ScriptCombatApi {
   readonly getSkillCooldownRemainingMs: (
     skill: SkillSlot,
   ) => Effect.Effect<number | null>;
-  /** Finds a matching monster and returns it after reaching its cell, or `null` if the target cannot be found or reached. */
   readonly hunt: (
     query: MonsterQuery,
     options?: HuntOptions,
@@ -301,11 +300,6 @@ export interface ScriptCombatApi {
     options?: CombatKillOptions,
   ) => Effect.Effect<boolean>;
   /**
-   * Fights monsters in the current cell until your inventory has the requested
-   * quantity. Counts items you already own and accepts matching drops.
-   * Keeps trying until the goal is reached or the action is interrupted.
-   * A timeout stops farming; items already collected stay in your inventory.
-   *
    * @example
    * ```js
    * const script = require("lucent/script");

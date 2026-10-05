@@ -64,7 +64,7 @@ type FallbackResult =
     };
 
 interface RuntimeState {
-  readonly attemptsRemaining: number | null;
+  readonly attemptsRemaining: number;
   readonly config: FollowerConfig | undefined;
   readonly enabled: boolean;
   readonly lastError: string | undefined;
@@ -746,18 +746,15 @@ export const makeFollower = Effect.fnUntraced(function* (
         return false;
       }
 
-      const retrying = yield* SubscriptionRef.modify(
+      const remaining = yield* SubscriptionRef.modify(
         state,
-        (current): readonly [boolean, RuntimeState] => {
+        (current): readonly [number, RuntimeState] => {
           if (current.runId !== runId) {
-            return [false, current];
+            return [0, current];
           }
-          const attemptsRemaining =
-            current.attemptsRemaining === null
-              ? null
-              : Math.max(0, current.attemptsRemaining - 1);
+          const attemptsRemaining = Math.max(0, current.attemptsRemaining - 1);
           return [
-            attemptsRemaining !== 0,
+            attemptsRemaining,
             {
               ...current,
               attemptsRemaining,
@@ -766,7 +763,7 @@ export const makeFollower = Effect.fnUntraced(function* (
           ];
         },
       );
-      if (!retrying) {
+      if (remaining === 0) {
         yield* stopFromLoop(runId, failure.reason, failure.error);
         return false;
       }

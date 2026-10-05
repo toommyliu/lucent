@@ -273,7 +273,9 @@ const compatibilityFor = (
   if (requiredVersion === undefined) {
     return { status: "unknown", currentVersion };
   }
-  const normalizedRange = validRange(requiredVersion);
+  const normalizedRange = validRange(requiredVersion, {
+    includePrerelease: true,
+  });
   if (normalizedRange === null) {
     return {
       status: "unknown",
@@ -282,7 +284,9 @@ const compatibilityFor = (
     };
   }
   return {
-    status: satisfies(currentVersion, normalizedRange)
+    status: satisfies(currentVersion, normalizedRange, {
+      includePrerelease: true,
+    })
       ? "compatible"
       : "incompatible",
     currentVersion,

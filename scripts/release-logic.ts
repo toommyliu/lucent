@@ -1,4 +1,4 @@
-import { parse, SemVer } from "semver";
+import { compare, prerelease, SemVer, valid } from "semver";
 
 export const RELEASE_NOTES_PLACEHOLDER = "<!-- release-notes-placeholder -->";
 export const RELEASE_NOTES_PLACEHOLDER_CONTENT = `${RELEASE_NOTES_PLACEHOLDER}
@@ -6,13 +6,15 @@ export const RELEASE_NOTES_PLACEHOLDER_CONTENT = `${RELEASE_NOTES_PLACEHOLDER}
 Write the v0.0.1 release notes here before preparing the release.
 `;
 
-export const BUMP_KINDS = ["patch", "minor", "major"] as const;
+const RELEASE_OR_PRERELEASE_TAG_PATTERN = String.raw`^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`;
+
+export const BUMP_KINDS = ["patch", "minor", "major", "prerelease"] as const;
 
 export type BumpKind = (typeof BUMP_KINDS)[number];
 
-export type StableRelease = {
+export type Release = {
   readonly tag: string;
-  readonly version: SemVer;
+  readonly version: string;
 };
 
 export type TargetVersionResult =
@@ -22,70 +24,76 @@ export type TargetVersionResult =
 export const isBumpKind = (value: string): value is BumpKind =>
   BUMP_KINDS.includes(value as BumpKind);
 
-export const parseStableVersion = (value: string): SemVer | null => {
-  const version = parse(value);
-  return version !== null &&
-    version.prerelease.length === 0 &&
-    version.version === value
-    ? version
-    : null;
-};
+export const parseVersion = (value: string): string | null =>
+  valid(value) === value ? value : null;
 
-export const parseStableReleaseTag = (tag: string): SemVer | null =>
-  tag.startsWith("v") ? parseStableVersion(tag.slice(1)) : null;
-
-export const formatVersion = (version: SemVer): string => version.version;
+export const parseReleaseTag = (tag: string): string | null =>
+  tag.startsWith("v") ? parseVersion(tag.slice(1)) : null;
 
 export const formatReleaseTag = (version: string): string => `v${version}`;
 
-export const findFirstStableRelease = (
+export const findLatestRelease = (
   tags: ReadonlyArray<string>,
-): StableRelease | null => {
+): Release | null => {
+  let latest: Release | null = null;
   for (const tag of tags) {
-    const version = parseStableReleaseTag(tag);
-    if (version !== null) {
-      return { tag, version };
+    const version = parseReleaseTag(tag);
+    if (
+      version !== null &&
+      (latest === null || compare(version, latest.version) > 0)
+    ) {
+      latest = { tag, version };
     }
   }
 
-  return null;
+  return latest;
 };
 
 export const resolveTargetVersion = (
   bumpOrVersion: string,
-  latestRelease: StableRelease | null,
+  latestRelease: Release | null,
 ): TargetVersionResult => {
   if (isBumpKind(bumpOrVersion)) {
-    return latestRelease === null
-      ? {
-          ok: false,
-          message:
-            "The first release requires an explicit stable version like 0.0.1.",
-        }
-      : {
-          ok: true,
-          version: new SemVer(latestRelease.version.version).inc(bumpOrVersion)
-            .version,
-        };
+    if (latestRelease === null) {
+      return {
+        ok: false,
+        message: "The first release requires an explicit version like 0.0.1.",
+      };
+    }
+
+    if (
+      bumpOrVersion === "prerelease" &&
+      prerelease(latestRelease.version) === null
+    ) {
+      return {
+        ok: false,
+        message: `Latest release ${latestRelease.tag} is stable. Start a prerelease series with an explicit version like 0.1.0-beta.1.`,
+      };
+    }
+
+    return {
+      ok: true,
+      version: new SemVer(latestRelease.version).inc(bumpOrVersion).version,
+    };
   }
 
-  const parsed = parseStableVersion(bumpOrVersion);
-  if (parsed === null) {
+  const version = parseVersion(bumpOrVersion);
+  if (version === null) {
     return {
       ok: false,
       message:
-        "Release version must be patch, minor, major, or a stable version like 0.9.0.",
+        "Release version must be patch, minor, major, prerelease, or a version like 0.9.0 or 0.9.0-beta.1.",
     };
   }
 
-  if (latestRelease !== null && parsed.compare(latestRelease.version) <= 0) {
+  if (latestRelease !== null && compare(version, latestRelease.version) <= 0) {
     return {
       ok: false,
-      message: `Target version ${bumpOrVersion} must be greater than latest release ${latestRelease.tag}.`,
+      message: `Target version ${version} must be greater than latest release ${latestRelease.tag}.`,
     };
   }
 
-  return { ok: true, version: formatVersion(parsed) };
+  return { ok: true, version };
 };
 
 export const releaseNotesAreReady = (source: string): boolean =>
@@ -107,19 +115,27 @@ export const makeInitialChangelog = (options: {
     "",
   ].join("\n");
 
-const gitCliffBaseArgs = (tag: string): ReadonlyArray<string> => [
+// cliff.toml matches only stable tags, so stable notes cover every prerelease
+// since the last stable release. Prerelease notes start at the previous tag.
+export const gitCliffChangelogArgs = (tag: string): ReadonlyArray<string> => [
   "--config",
   "cliff.toml",
   "--unreleased",
   "--tag",
   tag,
-];
-
-export const gitCliffChangelogArgs = (tag: string): ReadonlyArray<string> => [
-  ...gitCliffBaseArgs(tag),
+  ...(prerelease(tag) === null
+    ? []
+    : ["--tag-pattern", RELEASE_OR_PRERELEASE_TAG_PATTERN]),
   "--prepend",
   "CHANGELOG.md",
 ];
+
+export const gitCliffChangelogCommand = (tag: string): string =>
+  `git-cliff ${gitCliffChangelogArgs(tag)
+    .map((arg) =>
+      arg === RELEASE_OR_PRERELEASE_TAG_PATTERN ? `"${arg}"` : arg,
+    )
+    .join(" ")}`;
 
 export const validateReleaseInputs = (options: {
   readonly packageVersion: unknown;
@@ -127,9 +143,9 @@ export const validateReleaseInputs = (options: {
 }): string | null => {
   if (
     typeof options.packageVersion !== "string" ||
-    parseStableVersion(options.packageVersion) === null
+    parseVersion(options.packageVersion) === null
   ) {
-    return "app/package.json must contain a stable semantic version.";
+    return "app/package.json must contain a semantic version.";
   }
 
   const expectedTag = formatReleaseTag(options.packageVersion);
@@ -144,12 +160,11 @@ export const extractReleaseNotesFromChangelog = (
   changelog: string,
   tag: string,
 ): string | null => {
-  const version = parseStableReleaseTag(tag);
-  if (version === null) {
+  const expectedVersion = parseReleaseTag(tag);
+  if (expectedVersion === null) {
     return null;
   }
 
-  const expectedVersion = formatVersion(version);
   const headingPattern =
     /^# \[([^\]]+)\]\([^\r\n]+\) - \(\d{4}-\d{2}-\d{2}\)\s*$/gm;
   const headings = [...changelog.matchAll(headingPattern)];
