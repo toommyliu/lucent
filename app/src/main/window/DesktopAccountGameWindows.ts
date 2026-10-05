@@ -7,7 +7,11 @@ import {
   AccountGameWindows,
   type AccountGameWindowEvent,
 } from "../internal/accounts/AccountGameWindows";
-import { DesktopWindows, type DesktopGameHostTarget } from "./DesktopWindows";
+import {
+  type DesktopGameHostTarget,
+  DesktopWindows,
+  requireRenderer,
+} from "./DesktopWindows";
 
 const resolveGameHostTarget = (
   target: AccountLaunchWindowTarget | undefined,
@@ -30,14 +34,8 @@ export const layer = Layer.effect(
       readonly generation: number;
       readonly rendererId: number;
     }): Effect.fn.Return<AccountGameWindowEvent> {
-      const gameWindowGroupId = yield* windows
-        .getNativeWindowId(event.rendererId)
-        .pipe(
-          Effect.match({
-            onFailure: (): undefined => undefined,
-            onSuccess: (groupId): number => groupId,
-          }),
-        );
+      const gameWindowGroupId = (yield* windows.describe(event.rendererId))
+        ?.windowId;
       return {
         ...(gameWindowGroupId === undefined ? {} : { gameWindowGroupId }),
         gameWindowId: event.rendererId,
@@ -50,11 +48,19 @@ export const layer = Layer.effect(
 
     const getGeneration: AccountGameWindows["Service"]["getGeneration"] = (
       gameWindowId,
-    ) => windows.getRendererGeneration(gameWindowId);
+    ) =>
+      Effect.map(
+        requireRenderer(windows, gameWindowId),
+        (info) => info.generation,
+      );
 
     const getGroupId: AccountGameWindows["Service"]["getGroupId"] = (
       gameWindowId,
-    ) => windows.getNativeWindowId(gameWindowId);
+    ) =>
+      Effect.map(
+        requireRenderer(windows, gameWindowId),
+        (info) => info.windowId,
+      );
 
     const onClosed: AccountGameWindows["Service"]["onClosed"] = (listener) =>
       windows.onClosed((event) =>

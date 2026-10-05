@@ -12,7 +12,19 @@ import {
 
 const event = { sender: { id: 42 } };
 const makeWindows = (kind: DesktopRendererKind | null) => ({
-  getRendererKind: () => Effect.succeed(kind),
+  describe: (rendererId: number) =>
+    Effect.succeed(
+      kind === null
+        ? undefined
+        : {
+            rendererId,
+            kind,
+            windowId: 1,
+            ownerId: undefined,
+            generation: 1,
+            ready: false,
+          },
+    ),
 });
 
 describe("DesktopIpcSenders", () => {
@@ -65,8 +77,15 @@ describe("DesktopIpcSenders", () => {
         yield* resolveGameRendererId({ rendererId: 8, kind: "packets" }).pipe(
           Effect.provide(
             Layer.mock(DesktopWindows, {
-              getOwnerRendererId: () => Effect.succeed(42),
-              getRendererKind: () => Effect.succeed("game"),
+              describe: (rendererId) =>
+                Effect.succeed({
+                  rendererId,
+                  kind: rendererId === 8 ? "packets" : "game",
+                  windowId: 1,
+                  ownerId: rendererId === 8 ? 42 : undefined,
+                  generation: 1,
+                  ready: false,
+                }),
             }),
           ),
         ),
@@ -78,14 +97,36 @@ describe("DesktopIpcSenders", () => {
         }).pipe(
           Effect.provide(
             Layer.mock(DesktopWindows, {
-              getOwnerRendererId: () =>
-                Effect.succeed(kind === null ? null : 42),
-              getRendererKind: () => Effect.succeed(kind),
+              describe: (rendererId) =>
+                Effect.succeed(
+                  rendererId === 8
+                    ? {
+                        rendererId,
+                        kind: "packets",
+                        windowId: 1,
+                        ownerId: 42,
+                        generation: 1,
+                        ready: false,
+                      }
+                    : kind === null
+                      ? undefined
+                      : {
+                          rendererId,
+                          kind,
+                          windowId: 1,
+                          ownerId: 42,
+                          generation: 1,
+                          ready: false,
+                        },
+                ),
             }),
           ),
           Effect.flip,
         );
         expect(error).toBeInstanceOf(DesktopIpcSenderError);
+        expect(error.detail).toBe(
+          "This window is no longer linked to a game. Reopen it from the game.",
+        );
       }
     }),
   );

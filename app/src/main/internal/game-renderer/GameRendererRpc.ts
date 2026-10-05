@@ -217,7 +217,8 @@ export const makeGameRendererRpc = Effect.fn("makeGameRendererRpc")(function* (
   ) =>
     Effect.catchIf(
       Effect.gen(function* () {
-        const rendererReady = yield* windows.isRendererReady(gameRendererId);
+        const rendererReady =
+          (yield* windows.describe(gameRendererId))?.ready ?? false;
         const connection = connections.get(gameRendererId);
         if (!rendererReady || connection === undefined) {
           return yield* new GameRendererUnavailableError({

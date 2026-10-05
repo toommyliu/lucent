@@ -142,10 +142,10 @@ export const makeGameFollowers = Effect.gen(function* () {
 
   const get: GameFollowersShape["get"] = (gameRendererId) =>
     windows
-      .isRendererReady(gameRendererId)
+      .describe(gameRendererId)
       .pipe(
-        Effect.map((rendererReady) =>
-          rendererReady
+        Effect.map((info) =>
+          info?.ready
             ? normalizeFollowerState(
                 states.get(gameRendererId) ?? createIdleFollowerState(),
               )
@@ -165,10 +165,10 @@ export const makeGameFollowers = Effect.gen(function* () {
 
   const getPlayers: GameFollowersShape["getPlayers"] = (gameRendererId) =>
     windows
-      .isRendererReady(gameRendererId)
+      .describe(gameRendererId)
       .pipe(
-        Effect.map((rendererReady) =>
-          rendererReady ? (playersByGame.get(gameRendererId) ?? []) : [],
+        Effect.map((info) =>
+          info?.ready ? (playersByGame.get(gameRendererId) ?? []) : [],
         ),
       );
 

@@ -26,15 +26,15 @@ export const open = makeDesktopIpcMethod({
         ? undefined
         : sender.kind === "game"
           ? sender.rendererId
-          : yield* windows.getOwnerRendererId(sender.rendererId).pipe(
-              Effect.flatMap((ownerRendererId) =>
-                ownerRendererId === null
+          : yield* windows.describe(sender.rendererId).pipe(
+              Effect.flatMap((info) =>
+                info?.ownerId === undefined
                   ? new DesktopWindowError({
                       detail:
                         "This window is no longer linked to a game. Reopen it from the game.",
                       id: String(sender.rendererId),
                     })
-                  : Effect.succeed(ownerRendererId),
+                  : Effect.succeed(info.ownerId),
               ),
             );
 
