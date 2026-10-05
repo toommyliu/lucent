@@ -21,7 +21,6 @@ import {
   readGameViewShortcutIndex,
   readGameViewShortcutModifierHintUpdate,
 } from "./GameViewShortcuts";
-import type { DesktopWindowInstanceId } from "./DesktopWindows";
 
 const GAME_VIEW_RESIZE_SETTLE_DELAY_MS = 100;
 const GAME_GROUP_CONTROLS_HEIGHT = 408;
@@ -41,7 +40,7 @@ export interface DesktopGameViewRecord {
   readonly hostWindow: ElectronNativeWindowHandle;
   readonly kind: "game";
   loggedInUsername?: string;
-  readonly ownerId?: DesktopWindowInstanceId;
+  readonly ownerId?: number;
   publishedPresentation?: GameViewPresentation;
   readonly rendererId: number;
   rendererReady: boolean;
@@ -57,28 +56,26 @@ export interface DesktopGameHostRecord {
   groupControlsNativeDialogOpen: boolean;
   readonly groupControlsView: ElectronGameViewHandle;
   groupControlsOpen: boolean;
-  readonly groupTargetIds: Set<DesktopWindowInstanceId>;
+  readonly groupTargetIds: Set<number>;
   readonly hostView: ElectronGameViewHandle;
   readonly rendererId: number;
   layout: GameViewLayout;
-  readonly orderedIds: DesktopWindowInstanceId[];
+  readonly orderedIds: number[];
   resizeSettleTimer?: ReturnType<typeof setTimeout>;
-  selectedId: DesktopWindowInstanceId;
+  selectedId: number;
   shortcutModifierPressed: boolean;
-  stackedGameViewId?: DesktopWindowInstanceId;
+  stackedGameViewId?: number;
   stopObservingShortcutInput: () => void;
   tabMenuOpen: boolean;
   readonly window: ElectronNativeWindowHandle;
 }
 
 interface DesktopGameHostsOptions {
-  readonly getGameViewRecord: (
-    id: DesktopWindowInstanceId,
-  ) => DesktopGameViewRecord | undefined;
+  readonly getGameViewRecord: (id: number) => DesktopGameViewRecord | undefined;
   readonly onShortcutError: (details: {
     readonly cause: unknown;
     readonly hostRendererId: number;
-    readonly id: DesktopWindowInstanceId;
+    readonly id: number;
   }) => void;
   readonly onStateChanged: (host: DesktopGameHostRecord) => void;
   readonly platform: NodeJS.Platform;
@@ -103,12 +100,21 @@ const sameGameViewPresentation = (
   left.tiled === right.tiled &&
   left.windowActive === right.windowActive;
 
+export const parseGameViewTabId = (id: string): number => {
+  const rendererId = Number(id);
+  return Number.isSafeInteger(rendererId) &&
+    rendererId > 0 &&
+    String(rendererId) === id
+    ? rendererId
+    : Number.NaN;
+};
+
 const gameViewSession = (
-  id: DesktopWindowInstanceId,
+  id: number,
   record: DesktopGameViewRecord,
   index: number,
 ): GameViewSession => ({
-  id,
+  id: String(id),
   name: record.gameViewName ?? gameViewFallbackName(index),
   phase: record.gameViewPhase,
   ...(record.gameViewError === undefined
@@ -118,7 +124,7 @@ const gameViewSession = (
 
 const gameViewPresentation = (
   host: DesktopGameHostRecord,
-  id: DesktopWindowInstanceId,
+  id: number,
   boundsLayout: GameViewLayout,
 ): GameViewPresentation => ({
   active: host.selectedId === id,
@@ -222,9 +228,11 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
   const state = (host: DesktopGameHostRecord): GameViewHostState => ({
     capacity: MAX_GAME_VIEWS_PER_WINDOW,
     groupControlsOpen: host.groupControlsOpen,
-    groupTargetIds: host.orderedIds.filter((id) => host.groupTargetIds.has(id)),
+    groupTargetIds: host.orderedIds
+      .filter((id) => host.groupTargetIds.has(id))
+      .map(String),
     layout: host.layout,
-    selectedId: host.selectedId,
+    selectedId: String(host.selectedId),
     sessions: host.orderedIds.flatMap((id, index) => {
       const record = options.getGameViewRecord(id);
       return record === undefined ? [] : [gameViewSession(id, record, index)];
@@ -335,7 +343,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
 
   const presentation = (
     host: DesktopGameHostRecord,
-    id: DesktopWindowInstanceId,
+    id: number,
   ): GameViewPresentation =>
     gameViewPresentation(
       host,
@@ -387,10 +395,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     publishState(host);
   };
 
-  const activate = (
-    host: DesktopGameHostRecord,
-    id: DesktopWindowInstanceId,
-  ): void => {
+  const activate = (host: DesktopGameHostRecord, id: number): void => {
     if (host.selectedId === id) return;
     host.selectedId = id;
     publishState(host);
@@ -455,7 +460,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
 
   const select = (
     host: DesktopGameHostRecord,
-    id: DesktopWindowInstanceId,
+    id: number,
     focus: GameViewSelectionFocus,
   ): void => {
     const record = options.getGameViewRecord(id);
@@ -477,10 +482,8 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     }
   };
 
-  const focus = (
-    host: DesktopGameHostRecord,
-    id: DesktopWindowInstanceId,
-  ): void => select(host, id, "view");
+  const focus = (host: DesktopGameHostRecord, id: number): void =>
+    select(host, id, "view");
 
   const makeShortcutInputListener =
     (

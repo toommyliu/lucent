@@ -38,10 +38,11 @@ export const open = makeDesktopIpcMethod({
               ),
             );
 
-    return yield* windows.open(
+    const rendererId = yield* windows.open(
       payload.kind,
       ownerRendererId === undefined ? undefined : { ownerRendererId },
     );
+    return String(rendererId);
   }),
 });
 

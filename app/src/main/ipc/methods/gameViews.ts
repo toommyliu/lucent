@@ -11,6 +11,7 @@ import { ElectronDialog } from "../../electron/ElectronDialog";
 import { Accounts } from "../../internal/accounts/Accounts";
 import { AccountSessions } from "../../internal/accounts/AccountSessions";
 import { DesktopScriptLibrary } from "../../scripting/DesktopScriptLibrary";
+import { parseGameViewTabId } from "../../window/DesktopGameHost";
 import {
   DesktopWindowError,
   DesktopWindows,
@@ -82,7 +83,7 @@ export const reopen = makeDesktopIpcMethod({
         detail: "Close a tab before reopening another.",
       });
     }
-    const gameWindowId = yield* windows.getRendererId(state.selectedId);
+    const gameWindowId = parseGameViewTabId(state.selectedId);
     const gameWindowGroupId = yield* windows.getNativeWindowId(
       sender.rendererId,
     );
@@ -123,7 +124,7 @@ export const select = makeDesktopIpcMethod({
       const windows = yield* DesktopWindows;
       return yield* windows.selectGameView(
         sender.rendererId,
-        payload.id,
+        parseGameViewTabId(payload.id),
         payload.focus,
       );
     },
@@ -143,9 +144,9 @@ export const close = makeDesktopIpcMethod({
           detail: "This tab no longer belongs to this window.",
         });
       }
-      const rendererId = yield* windows.getRendererId(payload.id);
+      const rendererId = parseGameViewTabId(payload.id);
       if (!(yield* confirmClose(rendererId))) return;
-      return yield* windows.closeGameView(sender.rendererId, payload.id);
+      return yield* windows.closeGameView(sender.rendererId, rendererId);
     },
   ),
 });
@@ -156,7 +157,10 @@ export const reorder = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.gameViews.reorder")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
-      return yield* windows.reorderGameViews(sender.rendererId, payload.ids);
+      return yield* windows.reorderGameViews(
+        sender.rendererId,
+        payload.ids.map(parseGameViewTabId),
+      );
     },
   ),
 });
@@ -222,7 +226,7 @@ export const setGroupTargets = makeDesktopIpcMethod({
       const windows = yield* DesktopWindows;
       return yield* windows.setGameViewGroupTargets(
         sender.rendererId,
-        payload.ids,
+        payload.ids.map(parseGameViewTabId),
       );
     },
   ),
@@ -247,8 +251,8 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
         state,
         request.targetIds,
       );
-      let rendererIds = yield* Effect.forEach(readySessions, (session) =>
-        windows.getRendererId(session.id),
+      let rendererIds = readySessions.map((session) =>
+        parseGameViewTabId(session.id),
       );
 
       if (rendererIds.length === 0) {
@@ -284,8 +288,8 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
           latestState,
           request.targetIds,
         ));
-        rendererIds = yield* Effect.forEach(readySessions, (session) =>
-          windows.getRendererId(session.id),
+        rendererIds = readySessions.map((session) =>
+          parseGameViewTabId(session.id),
         );
         if (rendererIds.length === 0) {
           return {
@@ -360,8 +364,8 @@ export const dispatchGroupOptionHotkey = makeDesktopIpcMethod({
         state,
         state.groupTargetIds,
       );
-      const rendererIds = yield* Effect.forEach(readySessions, (session) =>
-        windows.getRendererId(session.id),
+      const rendererIds = readySessions.map((session) =>
+        parseGameViewTabId(session.id),
       );
       if (rendererIds.length > 0) {
         const envelope: GameViewGroupCommandEnvelope = {

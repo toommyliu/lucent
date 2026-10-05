@@ -5,6 +5,7 @@ import type { ElectronGameViewHandle } from "../electron/ElectronGameView";
 import type { ElectronNativeWindowHandle } from "../electron/ElectronWindow";
 import {
   makeDesktopGameHosts,
+  parseGameViewTabId,
   type DesktopGameHostRecord,
   type DesktopGameViewRecord,
 } from "./DesktopGameHost";
@@ -38,7 +39,7 @@ const makeView = (
   return view as unknown as ElectronGameViewHandle;
 };
 
-const makeHost = (ids: readonly string[]) => {
+const makeHost = (ids: readonly number[]) => {
   let content = { height: 830, width: 1200, x: 0, y: 0 };
   const window = {
     contentView: { addChildView: () => {}, removeChildView: () => {} },
@@ -46,21 +47,21 @@ const makeHost = (ids: readonly string[]) => {
     isDestroyed: () => false,
     isFocused: () => true,
   } as unknown as ElectronNativeWindowHandle;
-  const presentations = new Map<string, GameViewPresentation[]>();
-  const records = new Map<string, DesktopGameViewRecord>();
+  const presentations = new Map<number, GameViewPresentation[]>();
+  const records = new Map<number, DesktopGameViewRecord>();
   for (const id of ids) {
     const sent: GameViewPresentation[] = [];
     presentations.set(id, sent);
     records.set(id, {
       boundsLayout: "focused",
       gameHostRendererId: 1,
-      gamePartition: id,
+      gamePartition: String(id),
       gameView: makeView((presentation) => sent.push(presentation)),
       gameViewPhase: "ready",
       generation: 0,
       hostWindow: window,
       kind: "game",
-      rendererId: records.size + 2,
+      rendererId: id,
       rendererReady: true,
       stopObservingFocus: () => {},
       stopObservingReloads: () => {},
@@ -77,7 +78,7 @@ const makeHost = (ids: readonly string[]) => {
     layout: "focused",
     orderedIds: [...ids],
     rendererId: 1,
-    selectedId: ids[0] ?? "",
+    selectedId: ids[0] ?? Number.NaN,
     shortcutModifierPressed: false,
     stopObservingShortcutInput: () => {},
     tabMenuOpen: false,
@@ -90,11 +91,11 @@ const makeHost = (ids: readonly string[]) => {
     platform: "darwin",
   });
   hosts.refresh(host);
-  const size = (id: string) => {
+  const size = (id: number) => {
     const { height, width } = records.get(id)!.gameView.getBounds();
     return `${width}x${height}`;
   };
-  const tiled = (id: string) => presentations.get(id)!.at(-1)?.tiled;
+  const tiled = (id: number) => presentations.get(id)!.at(-1)?.tiled;
   const show = (
     layout: DesktopGameHostRecord["layout"],
     selectedId = host.selectedId,
@@ -107,17 +108,17 @@ const makeHost = (ids: readonly string[]) => {
     content = { ...content, height, width };
     hosts.finishResize(host);
   };
-  const activate = (id: string) => hosts.activate(host, id);
-  return { activate, resizeWindow, show, size, tiled };
+  const activate = (id: number) => hosts.activate(host, id);
+  return { activate, host, hosts, resizeWindow, show, size, tiled };
 };
 
 describe("game view layout", () => {
   it("resizes only the selected view when returning to the focused layout", () => {
-    const { show, size, tiled } = makeHost(["a", "b", "c", "d"]);
-    expect([size("a"), size("b")]).toEqual(["1200x800", "1200x800"]);
+    const { show, size, tiled } = makeHost([2, 3, 4, 5]);
+    expect([size(2), size(3)]).toEqual(["1200x800", "1200x800"]);
 
     show("grid");
-    expect([size("a"), size("b"), size("c"), size("d")]).toEqual([
+    expect([size(2), size(3), size(4), size(5)]).toEqual([
       "600x400",
       "600x400",
       "600x400",
@@ -125,37 +126,37 @@ describe("game view layout", () => {
     ]);
 
     show("focused");
-    expect([size("a"), size("b"), size("c"), size("d")]).toEqual([
+    expect([size(2), size(3), size(4), size(5)]).toEqual([
       "1200x800",
       "600x400",
       "600x400",
       "600x400",
     ]);
-    expect([tiled("a"), tiled("b")]).toEqual([false, true]);
+    expect([tiled(2), tiled(3)]).toEqual([false, true]);
   });
 
   it("keeps a view full size after another tab is selected", () => {
-    const { show, size, tiled } = makeHost(["a", "b", "c"]);
+    const { show, size, tiled } = makeHost([2, 3, 4]);
     show("grid");
-    show("focused", "b");
-    show("focused", "a");
+    show("focused", 3);
+    show("focused", 2);
 
-    expect([size("a"), size("b"), size("c")]).toEqual([
+    expect([size(2), size(3), size(4)]).toEqual([
       "1200x800",
       "1200x800",
       "600x400",
     ]);
-    expect([tiled("a"), tiled("b"), tiled("c")]).toEqual([false, false, true]);
+    expect([tiled(2), tiled(3), tiled(4)]).toEqual([false, false, true]);
   });
 
   it("leaves hidden tiles alone when the focused window resizes", () => {
-    const { resizeWindow, show, size } = makeHost(["a", "b", "c"]);
+    const { resizeWindow, show, size } = makeHost([2, 3, 4]);
     show("grid");
-    show("focused", "b");
-    show("focused", "a");
+    show("focused", 3);
+    show("focused", 2);
     resizeWindow(1000, 630);
 
-    expect([size("a"), size("b"), size("c")]).toEqual([
+    expect([size(2), size(3), size(4)]).toEqual([
       "1000x600",
       "1000x600",
       "600x400",
@@ -163,12 +164,42 @@ describe("game view layout", () => {
   });
 
   it("shows a tile's top nav once a window resize brings it to full size", () => {
-    const { activate, resizeWindow, show, size, tiled } = makeHost(["a", "b"]);
+    const { activate, resizeWindow, show, size, tiled } = makeHost([2, 3]);
     show("grid");
-    show("focused", "a");
-    activate("b");
+    show("focused", 2);
+    activate(3);
     resizeWindow(1000, 630);
 
-    expect([size("b"), tiled("b")]).toEqual(["1000x600", false]);
+    expect([size(3), tiled(3)]).toEqual(["1000x600", false]);
+  });
+});
+
+describe("game view tab ids", () => {
+  it("encodes renderer ids and rejects malformed tokens without selecting another tab", () => {
+    const { host, hosts } = makeHost([2, 3]);
+    host.groupTargetIds.add(3);
+    expect(hosts.state(host)).toEqual({
+      capacity: 7,
+      groupControlsOpen: false,
+      groupTargetIds: ["3"],
+      layout: "focused",
+      selectedId: "2",
+      sessions: [
+        { id: "2", name: "Tab 1", phase: "ready" },
+        { id: "3", name: "Tab 2", phase: "ready" },
+      ],
+    });
+    hosts.select(host, parseGameViewTabId("3"), "view");
+    expect(hosts.state(host).selectedId).toBe("3");
+    for (const id of ["", "02", "2junk", "game-old-id"]) {
+      expect(() => hosts.select(host, parseGameViewTabId(id), "view")).toThrow(
+        "Game view does not belong to this host: NaN",
+      );
+      expect(hosts.state(host).selectedId).toBe("3");
+    }
+    expect(() => hosts.select(host, parseGameViewTabId("4"), "view")).toThrow(
+      "Game view does not belong to this host: 4",
+    );
+    expect(hosts.state(host).selectedId).toBe("3");
   });
 });
