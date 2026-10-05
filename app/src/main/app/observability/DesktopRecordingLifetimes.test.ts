@@ -54,9 +54,15 @@ describe("recording lifetimes", () => {
                 }),
               }),
               Layer.mock(DesktopWindows, {
-                getRendererKind: () => Effect.succeed("game"),
-                getRendererGeneration: () => Effect.succeed(1),
-                getOwnerRendererId: () => Effect.succeed(null),
+                describe: (rendererId) =>
+                  Effect.succeed({
+                    rendererId,
+                    kind: "game",
+                    windowId: 1,
+                    ownerId: undefined,
+                    generation: 1,
+                    ready: false,
+                  }),
               }),
               Layer.mock(ElectronChromiumPerformance, {
                 getCategories: Effect.succeed([]),

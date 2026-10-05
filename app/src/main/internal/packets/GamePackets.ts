@@ -35,10 +35,10 @@ export const makeGamePackets = Effect.gen(function* () {
 
   const getStatus: GamePacketsShape["getStatus"] = (gameRendererId) =>
     windows
-      .isRendererReady(gameRendererId)
+      .describe(gameRendererId)
       .pipe(
-        Effect.map((rendererReady) =>
-          rendererReady
+        Effect.map((info) =>
+          info?.ready
             ? (statuses.get(gameRendererId) ?? stoppedStatus())
             : stoppedStatus(),
         ),

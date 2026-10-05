@@ -16,6 +16,7 @@ import {
   DesktopWindowError,
   DesktopWindows,
   type GameViewHostChange,
+  requireRenderer,
 } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
 
@@ -38,7 +39,10 @@ const confirmClose = Effect.fn("desktop.ipc.gameViews.confirmClose")(function* (
     return true;
   const dialog = yield* ElectronDialog;
   const windows = yield* DesktopWindows;
-  const parentWindowId = yield* windows.getNativeWindowId(rendererId);
+  const { windowId: parentWindowId } = yield* requireRenderer(
+    windows,
+    rendererId,
+  );
   const result = yield* dialog.showMessageBox(
     {
       type: "question",
@@ -67,7 +71,10 @@ export const getRecentlyClosed = makeDesktopIpcMethod({
     function* (_payload, sender) {
       const accounts = yield* Accounts;
       const windows = yield* DesktopWindows;
-      const groupId = yield* windows.getNativeWindowId(sender.rendererId);
+      const { windowId: groupId } = yield* requireRenderer(
+        windows,
+        sender.rendererId,
+      );
       return yield* accounts.getRecentlyClosed(groupId);
     },
   ),
@@ -90,7 +97,8 @@ export const reopen = makeDesktopIpcMethod({
       });
     }
     const gameWindowId = parseGameViewTabId(state.selectedId);
-    const gameWindowGroupId = yield* windows.getNativeWindowId(
+    const { windowId: gameWindowGroupId } = yield* requireRenderer(
+      windows,
       sender.rendererId,
     );
     yield* accounts.reopenGameWindow({
