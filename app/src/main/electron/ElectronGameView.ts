@@ -9,6 +9,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
 
 import { electronRendererRegistry } from "./ElectronRendererRegistry";
 import {
@@ -49,7 +50,11 @@ export interface ElectronGameViewShape {
   readonly create: (
     options: WebContentsViewConstructorOptions,
     onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
-  ) => Effect.Effect<ElectronGameViewHandle, ElectronGameViewCreateError>;
+  ) => Effect.Effect<
+    ElectronGameViewHandle,
+    ElectronGameViewCreateError,
+    Scope.Scope
+  >;
   readonly loadFile: (
     view: ElectronGameViewHandle,
     path: string,
@@ -59,7 +64,6 @@ export interface ElectronGameViewShape {
     view: ElectronGameViewHandle,
     listener: () => void,
   ) => () => void;
-  readonly destroy: (view: ElectronGameViewHandle) => void;
 }
 
 export class ElectronGameView extends Context.Service<
@@ -72,11 +76,9 @@ const create: ElectronGameViewShape["create"] = (
   onWindowOpenRequest,
 ) =>
   Effect.try({
-    try: () => {
+    try: (): ElectronGameViewHandle => {
       const view = new WebContentsView(options);
       const webContents = view.webContents;
-      electronRendererRegistry.register(webContents);
-      guardRendererNavigation(webContents, onWindowOpenRequest);
       return {
         native: view,
         // The native view clears its accessor after close; retain the contents for cleanup observers.
@@ -87,7 +89,25 @@ const create: ElectronGameViewShape["create"] = (
       };
     },
     catch: (cause) => new ElectronGameViewCreateError({ cause }),
-  });
+  }).pipe(
+    (acquire) =>
+      Effect.acquireRelease(acquire, (view) =>
+        Effect.sync(() => {
+          if (!view.webContents.isDestroyed()) {
+            view.webContents.close({ waitForBeforeUnload: false });
+          }
+        }),
+      ),
+    Effect.tap((view) =>
+      Effect.try({
+        try: () => {
+          electronRendererRegistry.register(view.webContents);
+          guardRendererNavigation(view.webContents, onWindowOpenRequest);
+        },
+        catch: (cause) => new ElectronGameViewCreateError({ cause }),
+      }),
+    ),
+  );
 
 const loadFile: ElectronGameViewShape["loadFile"] = (view, path, options) =>
   Effect.tryPromise({
@@ -111,15 +131,7 @@ const onFocus: ElectronGameViewShape["onFocus"] = (view, listener) => {
   };
 };
 
-const destroy: ElectronGameViewShape["destroy"] = (view) => {
-  if (view.webContents.isDestroyed()) {
-    return;
-  }
-
-  view.webContents.close({ waitForBeforeUnload: false });
-};
-
 export const layer = Layer.succeed(
   ElectronGameView,
-  ElectronGameView.of({ create, destroy, loadFile, onFocus }),
+  ElectronGameView.of({ create, loadFile, onFocus }),
 );

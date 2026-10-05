@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as Scope from "effect/Scope";
 
 import type { GameViewPresentation } from "../../shared/gameViews";
 import type { ElectronGameViewHandle } from "../electron/ElectronGameView";
@@ -55,7 +56,7 @@ const makeHost = (ids: readonly number[]) => {
     records.set(id, {
       boundsLayout: "focused",
       gameHostRendererId: 1,
-      gamePartition: String(id),
+      scope: Scope.makeUnsafe(),
       gameView: makeView((presentation) => sent.push(presentation)),
       gameViewPhase: "ready",
       generation: 0,
@@ -69,6 +70,7 @@ const makeHost = (ids: readonly number[]) => {
     });
   }
   const host: DesktopGameHostRecord = {
+    scope: Scope.makeUnsafe(),
     closing: false,
     groupControlsNativeDialogOpen: false,
     groupControlsOpen: false,
