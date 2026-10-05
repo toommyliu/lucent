@@ -2,7 +2,7 @@
   .root {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--spacing) * 2);
     width: fit-content;
     color: var(--color-text);
     font-size: var(--font-size-small);

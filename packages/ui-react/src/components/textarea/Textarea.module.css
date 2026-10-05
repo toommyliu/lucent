@@ -1,7 +1,7 @@
 @layer ui.components {
   .root {
-    --textarea-padding-block: calc(var(--control-padding) - 2px);
-    --textarea-chrome: calc(var(--textarea-padding-block) * 2 + 2px);
+    --textarea-padding-block: calc(var(--control-padding) - var(--spacing) * 0.5);
+    --textarea-chrome: calc(var(--textarea-padding-block) * 2 + var(--spacing) * 0.5);
 
     display: block;
     width: 100%;

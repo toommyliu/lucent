@@ -1,11 +1,11 @@
 @layer ui.components {
   .viewport {
-    --toast-inset: 16px;
+    --toast-inset: calc(var(--spacing) * 4);
     --toast-direction: -1;
 
     position: fixed;
     z-index: var(--z-toast);
-    width: min(360px, calc(100vw - var(--toast-inset) * 2));
+    width: min(var(--spacing) * 90, calc(100vw - var(--toast-inset) * 2));
     outline: 0;
 
     &[data-placement^="top"] {
@@ -35,8 +35,8 @@
 
   .root {
     --toast-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    --toast-gap: 12px;
-    --toast-peek: 12px;
+    --toast-gap: calc(var(--spacing) * 3);
+    --toast-peek: calc(var(--spacing) * 3);
     --toast-dim: 1%;
     --toast-scale: max(0, 1 - var(--toast-index) * 0.1);
     --toast-calc-height: var(--toast-frontmost-height, var(--toast-height));
@@ -176,9 +176,9 @@
 
     display: flex;
     align-items: flex-start;
-    gap: 8px;
+    gap: calc(var(--spacing) * 2);
     box-sizing: border-box;
-    padding: 12px;
+    padding: calc(var(--spacing) * 3);
     overflow: hidden;
     transition: opacity 250ms;
 
@@ -203,8 +203,8 @@
     color: var(--color-text-secondary);
 
     & > svg {
-      width: 16px;
-      height: 16px;
+      width: calc(var(--spacing) * 4);
+      height: calc(var(--spacing) * 4);
     }
 
     .root[data-type="success"] & {
@@ -228,7 +228,7 @@
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 2px;
+    gap: calc(var(--spacing) * 0.5);
     min-width: 0;
   }
 
@@ -263,6 +263,6 @@
   }
 
   .close {
-    margin-inline: -4px -6px;
+    margin-inline: calc(var(--spacing) * -1) calc(var(--spacing) * -1.5);
   }
 }

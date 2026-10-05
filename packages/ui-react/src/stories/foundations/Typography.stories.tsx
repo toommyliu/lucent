@@ -32,7 +32,7 @@ function TypeScale() {
       <section className={styles.section}>
         <h2 className={styles.heading}>Type roles</h2>
         <p className={styles.lede}>
-          Every role derives from --font-size-base (13px by default), so a host
+          Every role derives from --font-size-base (14px by default), so a host
           app can scale all text and control heights by setting one variable.
         </p>
         {roles.map((role) => (

@@ -1,15 +1,15 @@
 @layer ui.components {
   .root {
     --control-height: var(--control-height-md);
-    --swatch-size: 18px;
+    --swatch-size: calc(var(--spacing) * 4.5);
 
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--spacing) * 2);
     box-sizing: border-box;
     width: fit-content;
     height: var(--control-height);
-    padding: 0 14px 0 8px;
+    padding: 0 calc(var(--spacing) * 3.5) 0 calc(var(--spacing) * 2);
     border: 1px solid oklch(0 0 0 / 0.28);
     border-radius: 9999px;
     color: oklch(0 0 0);
@@ -33,16 +33,16 @@
 
     &[data-size="sm"] {
       --control-height: var(--control-height-sm);
-      --swatch-size: 16px;
+      --swatch-size: calc(var(--spacing) * 4);
 
-      padding: 0 12px 0 6px;
+      padding: 0 calc(var(--spacing) * 3) 0 calc(var(--spacing) * 1.5);
     }
 
     &[data-size="lg"] {
       --control-height: var(--control-height-lg);
-      --swatch-size: 20px;
+      --swatch-size: calc(var(--spacing) * 5);
 
-      padding: 0 16px 0 10px;
+      padding: 0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2.5);
     }
   }
 
@@ -82,29 +82,29 @@
   }
 
   .popup {
-    padding: 8px;
+    padding: calc(var(--spacing) * 2);
   }
 }
 
 /* react-colorful injects unlayered CSS at runtime, which beats every layered rule. */
 .picker:global(.react-colorful) {
-  width: 176px;
-  height: 184px;
-  gap: 8px;
+  width: calc(var(--spacing) * 44);
+  height: calc(var(--spacing) * 46);
+  gap: calc(var(--spacing) * 2);
 }
 
 .picker :global(.react-colorful__saturation) {
   border-bottom: 0;
-  border-radius: calc(var(--radius-popup) - 4px);
+  border-radius: calc(var(--radius-popup) - var(--spacing) * 2);
 }
 
 .picker :global(.react-colorful__hue) {
-  --thumb-inset: 12px;
+  --thumb-inset: calc(var(--spacing) * 3);
   --travel: calc(100% - 2 * var(--thumb-inset));
 
   flex-shrink: 0;
-  height: 24px;
-  border-radius: calc(var(--radius-popup) - 4px);
+  height: calc(var(--spacing) * 6);
+  border-radius: calc(var(--radius-popup) - var(--spacing) * 2);
   background: linear-gradient(
     90deg,
     #f00 var(--thumb-inset),
@@ -128,16 +128,16 @@
 }
 
 .picker :global(.react-colorful__pointer) {
-  width: 16px;
-  height: 16px;
+  width: calc(var(--spacing) * 4);
+  height: calc(var(--spacing) * 4);
   box-shadow:
     0 0 0 1px oklch(0 0 0 / 0.12),
     0 1px 3px oklch(0 0 0 / 0.24);
 }
 
 .picker :global(.react-colorful__hue-pointer) {
-  width: 24px;
-  height: 24px;
+  width: calc(var(--spacing) * 6);
+  height: calc(var(--spacing) * 6);
 }
 
 .picker

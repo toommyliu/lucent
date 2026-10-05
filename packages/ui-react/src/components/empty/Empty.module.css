@@ -6,7 +6,7 @@
     justify-content: center;
     box-sizing: border-box;
     min-width: 0;
-    padding: 32px 24px;
+    padding: calc(var(--spacing) * 8) calc(var(--spacing) * 6);
     color: var(--color-text);
     font-family: var(--font-sans);
     font-size: var(--font-size-body);
@@ -20,21 +20,21 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    margin-bottom: 20px;
+    margin-bottom: calc(var(--spacing) * 5);
     color: var(--color-text);
 
     & svg {
       flex-shrink: 0;
-      width: 18px;
-      height: 18px;
+      width: calc(var(--spacing) * 4.5);
+      height: calc(var(--spacing) * 4.5);
     }
 
     &[data-variant="plain"] {
       color: var(--color-text-secondary);
 
       & svg {
-        width: 24px;
-        height: 24px;
+        width: calc(var(--spacing) * 6);
+        height: calc(var(--spacing) * 6);
       }
     }
   }
@@ -45,8 +45,8 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    width: 36px;
-    height: 36px;
+    width: calc(var(--spacing) * 9);
+    height: calc(var(--spacing) * 9);
     border-radius: var(--radius-control);
     background-color: var(--color-surface);
   }
@@ -64,13 +64,13 @@
 
     &[data-side="start"] {
       transform-origin: bottom left;
-      translate: -2px 0;
+      translate: calc(var(--spacing) * -0.5) 0;
       rotate: -10deg;
     }
 
     &[data-side="end"] {
       transform-origin: bottom right;
-      translate: 2px 0;
+      translate: calc(var(--spacing) * 0.5) 0;
       rotate: 10deg;
     }
   }
@@ -83,13 +83,13 @@
   }
 
   .description {
-    max-width: 320px;
+    max-width: calc(var(--spacing) * 80);
     margin: 0;
     color: var(--color-text-secondary);
     text-wrap: pretty;
 
     .title + & {
-      margin-top: 4px;
+      margin-top: var(--spacing);
     }
 
     & a {
@@ -103,7 +103,7 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    margin-top: 16px;
+    gap: calc(var(--spacing) * 2);
+    margin-top: calc(var(--spacing) * 4);
   }
 }

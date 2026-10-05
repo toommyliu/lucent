@@ -89,7 +89,7 @@ function ThemingPreview(args: ThemingArgs) {
 const meta = {
   args: {
     accent: "",
-    fontSizeBase: 13,
+    fontSizeBase: 14,
     radiusScale: 1,
     reduceMotion: "system",
   },
@@ -119,7 +119,7 @@ export const BlueAccent: Story = {
 };
 
 export const LargeText: Story = {
-  args: { fontSizeBase: 15 },
+  args: { fontSizeBase: 16 },
 };
 
 export const Square: Story = {

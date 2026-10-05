@@ -6,9 +6,9 @@
 
   .popup {
     box-sizing: border-box;
-    min-width: 160px;
+    min-width: calc(var(--spacing) * 40);
     max-height: var(--available-height);
-    padding: 4px;
+    padding: var(--spacing);
     overflow-y: auto;
     border-radius: var(--radius-popup);
     background-color: var(--color-surface-overlay);
@@ -39,7 +39,7 @@
 
     &::-webkit-scrollbar-track,
     & ::-webkit-scrollbar-track {
-      margin-block: 4px;
+      margin-block: var(--spacing);
     }
   }
 
@@ -47,22 +47,22 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--spacing) * 2);
     box-sizing: border-box;
     min-height: var(--control-height-md);
-    padding: 0 8px;
-    border-radius: calc(var(--radius-popup) - 4px);
+    padding: 0 calc(var(--spacing) * 2);
+    border-radius: calc(var(--radius-popup) - var(--spacing));
     color: var(--color-text);
     cursor: var(--cursor-interactive);
     line-height: 1.3;
     outline: 0;
-    scroll-margin: 4px;
+    scroll-margin: var(--spacing);
     user-select: none;
 
     & > svg {
       flex-shrink: 0;
-      width: 16px;
-      height: 16px;
+      width: calc(var(--spacing) * 4);
+      height: calc(var(--spacing) * 4);
       color: var(--color-text-secondary);
     }
 
@@ -93,33 +93,33 @@
   }
 
   .indicatorItem {
-    padding-inline-start: 28px;
+    padding-inline-start: calc(var(--spacing) * 7);
   }
 
   .indicator {
     position: absolute;
-    inset-inline-start: 8px;
+    inset-inline-start: calc(var(--spacing) * 2);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
 
     & > svg {
-      width: 14px;
-      height: 14px;
+      width: calc(var(--spacing) * 3.5);
+      height: calc(var(--spacing) * 3.5);
     }
   }
 
   .separator {
     height: 1px;
-    margin: 4px -4px;
+    margin: var(--spacing) calc(var(--spacing) * -1);
     border: 0;
     background-color: var(--color-separator);
   }
 
   .groupLabel {
-    padding: 6px 8px 4px;
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2) var(--spacing);
     color: var(--color-text-tertiary);
     font-size: var(--font-size-caption);
     font-weight: 500;
@@ -128,7 +128,7 @@
 
   .shortcut {
     margin-inline-start: auto;
-    padding-inline-start: 16px;
+    padding-inline-start: calc(var(--spacing) * 4);
     color: var(--color-text-tertiary);
     font-size: var(--font-size-small);
     font-variant-numeric: tabular-nums;

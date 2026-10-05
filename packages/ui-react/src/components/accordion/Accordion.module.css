@@ -1,6 +1,6 @@
 @layer ui.components {
   .item {
-    padding-block: 4px;
+    padding-block: var(--spacing);
 
     & + & {
       border-block-start: 1px solid var(--color-separator);
@@ -17,12 +17,12 @@
     display: flex;
     flex: 1 1 auto;
     align-items: center;
-    gap: 8px;
+    gap: calc(var(--spacing) * 2);
     box-sizing: border-box;
     min-width: 0;
     min-height: var(--control-height-lg);
     margin: 0;
-    padding: 6px 8px;
+    padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 2);
     border: 0;
     border-radius: var(--radius-control);
     background-color: transparent;
@@ -40,8 +40,8 @@
 
     & > svg {
       flex-shrink: 0;
-      width: 16px;
-      height: 16px;
+      width: calc(var(--spacing) * 4);
+      height: calc(var(--spacing) * 4);
     }
 
     @media (hover: hover) {
@@ -84,7 +84,7 @@
   }
 
   .content {
-    padding: 2px 8px 8px;
+    padding: calc(var(--spacing) * 0.5) calc(var(--spacing) * 2) calc(var(--spacing) * 2);
     color: var(--color-text-secondary);
     font-size: var(--font-size-body);
     line-height: 1.5;

@@ -1,7 +1,7 @@
 @layer ui.components {
   .popup {
-    max-width: min(320px, var(--available-width));
-    padding: 12px;
+    max-width: min(var(--spacing) * 80, var(--available-width));
+    padding: calc(var(--spacing) * 3);
   }
 
   .title {
@@ -19,7 +19,7 @@
     line-height: 1.45;
 
     .title + & {
-      margin-top: 4px;
+      margin-top: var(--spacing);
     }
   }
 }
