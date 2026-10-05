@@ -1,7 +1,7 @@
 @layer ui.components {
   .control {
     --control-height: var(--control-height-md);
-    --control-padding: 8px;
+    --control-padding: calc(var(--spacing) * 2);
 
     box-sizing: border-box;
     min-width: 0;
@@ -60,14 +60,14 @@
 
     &[data-size="sm"] {
       --control-height: var(--control-height-sm);
-      --control-padding: 6px;
+      --control-padding: calc(var(--spacing) * 2);
 
       font-size: var(--font-size-small);
     }
 
     &[data-size="lg"] {
       --control-height: var(--control-height-lg);
-      --control-padding: 10px;
+      --control-padding: calc(var(--spacing) * 2.5);
     }
   }
 }

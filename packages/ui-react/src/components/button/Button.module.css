@@ -1,8 +1,8 @@
 @layer ui.components {
   .root {
     --button-height: var(--control-height-md);
-    --button-padding: 10px;
-    --button-icon-size: 16px;
+    --button-padding: calc(var(--spacing) * 2.5);
+    --button-icon-size: calc(var(--spacing) * 4);
 
     position: relative;
     display: inline-flex;
@@ -39,25 +39,25 @@
     }
 
     &:has(> .label > svg:first-child) {
-      padding-inline-start: calc(var(--button-padding) - 2px);
+      padding-inline-start: calc(var(--button-padding) - var(--spacing) * 0.5);
     }
 
     &:has(> .label > svg:last-child) {
-      padding-inline-end: calc(var(--button-padding) - 2px);
+      padding-inline-end: calc(var(--button-padding) - var(--spacing) * 0.5);
     }
   }
 
   .root[data-size="sm"] {
     --button-height: var(--control-height-sm);
-    --button-padding: 8px;
-    --button-icon-size: 14px;
+    --button-padding: calc(var(--spacing) * 2);
+    --button-icon-size: calc(var(--spacing) * 3.5);
 
     font-size: var(--font-size-small);
   }
 
   .root[data-size="lg"] {
     --button-height: var(--control-height-lg);
-    --button-padding: 12px;
+    --button-padding: calc(var(--spacing) * 3);
   }
 
   .root[data-square] {
@@ -157,7 +157,7 @@
   .label {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: calc(var(--spacing) * 1.5);
     min-width: 0;
 
     & > svg {
@@ -166,7 +166,7 @@
     }
 
     .root[data-size="sm"] & {
-      gap: 4px;
+      gap: var(--spacing);
     }
 
     .root[data-loading] & {

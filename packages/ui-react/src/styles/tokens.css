@@ -6,25 +6,28 @@
       Roboto, sans-serif;
     --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas,
       "Liberation Mono", monospace;
-    --font-size-base: 13px;
+    --font-size-base: 14px;
     --font-size-mono: 12px;
     --radius-scale: 1;
     --cursor-interactive: default;
+    --scrollbar-size: 10px;
 
     --font-size-caption: round(calc(var(--font-size-base) * 11 / 13), 1px);
     --font-size-small: round(calc(var(--font-size-base) * 12 / 13), 1px);
     --font-size-body: var(--font-size-base);
     --font-size-title: round(calc(var(--font-size-base) * 15 / 13), 1px);
 
+    --spacing: calc(var(--font-size-base) * 4 / 14);
+
     --control-height-sm: round(calc(var(--font-size-base) * 24 / 13), 1px);
     --control-height-md: round(calc(var(--font-size-base) * 28 / 13), 1px);
     --control-height-lg: round(calc(var(--font-size-base) * 32 / 13), 1px);
 
-    --radius-tag: calc(5px * var(--radius-scale));
-    --radius-control: calc(8px * var(--radius-scale));
-    --radius-card: calc(14px * var(--radius-scale));
-    --radius-popup: calc(12px * var(--radius-scale));
-    --radius-dialog: calc(18px * var(--radius-scale));
+    --radius-tag: calc(var(--spacing) * 1.25 * var(--radius-scale));
+    --radius-control: calc(var(--spacing) * 2 * var(--radius-scale));
+    --radius-card: calc(var(--spacing) * 3.5 * var(--radius-scale));
+    --radius-popup: calc(var(--spacing) * 3 * var(--radius-scale));
+    --radius-dialog: calc(var(--spacing) * 4.5 * var(--radius-scale));
 
     --ease-out: cubic-bezier(0.2, 0, 0, 1);
     --duration-state: 100ms;
@@ -67,15 +70,18 @@
   [data-theme="light"] {
     color-scheme: light;
 
-    --gray-1: oklch(0.993 0.0015 286);
-    --gray-2: oklch(0.979 0.003 286);
-    --gray-6: oklch(0.895 0.006 286);
-    --gray-7: oklch(0.862 0.0065 286);
-    --gray-8: oklch(0.8 0.007 286);
-    --gray-9: oklch(0.62 0.007 286);
-    --gray-10: oklch(0.55 0.0065 286);
-    --gray-11: oklch(0.47 0.006 286);
-    --gray-12: oklch(0.215 0.005 286);
+    --color-bg: oklch(0.979 0.003 286);
+    --color-text: oklch(0.215 0.005 286);
+
+    --gray-1: color-mix(in oklab, var(--color-bg), white 67%);
+    --gray-2: var(--color-bg);
+    --gray-6: color-mix(in oklab, var(--color-bg), var(--color-text) 11%);
+    --gray-7: color-mix(in oklab, var(--color-bg), var(--color-text) 15%);
+    --gray-8: color-mix(in oklab, var(--color-bg), var(--color-text) 23%);
+    --gray-9: color-mix(in oklab, var(--color-bg), var(--color-text) 47%);
+    --gray-10: color-mix(in oklab, var(--color-bg), var(--color-text) 56%);
+    --gray-11: color-mix(in oklab, var(--color-bg), var(--color-text) 67%);
+    --gray-12: var(--color-text);
 
     --red-3: oklch(0.968 0.014 25);
     --red-6: oklch(0.89 0.055 25);
@@ -92,12 +98,10 @@
     --blue-6: oklch(0.89 0.052 252);
     --blue-11: oklch(0.5 0.142 252);
 
-    --color-bg: var(--gray-2);
     --color-surface: var(--gray-1);
     --color-surface-overlay: var(--gray-1);
     --color-surface-selected: var(--gray-1);
     --color-field: var(--gray-1);
-    --color-text: var(--gray-12);
     --color-text-secondary: var(--gray-11);
     --color-text-tertiary: var(--gray-10);
     --color-separator: var(--gray-6);
@@ -105,11 +109,11 @@
     --color-border-hover: var(--gray-8);
     --color-border-strong: var(--gray-9);
     --color-focus-ring: var(--gray-10);
-    --color-accent: var(--gray-12);
+    --color-accent: var(--color-text);
     --color-on-accent: var(--gray-1);
     --color-tooltip-bg: var(--gray-12);
     --color-tooltip-text: var(--gray-1);
-    --color-backdrop: oklch(0.215 0.005 286 / 0.24);
+    --color-backdrop: color-mix(in oklab, var(--color-text) 24%, transparent);
 
     --color-danger-solid: var(--red-9);
     --color-danger-solid-hover: var(--red-10);
@@ -151,17 +155,20 @@
   [data-theme="dark"] {
     color-scheme: dark;
 
-    --gray-1: oklch(0.165 0.003 286);
-    --gray-2: oklch(0.19 0.0035 286);
-    --gray-3: oklch(0.215 0.004 286);
-    --gray-4: oklch(0.245 0.0045 286);
-    --gray-6: oklch(0.3 0.005 286);
-    --gray-7: oklch(0.345 0.0055 286);
-    --gray-8: oklch(0.42 0.006 286);
-    --gray-9: oklch(0.55 0.006 286);
-    --gray-10: oklch(0.62 0.006 286);
-    --gray-11: oklch(0.77 0.005 286);
-    --gray-12: oklch(0.965 0.003 286);
+    --color-bg: oklch(0.165 0.003 286);
+    --color-text: oklch(0.965 0.003 286);
+
+    --gray-1: var(--color-bg);
+    --gray-2: color-mix(in oklab, var(--color-bg), var(--color-text) 3%);
+    --gray-3: color-mix(in oklab, var(--color-bg), var(--color-text) 6%);
+    --gray-4: color-mix(in oklab, var(--color-bg), var(--color-text) 10%);
+    --gray-6: color-mix(in oklab, var(--color-bg), var(--color-text) 17%);
+    --gray-7: color-mix(in oklab, var(--color-bg), var(--color-text) 22%);
+    --gray-8: color-mix(in oklab, var(--color-bg), var(--color-text) 32%);
+    --gray-9: color-mix(in oklab, var(--color-bg), var(--color-text) 48%);
+    --gray-10: color-mix(in oklab, var(--color-bg), var(--color-text) 57%);
+    --gray-11: color-mix(in oklab, var(--color-bg), var(--color-text) 76%);
+    --gray-12: var(--color-text);
 
     --red-3: oklch(0.235 0.04 25);
     --red-6: oklch(0.36 0.075 25);
@@ -178,12 +185,10 @@
     --blue-6: oklch(0.36 0.071 252);
     --blue-11: oklch(0.76 0.114 252);
 
-    --color-bg: var(--gray-1);
     --color-surface: var(--gray-2);
     --color-surface-overlay: var(--gray-3);
     --color-surface-selected: var(--gray-6);
     --color-field: color-mix(in oklab, var(--color-text) 3%, transparent);
-    --color-text: var(--gray-12);
     --color-text-secondary: var(--gray-11);
     --color-text-tertiary: var(--gray-10);
     --color-separator: var(--gray-6);
@@ -191,7 +196,7 @@
     --color-border-hover: var(--gray-8);
     --color-border-strong: var(--gray-9);
     --color-focus-ring: var(--gray-10);
-    --color-accent: var(--gray-12);
+    --color-accent: var(--color-text);
     --color-on-accent: var(--gray-1);
     --color-tooltip-bg: var(--gray-4);
     --color-tooltip-text: var(--gray-12);

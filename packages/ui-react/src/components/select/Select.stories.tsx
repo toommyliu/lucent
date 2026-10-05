@@ -157,7 +157,7 @@ export const AlignedToSelection: Story = {
       <SelectTrigger {...args} aria-label="Fruit">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent alignItemWithTrigger>
         {fruits.map((fruit) => (
           <SelectItem key={fruit.value} value={fruit.value}>
             {fruit.label}
@@ -175,7 +175,7 @@ export const PositionedBelow: Story = {
       <SelectTrigger {...args} aria-label="Fruit">
         <SelectValue />
       </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
+      <SelectContent>
         {fruits.map((fruit) => (
           <SelectItem key={fruit.value} value={fruit.value}>
             {fruit.label}

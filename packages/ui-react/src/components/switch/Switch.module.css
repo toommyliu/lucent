@@ -1,9 +1,9 @@
 @layer ui.components {
   .root {
-    --switch-width: 28px;
-    --switch-height: 16px;
-    --switch-thumb-size: 12px;
-    --switch-travel: calc(var(--switch-width) - var(--switch-thumb-size) - 4px);
+    --switch-width: calc(var(--spacing) * 7);
+    --switch-height: calc(var(--spacing) * 4);
+    --switch-thumb-size: calc(var(--spacing) * 3);
+    --switch-travel: calc(var(--switch-width) - var(--switch-thumb-size) - var(--spacing));
 
     position: relative;
     display: inline-flex;
@@ -13,7 +13,7 @@
     width: var(--switch-width);
     height: var(--switch-height);
     margin: 0;
-    padding: 2px;
+    padding: calc(var(--spacing) * 0.5);
     border: 0;
     border-radius: 9999px;
     background-color: var(--color-border-strong);
@@ -46,9 +46,9 @@
   }
 
   .root[data-size="sm"] {
-    --switch-width: 24px;
-    --switch-height: 14px;
-    --switch-thumb-size: 10px;
+    --switch-width: calc(var(--spacing) * 6);
+    --switch-height: calc(var(--spacing) * 3.5);
+    --switch-thumb-size: calc(var(--spacing) * 2.5);
   }
 
   .thumb {

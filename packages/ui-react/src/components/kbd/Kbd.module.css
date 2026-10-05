@@ -4,11 +4,11 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: calc(var(--spacing) * 0.5);
     box-sizing: border-box;
-    height: 18px;
-    min-width: 18px;
-    padding: 0 4px;
+    height: calc(var(--spacing) * 4.5);
+    min-width: calc(var(--spacing) * 4.5);
+    padding: 0 var(--spacing);
     border-radius: var(--radius-tag);
     background-color: var(--color-surface);
     box-shadow: var(--shadow-raised);
@@ -23,15 +23,15 @@
     user-select: none;
 
     & > svg {
-      width: 11px;
-      height: 11px;
+      width: calc(var(--spacing) * 2.75);
+      height: calc(var(--spacing) * 2.75);
     }
   }
 
   .group {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: calc(var(--spacing) * 0.75);
     font-family: var(--font-sans);
     font-size: var(--font-size-caption);
     color: var(--color-text-tertiary);

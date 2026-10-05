@@ -3,14 +3,14 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 8px 12px;
+    gap: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
     min-width: 0;
 
     &[data-orientation="vertical"] {
       display: inline-flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
+      gap: calc(var(--spacing) * 2);
       height: 100%;
     }
   }
@@ -39,15 +39,15 @@
 
     &[data-orientation="horizontal"] {
       width: 100%;
-      height: 16px;
+      height: calc(var(--spacing) * 4);
     }
 
     &[data-orientation="vertical"] {
       flex: 1;
       flex-direction: column;
       justify-content: center;
-      width: 16px;
-      min-height: 120px;
+      width: calc(var(--spacing) * 4);
+      min-height: calc(var(--spacing) * 30);
     }
 
     &[data-disabled] {
@@ -63,11 +63,11 @@
 
     &[data-orientation="horizontal"] {
       width: 100%;
-      height: 4px;
+      height: var(--spacing);
     }
 
     &[data-orientation="vertical"] {
-      width: 4px;
+      width: var(--spacing);
       height: 100%;
     }
   }
@@ -79,8 +79,8 @@
 
   .thumb {
     box-sizing: border-box;
-    width: 16px;
-    height: 16px;
+    width: calc(var(--spacing) * 4);
+    height: calc(var(--spacing) * 4);
     border-radius: 50%;
     background-color: var(--color-surface);
     box-shadow: var(--shadow-raised);

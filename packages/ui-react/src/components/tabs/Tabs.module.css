@@ -2,7 +2,7 @@
   .root {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: calc(var(--spacing) * 3);
     min-width: 0;
     color: var(--color-text);
     font-family: var(--font-sans);
@@ -10,7 +10,7 @@
 
     &[data-orientation="vertical"] {
       flex-direction: row;
-      gap: 20px;
+      gap: calc(var(--spacing) * 5);
     }
   }
 
@@ -29,19 +29,19 @@
 
   .list[data-variant="segmented"] {
     align-self: flex-start;
-    padding: 2px;
+    padding: calc(var(--spacing) * 0.5);
     border-radius: var(--radius-control);
     background-color: var(--color-fill);
   }
 
   .list[data-variant="underline"] {
-    gap: 4px;
-    padding-block-end: 4px;
+    gap: var(--spacing);
+    padding-block-end: var(--spacing);
     border-block-end: 1px solid var(--color-separator);
 
     &[data-orientation="vertical"] {
       padding-block-end: 0;
-      padding-inline-end: 4px;
+      padding-inline-end: var(--spacing);
       border-block-end: 0;
       border-inline-end: 1px solid var(--color-separator);
     }
@@ -52,13 +52,13 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: calc(var(--spacing) * 1.5);
     box-sizing: border-box;
     height: var(--control-height-sm);
     margin: 0;
-    padding: 0 10px;
+    padding: 0 calc(var(--spacing) * 2.5);
     border: 0;
-    border-radius: calc(var(--radius-control) - 2px);
+    border-radius: calc(var(--radius-control) - var(--spacing) * 0.5);
     background-color: transparent;
     color: var(--color-text-secondary);
     cursor: var(--cursor-interactive);
@@ -74,8 +74,8 @@
 
     & > svg {
       flex-shrink: 0;
-      width: 16px;
-      height: 16px;
+      width: calc(var(--spacing) * 4);
+      height: calc(var(--spacing) * 4);
     }
 
     @media (hover: hover) {
@@ -105,7 +105,7 @@
 
   .list[data-variant="underline"] > .tab {
     height: var(--control-height-md);
-    padding: 0 8px;
+    padding: 0 calc(var(--spacing) * 2);
     border-radius: var(--radius-control);
 
     @media (hover: hover) {
@@ -129,7 +129,7 @@
   }
 
   .list[data-variant="segmented"] > .indicator {
-    border-radius: calc(var(--radius-control) - 2px);
+    border-radius: calc(var(--radius-control) - var(--spacing) * 0.5);
     background-color: var(--color-surface-selected);
     box-shadow: var(--shadow-raised);
   }
@@ -146,7 +146,7 @@
       top: 0;
       bottom: auto;
       inset-inline: auto -1px;
-      width: 2px;
+      width: calc(var(--spacing) * 0.5);
       height: var(--active-tab-height);
       translate: 0 var(--active-tab-top);
     }

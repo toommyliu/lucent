@@ -79,7 +79,7 @@ export interface SelectContentProps
 
 export function SelectContent({
   align = "start",
-  alignItemWithTrigger = true,
+  alignItemWithTrigger = false,
   alignOffset = 0,
   children,
   className,

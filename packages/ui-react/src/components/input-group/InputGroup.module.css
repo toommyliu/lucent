@@ -51,18 +51,18 @@
 
   .addon {
     --addon-edge: var(--control-padding);
-    --addon-icon-size: 16px;
+    --addon-icon-size: calc(var(--spacing) * 4);
 
     display: flex;
     flex-shrink: 0;
     align-items: center;
-    gap: 6px;
+    gap: calc(var(--spacing) * 1.5);
     color: var(--color-text-secondary);
     white-space: nowrap;
     user-select: none;
 
     &:has(> button) {
-      --addon-edge: 2px;
+      --addon-edge: calc(var(--spacing) * 0.5);
     }
 
     &:first-child {
@@ -84,7 +84,7 @@
     }
 
     .root[data-size="sm"] > & {
-      --addon-icon-size: 14px;
+      --addon-icon-size: calc(var(--spacing) * 3.5);
     }
   }
 }

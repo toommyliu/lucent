@@ -2,7 +2,7 @@
   .root {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: calc(var(--spacing) * 1.5);
     min-width: 0;
   }
 

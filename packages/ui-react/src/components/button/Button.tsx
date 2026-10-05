@@ -1,4 +1,5 @@
 import { Button as BaseButton } from "@base-ui/react/button";
+import { Children } from "react";
 import { cn, type WithClassName } from "../../lib/cn";
 import { Spinner } from "../spinner/Spinner";
 import styles from "./Button.module.css";
@@ -43,7 +44,15 @@ export function Button({
       disabled={disabled || loading}
       focusableWhenDisabled={focusableWhenDisabled || loading}
     >
-      <span className={styles.label}>{children}</span>
+      <span className={styles.label}>
+        {Children.map(children, (child) =>
+          typeof child === "string" || typeof child === "number" ? (
+            <span>{child}</span>
+          ) : (
+            child
+          ),
+        )}
+      </span>
       {loading ? (
         <span className={styles.spinner}>
           <Spinner size={size === "sm" ? 14 : 16} />

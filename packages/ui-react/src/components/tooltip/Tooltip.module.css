@@ -5,8 +5,8 @@
 
   .popup {
     box-sizing: border-box;
-    max-width: 260px;
-    padding: 4px 8px;
+    max-width: calc(var(--spacing) * 65);
+    padding: var(--spacing) calc(var(--spacing) * 2);
     border-radius: var(--radius-control);
     background-color: var(--color-tooltip-bg);
     box-shadow: var(--shadow-overlay);

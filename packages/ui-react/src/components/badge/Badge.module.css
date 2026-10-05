@@ -1,14 +1,14 @@
 @layer ui.components {
   .root {
-    --badge-height: 20px;
-    --badge-padding: 6px;
-    --badge-icon-size: 12px;
+    --badge-height: calc(var(--spacing) * 5);
+    --badge-padding: calc(var(--spacing) * 1.5);
+    --badge-icon-size: calc(var(--spacing) * 3);
 
     display: inline-flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: var(--spacing);
     box-sizing: border-box;
     height: var(--badge-height);
     min-width: var(--badge-height);
@@ -43,11 +43,11 @@
   }
 
   .root[data-size="sm"] {
-    --badge-height: 18px;
-    --badge-padding: 5px;
-    --badge-icon-size: 11px;
+    --badge-height: calc(var(--spacing) * 4.5);
+    --badge-padding: calc(var(--spacing) * 1.25);
+    --badge-icon-size: calc(var(--spacing) * 2.75);
 
-    gap: 3px;
+    gap: calc(var(--spacing) * 0.75);
     font-size: var(--font-size-caption);
   }
 
@@ -106,8 +106,8 @@
 
   .dot {
     flex-shrink: 0;
-    width: 6px;
-    height: 6px;
+    width: calc(var(--spacing) * 1.5);
+    height: calc(var(--spacing) * 1.5);
     border-radius: 50%;
     background-color: currentColor;
 
