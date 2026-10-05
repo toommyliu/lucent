@@ -1,6 +1,8 @@
 import {
   BrowserWindow,
   BaseWindow,
+  WebContentsView,
+  type WebContentsViewConstructorOptions,
   type BaseWindowConstructorOptions,
   type LoadFileOptions,
   type BrowserWindowConstructorOptions,
@@ -21,6 +23,14 @@ import { isElectronWindowUsable } from "./windowUsability";
 import { electronRendererRegistry } from "./ElectronRendererRegistry";
 import { resolvePlacementWorkArea } from "./windowPlacement";
 
+export interface ElectronGameViewHandle {
+  readonly native: WebContentsView;
+  readonly webContents: WebContents;
+  readonly getBounds: WebContentsView["getBounds"];
+  readonly setBounds: WebContentsView["setBounds"];
+  readonly setBackgroundColor: WebContentsView["setBackgroundColor"];
+}
+
 export interface ElectronWindowWebContents {
   readonly focus: WebContents["focus"];
   readonly id: number;
@@ -30,6 +40,7 @@ export interface ElectronWindowWebContents {
   readonly removeListener: WebContents["removeListener"];
   readonly openDevTools: WebContents["openDevTools"];
   readonly send: WebContents["send"];
+  readonly loadFile: WebContents["loadFile"];
 }
 
 export interface ElectronNativeWindowHandle {
@@ -56,7 +67,6 @@ export interface ElectronNativeWindowHandle {
 
 export interface ElectronWindowHandle extends ElectronNativeWindowHandle {
   readonly webContents: ElectronWindowWebContents;
-  readonly loadFile: BrowserWindow["loadFile"];
   readonly on: BrowserWindow["on"];
   readonly once: BrowserWindow["once"];
 }
@@ -112,8 +122,16 @@ export interface ElectronWindowShape {
     ElectronWindowCreateError,
     Scope.Scope
   >;
+  readonly createView: (
+    options: WebContentsViewConstructorOptions,
+    onWindowOpenRequest?: ElectronWindowOpenRequestHandler,
+  ) => Effect.Effect<
+    ElectronGameViewHandle,
+    ElectronWindowCreateError,
+    Scope.Scope
+  >;
   readonly loadFile: (
-    window: ElectronWindowHandle,
+    webContents: Pick<WebContents, "loadFile">,
     path: string,
     options?: LoadFileOptions,
   ) => Effect.Effect<void, ElectronWindowLoadError>;
@@ -194,9 +212,51 @@ const createHost: ElectronWindowShape["createHost"] = (options) =>
       }),
   );
 
-const loadFile: ElectronWindowShape["loadFile"] = (window, path, options) =>
+const createView: ElectronWindowShape["createView"] = (
+  options,
+  onWindowOpenRequest,
+) =>
+  Effect.try({
+    try: (): ElectronGameViewHandle => {
+      const view = new WebContentsView(options);
+      const webContents = view.webContents;
+      return {
+        native: view,
+        // The native view clears its accessor after close; retain the contents for cleanup observers.
+        webContents,
+        getBounds: () => view.getBounds(),
+        setBounds: (bounds) => view.setBounds(bounds),
+        setBackgroundColor: (color) => view.setBackgroundColor(color),
+      };
+    },
+    catch: (cause) => new ElectronWindowCreateError({ cause }),
+  }).pipe(
+    (acquire) =>
+      Effect.acquireRelease(acquire, (view) =>
+        Effect.sync(() => {
+          if (!view.webContents.isDestroyed()) {
+            view.webContents.close({ waitForBeforeUnload: false });
+          }
+        }),
+      ),
+    Effect.tap((view) =>
+      Effect.try({
+        try: () => {
+          electronRendererRegistry.register(view.webContents);
+          guardRendererNavigation(view.webContents, onWindowOpenRequest);
+        },
+        catch: (cause) => new ElectronWindowCreateError({ cause }),
+      }),
+    ),
+  );
+
+const loadFile: ElectronWindowShape["loadFile"] = (
+  webContents,
+  path,
+  options,
+) =>
   Effect.tryPromise({
-    try: () => window.loadFile(path, options),
+    try: () => webContents.loadFile(path, options),
     catch: (cause) => new ElectronWindowLoadError({ cause, path }),
   });
 
@@ -222,6 +282,7 @@ export const layer = Layer.succeed(
   ElectronWindow.of({
     create,
     createHost,
+    createView,
     loadFile,
     reveal,
   }),

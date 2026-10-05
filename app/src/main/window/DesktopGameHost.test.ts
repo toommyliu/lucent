@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Scope from "effect/Scope";
 
 import type { GameViewPresentation } from "../../shared/gameViews";
-import type { ElectronGameViewHandle } from "../electron/ElectronGameView";
+import type { ElectronGameViewHandle } from "../electron/ElectronWindow";
 import type { ElectronNativeWindowHandle } from "../electron/ElectronWindow";
 import {
   makeDesktopGameHosts,
@@ -71,18 +71,17 @@ const makeHost = (ids: readonly number[]) => {
     groupControlsNativeDialogOpen: false,
     groupControlsOpen: false,
     groupControlsView: makeView(),
-    groupTargetIds: new Set(),
+    groupTargets: new Set(),
     hostView: makeView(),
     layout: "focused",
-    orderedIds: [...ids],
+    tabs: [...records.values()],
     rendererId: 1,
-    selectedId: ids[0] ?? Number.NaN,
+    selected: records.get(ids[0]!)!,
     shortcutModifierPressed: false,
     tabMenuOpen: false,
     window,
   };
   const hosts = makeDesktopGameHosts({
-    getGameViewRecord: (id) => records.get(id),
     onStateChanged: () => {},
     platform: "darwin",
   });
@@ -94,17 +93,17 @@ const makeHost = (ids: readonly number[]) => {
   const tiled = (id: number) => presentations.get(id)!.at(-1)?.tiled;
   const show = (
     layout: DesktopGameHostRecord["layout"],
-    selectedId = host.selectedId,
+    selectedId = host.selected.rendererId,
   ) => {
     host.layout = layout;
-    host.selectedId = selectedId;
+    host.selected = records.get(selectedId)!;
     hosts.refresh(host);
   };
   const resizeWindow = (width: number, height: number) => {
     content = { ...content, height, width };
     hosts.finishResize(host);
   };
-  const activate = (id: number) => hosts.activate(host, id);
+  const activate = (id: number) => hosts.activate(host, records.get(id)!);
   return { activate, host, hosts, resizeWindow, show, size, tiled };
 };
 
@@ -173,7 +172,7 @@ describe("game view layout", () => {
 describe("game view tab ids", () => {
   it("encodes renderer ids and rejects malformed tokens without selecting another tab", () => {
     const { host, hosts } = makeHost([2, 3]);
-    host.groupTargetIds.add(3);
+    host.groupTargets.add(host.tabs[1]!);
     expect(hosts.state(host)).toEqual({
       capacity: 7,
       groupControlsOpen: false,
