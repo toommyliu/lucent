@@ -5,7 +5,7 @@ import {
   type BrowserWindowConstructorOptions,
   type Event as ElectronEvent,
   type RenderProcessGoneDetails,
-  type WebContents,
+  type WebContentsDidStartNavigationEventParams,
 } from "electron";
 
 import * as Context from "effect/Context";
@@ -72,10 +72,6 @@ import {
 } from "./DesktopGameHost";
 import { parseAllowedGameWindowOpenUrl } from "./GameWindowOpenPolicy";
 import { formatGameWindowTitle } from "./GameWindowTitle";
-import {
-  INITIAL_WINDOW_GENERATION,
-  observeWindowReloads,
-} from "./WindowGeneration";
 
 export class DesktopWindowError extends Schema.TaggedError<DesktopWindowError>()(
   "DesktopWindowError",
@@ -453,20 +449,6 @@ const isGameViewRecord = (
   record: DesktopRendererRecord,
 ): record is DesktopGameViewRecord => record.gameView !== undefined;
 
-const markRendererUnavailable = (record: DesktopRendererRecord): void => {
-  record.rendererReady = false;
-  record.unavailableGeneration = record.generation;
-};
-
-const beginRendererGeneration = (
-  record: DesktopRendererRecord,
-  generation: number,
-): void => {
-  record.generation = generation;
-  record.rendererReady = false;
-  delete record.unavailableGeneration;
-};
-
 /** Returns the native window containing a desktop renderer. */
 const nativeWindowForRenderer = (
   record: DesktopRendererRecord,
@@ -529,6 +511,36 @@ const makeDesktopWindows = Effect.gen(function* () {
   const settings = yield* DesktopSettings;
   const theme = yield* ElectronTheme;
   const run = yield* FiberSet.makeRuntime<never, void>();
+  const listen = <Args extends unknown[]>(
+    target: Pick<NodeJS.EventEmitter, "on" | "removeListener"> &
+      Pick<ElectronNativeWindowHandle, "id" | "isDestroyed">,
+    event: string,
+    handler: (...args: Args) => void,
+  ): Effect.Effect<void, never, Scope.Scope> =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const listener = (...args: Args): void => {
+          try {
+            handler(...args);
+          } catch (cause) {
+            run(
+              Effect.logWarning("Electron event handler failed").pipe(
+                Effect.annotateLogs({
+                  component: "window",
+                  data: { cause, event, targetId: target.id },
+                }),
+              ),
+            );
+          }
+        };
+        target.on(event, listener);
+        return listener;
+      }),
+      (listener) =>
+        Effect.sync(() => {
+          if (!target.isDestroyed()) target.removeListener(event, listener);
+        }),
+    ).pipe(Effect.asVoid);
   const closeScope = (
     scope: Scope.Closeable,
     exit: Exit.Exit<unknown, unknown>,
@@ -607,20 +619,6 @@ const makeDesktopWindows = Effect.gen(function* () {
         ? record
         : undefined;
     },
-    onShortcutError: ({ cause, hostRendererId, id }) => {
-      run(
-        Effect.logWarning("Failed to use game view shortcut").pipe(
-          Effect.annotateLogs({
-            component: "window",
-            data: {
-              cause,
-              hostRendererId,
-              id,
-            },
-          }),
-        ),
-      );
-    },
     onStateChanged: refreshGameHostWindowTitle,
     platform: env.platform,
   });
@@ -658,33 +656,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     });
   const rendererReadyEvents =
     makeListenerRegistry<DesktopWindowRendererReadyEvent>();
-
-  const observeRendererAvailability = (
-    contents: Pick<WebContents, "off" | "on">,
-    event: Omit<DesktopWindowRendererUnavailableEvent, "failure">,
-    onUnavailable: (failure: DesktopWindowRendererUnavailableFailure) => void,
-  ): (() => void) => {
-    const publish = (
-      failure: DesktopWindowRendererUnavailableFailure,
-    ): void => {
-      onUnavailable(failure);
-      const unavailableEvent = { ...event, failure };
-      run(rendererUnavailableEvents.publish(unavailableEvent));
-    };
-    const handleRenderProcessGone = (
-      _event: ElectronEvent,
-      details: RenderProcessGoneDetails,
-    ): void =>
-      publish({
-        reason: details.reason,
-        type: "render-process-gone",
-      });
-
-    contents.on("render-process-gone", handleRenderProcessGone);
-    return () => {
-      contents.off("render-process-gone", handleRenderProcessGone);
-    };
-  };
 
   const forgetUnusableWindowRecord = (
     id: number,
@@ -1091,9 +1062,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     const removedIndex = host.orderedIds.indexOf(id);
 
     renderers.delete(id);
-    record.stopObservingFocus();
-    record.stopObservingReloads();
-    record.stopObservingShortcutInput();
     if (host.scope.state._tag === "Closed") return;
 
     if (isElectronWindowUsable(host.window)) {
@@ -1227,6 +1195,98 @@ const makeDesktopWindows = Effect.gen(function* () {
     }
   };
 
+  const track = Effect.fn("DesktopWindows.track")(
+    function* (
+      ...[record, host]:
+        | [record: DesktopBrowserWindowRecord]
+        | [record: DesktopGameViewRecord, host: DesktopGameHostRecord]
+    ) {
+      const contents = isGameViewRecord(record)
+        ? record.gameView.webContents
+        : record.window.webContents;
+      const { rendererId, kind } = record;
+      let initialNavigationStarted = false;
+      contents.once("destroyed", () => {
+        record.rendererReady = false;
+        record.unavailableGeneration = record.generation;
+        run(rendererDestroyedEvents.publish({ rendererId, kind }));
+      });
+      yield* listen(
+        contents,
+        "render-process-gone",
+        (_event: ElectronEvent, details: RenderProcessGoneDetails) => {
+          record.rendererReady = false;
+          record.unavailableGeneration = record.generation;
+          if (host !== undefined) {
+            updateGameViewPhase(
+              rendererId,
+              "error",
+              "The game stopped unexpectedly.",
+            );
+          }
+          run(
+            rendererUnavailableEvents.publish({
+              rendererId,
+              kind,
+              failure: { reason: details.reason, type: "render-process-gone" },
+            }),
+          );
+        },
+      );
+      yield* listen(
+        contents,
+        "did-start-navigation",
+        ({
+          isMainFrame,
+          isSameDocument,
+        }: WebContentsDidStartNavigationEventParams) => {
+          if (!isMainFrame || isSameDocument) return;
+          if (!initialNavigationStarted) {
+            initialNavigationStarted = true;
+            return;
+          }
+          record.generation += 1;
+          record.rendererReady = false;
+          delete record.unavailableGeneration;
+          if (host !== undefined) updateGameViewPhase(rendererId, "loading");
+          run(
+            rendererReloadedEvents.publish({
+              rendererId,
+              kind,
+              generation: record.generation,
+            }),
+          );
+        },
+      );
+      if (host === undefined) return;
+      yield* listen(contents, "did-start-loading", () => {
+        record.rendererReady = false;
+        updateGameViewPhase(rendererId, "loading");
+      });
+      yield* listen(contents, "focus", () => {
+        gameHosts.activate(host, rendererId);
+        if (host.groupControlsOpen && !host.groupControlsNativeDialogOpen) {
+          gameHosts.setGroupControlsOpen(host, false);
+        }
+      });
+      yield* listen(
+        contents,
+        "did-fail-load",
+        (
+          _event: ElectronEvent,
+          _code: number,
+          description: string,
+          _url: string,
+          isMainFrame: boolean,
+        ) => {
+          if (isMainFrame === false) return;
+          updateGameViewPhase(rendererId, "error", description);
+        },
+      );
+    },
+    (effect, ...[record]) => effect.pipe(Scope.provide(record.scope)),
+  );
+
   const createGameViewInHost = Effect.fn("DesktopWindows.createGameViewInHost")(
     function* (
       scope: Scope.Closeable,
@@ -1288,12 +1348,9 @@ const makeDesktopWindows = Effect.gen(function* () {
         gameView: view,
         ...(gameViewName === undefined ? {} : { gameViewName }),
         gameViewPhase: "preparing",
-        generation: INITIAL_WINDOW_GENERATION,
+        generation: 1,
         kind: "game",
         rendererReady: false,
-        stopObservingFocus: () => {},
-        stopObservingReloads: () => {},
-        stopObservingShortcutInput: () => {},
         hostWindow: host.window,
       };
       // New tabs follow an existing select-all state, but stay excluded from a
@@ -1315,82 +1372,15 @@ const makeDesktopWindows = Effect.gen(function* () {
 
       const createdEvent: DesktopWindowCreatedEvent = {
         rendererId,
-        generation: INITIAL_WINDOW_GENERATION,
+        generation: 1,
         kind: "game",
       };
-      const rendererDestroyedEvent: DesktopWindowRendererDestroyedEvent = {
-        rendererId,
-        kind: "game",
-      };
-      const stopObservingAvailability = observeRendererAvailability(
+      yield* track(record, host);
+      yield* listen(
         view.webContents,
-        rendererDestroyedEvent,
-        () => {
-          markRendererUnavailable(record);
-          updateGameViewPhase(
-            rendererId,
-            "error",
-            "The game stopped unexpectedly.",
-          );
-        },
+        "before-input-event",
+        gameHosts.makeShortcutInputListener(host),
       );
-      record.stopObservingReloads = observeWindowReloads(
-        view.webContents,
-        (generation) => {
-          beginRendererGeneration(record, generation);
-          updateGameViewPhase(rendererId, "loading");
-          const reloadedEvent: DesktopWindowRendererReloadedEvent = {
-            rendererId,
-            generation,
-            kind: "game",
-          };
-          run(rendererReloadedEvents.publish(reloadedEvent));
-        },
-      );
-      const shortcutInputListener = gameHosts.makeShortcutInputListener(host);
-      view.webContents.on("before-input-event", shortcutInputListener);
-      let observingShortcutInput = true;
-      record.stopObservingShortcutInput = () => {
-        if (!observingShortcutInput) {
-          return;
-        }
-        observingShortcutInput = false;
-        if (view.webContents.isDestroyed()) {
-          return;
-        }
-        view.webContents.removeListener(
-          "before-input-event",
-          shortcutInputListener,
-        );
-      };
-
-      view.webContents.on("did-start-loading", () => {
-        record.rendererReady = false;
-        updateGameViewPhase(rendererId, "loading");
-      });
-      record.stopObservingFocus = electronGameView.onFocus(view, () => {
-        gameHosts.activate(host, rendererId);
-        if (host.groupControlsOpen && !host.groupControlsNativeDialogOpen) {
-          gameHosts.setGroupControlsOpen(host, false);
-        }
-      });
-      view.webContents.on(
-        "did-fail-load",
-        (_event, _errorCode, errorDescription, _validatedUrl, isMainFrame) => {
-          if (isMainFrame === false) {
-            return;
-          }
-          updateGameViewPhase(rendererId, "error", errorDescription);
-        },
-      );
-      view.webContents.on("destroyed", () => {
-        markRendererUnavailable(record);
-        stopObservingAvailability();
-        record.stopObservingFocus();
-        record.stopObservingReloads();
-        record.stopObservingShortcutInput();
-        run(rendererDestroyedEvents.publish(rendererDestroyedEvent));
-      });
 
       yield* createdEvents.publish(createdEvent);
       if (options?.onCreated !== undefined) {
@@ -1489,7 +1479,6 @@ const makeDesktopWindows = Effect.gen(function* () {
       rendererId: hostWebContents.id,
       selectedId: Number.NaN,
       shortcutModifierPressed: false,
-      stopObservingShortcutInput: () => {},
       tabMenuOpen: false,
       window,
     };
@@ -1497,7 +1486,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     yield* Scope.addFinalizer(
       scope,
       Effect.sync(() => {
-        host.stopObservingShortcutInput();
         gameHosts.cancelResize(host);
         gameHosts.unregister(host);
       }),
@@ -1508,55 +1496,36 @@ const makeDesktopWindows = Effect.gen(function* () {
     groupControlsView.webContents.once("destroyed", () => {
       gameHosts.unregister(host);
     });
-    const shortcutInputListener = gameHosts.makeShortcutInputListener(host);
-    hostWebContents.on("before-input-event", shortcutInputListener);
-    let observingShortcutInput = true;
-    host.stopObservingShortcutInput = () => {
-      if (!observingShortcutInput) {
-        return;
-      }
-      observingShortcutInput = false;
-      // Electron can invalidate native accessors before emitting "closed".
-      try {
-        if (!hostWebContents.isDestroyed()) {
-          hostWebContents.off("before-input-event", shortcutInputListener);
-        }
-      } catch {}
-    };
-
-    hostWebContents.on("did-start-loading", () => {
-      if (!host.tabMenuOpen) return;
-      try {
+    yield* listen(
+      hostWebContents,
+      "before-input-event",
+      gameHosts.makeShortcutInputListener(host),
+    );
+    yield* listen(hostWebContents, "did-start-loading", () => {
+      if (host.tabMenuOpen) gameHosts.setTabMenuOpen(host, false);
+    });
+    yield* listen(window, "resize", () => {
+      if (host.orderedIds.length > 0 && host.tabMenuOpen) {
         gameHosts.setTabMenuOpen(host, false);
-      } catch {}
-    });
-    window.on("resize", () => {
-      if (host.orderedIds.length === 0) return;
-      if (host.tabMenuOpen) {
-        try {
-          gameHosts.setTabMenuOpen(host, false);
-        } catch {}
       }
-      gameHosts.scheduleResize(host);
     });
-    window.on("resized", () => {
+    yield* listen(window, "resize", () => {
+      if (host.orderedIds.length > 0) gameHosts.scheduleResize(host);
+    });
+    yield* listen(window, "resized", () => {
       if (host.orderedIds.length > 0) gameHosts.finishResize(host);
     });
-    window.on("focus", () => gameHosts.publishPresentations(host));
-    window.on("blur", () => {
+    yield* listen(window, "focus", () => gameHosts.publishPresentations(host));
+    yield* listen(window, "blur", () => {
       gameHosts.publishPresentations(host);
       gameHosts.setShortcutModifierPressed(host, false);
       // A parented native file picker temporarily blurs its host window.
       if (host.groupControlsOpen && !host.groupControlsNativeDialogOpen) {
-        try {
-          gameHosts.setGroupControlsOpen(host, false);
-        } catch {}
+        gameHosts.setGroupControlsOpen(host, false);
       }
-      if (host.tabMenuOpen) {
-        try {
-          gameHosts.setTabMenuOpen(host, false);
-        } catch {}
-      }
+    });
+    yield* listen(window, "blur", () => {
+      if (host.tabMenuOpen) gameHosts.setTabMenuOpen(host, false);
     });
     window.once("closed", () => dispose(scope));
 
@@ -2089,7 +2058,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         const rendererId = webContents.id;
         const record: DesktopRendererRecord = {
           rendererId,
-          generation: INITIAL_WINDOW_GENERATION,
+          generation: 1,
           kind,
           scope,
           ...(ownerId === undefined ? {} : { ownerId }),
@@ -2103,56 +2072,31 @@ const makeDesktopWindows = Effect.gen(function* () {
           Effect.sync(() => forgetWindow(rendererId)),
         );
         if (kind === "game" && !isGameViewRecord(record)) {
-          window.on("page-title-updated", (event) => {
-            event.preventDefault();
-            refreshStandaloneGameWindowTitle(record);
-          });
-          window.on("focus", () =>
+          yield* listen(
+            window,
+            "page-title-updated",
+            (event: ElectronEvent) => {
+              event.preventDefault();
+              refreshStandaloneGameWindowTitle(record);
+            },
+          );
+          yield* listen(window, "focus", () =>
             publishStandaloneGameViewPresentation(record),
           );
-          window.on("blur", () =>
+          yield* listen(window, "blur", () =>
             publishStandaloneGameViewPresentation(record),
           );
           refreshStandaloneGameWindowTitle(record);
         }
         const createdEvent: DesktopWindowCreatedEvent = {
           rendererId,
-          generation: INITIAL_WINDOW_GENERATION,
+          generation: 1,
           kind,
         };
-        const rendererDestroyedEvent: DesktopWindowRendererDestroyedEvent = {
-          rendererId,
-          kind,
-        };
-        const stopObservingAvailability = observeRendererAvailability(
-          webContents,
-          rendererDestroyedEvent,
-          () => {
-            markRendererUnavailable(record);
-          },
-        );
-        const stopObservingWindowReloads = observeWindowReloads(
-          webContents,
-          (generation) => {
-            beginRendererGeneration(record, generation);
-            const reloadedEvent: DesktopWindowRendererReloadedEvent = {
-              rendererId,
-              generation,
-              kind,
-            };
-            run(rendererReloadedEvents.publish(reloadedEvent));
-          },
-        );
-
-        webContents.on("destroyed", () => {
-          markRendererUnavailable(record);
-          stopObservingAvailability();
-          stopObservingWindowReloads();
-          run(rendererDestroyedEvents.publish(rendererDestroyedEvent));
-        });
+        yield* track(record);
 
         if (definition.closeBehavior === "hide") {
-          window.on("close", (event) => {
+          yield* listen(window, "close", (event: ElectronEvent) => {
             if (appIsQuitting || window.isDestroyed()) {
               return;
             }
@@ -2166,10 +2110,6 @@ const makeDesktopWindows = Effect.gen(function* () {
           });
         }
 
-        yield* Scope.addFinalizer(
-          scope,
-          Effect.sync(stopObservingWindowReloads),
-        );
         window.once("closed", () => dispose(scope));
 
         yield* createdEvents.publish(createdEvent);

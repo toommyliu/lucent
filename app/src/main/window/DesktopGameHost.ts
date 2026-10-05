@@ -45,9 +45,6 @@ export interface DesktopGameViewRecord {
   publishedPresentation?: GameViewPresentation;
   readonly rendererId: number;
   rendererReady: boolean;
-  stopObservingFocus: () => void;
-  stopObservingReloads: () => void;
-  stopObservingShortcutInput: () => void;
   /** Rejects delayed readiness from a failed generation until navigation advances it. */
   unavailableGeneration?: number;
 }
@@ -67,18 +64,12 @@ export interface DesktopGameHostRecord {
   selectedId: number;
   shortcutModifierPressed: boolean;
   stackedGameViewId?: number;
-  stopObservingShortcutInput: () => void;
   tabMenuOpen: boolean;
   readonly window: ElectronNativeWindowHandle;
 }
 
 interface DesktopGameHostsOptions {
   readonly getGameViewRecord: (id: number) => DesktopGameViewRecord | undefined;
-  readonly onShortcutError: (details: {
-    readonly cause: unknown;
-    readonly hostRendererId: number;
-    readonly id: number;
-  }) => void;
   readonly onStateChanged: (host: DesktopGameHostRecord) => void;
   readonly platform: NodeJS.Platform;
 }
@@ -511,11 +502,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       if (id === undefined) return;
 
       event.preventDefault();
-      try {
-        focus(host, id);
-      } catch (cause) {
-        options.onShortcutError({ cause, hostRendererId: host.rendererId, id });
-      }
+      focus(host, id);
     };
 
   const register = (host: DesktopGameHostRecord): void => {

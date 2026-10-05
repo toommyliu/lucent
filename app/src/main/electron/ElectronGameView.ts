@@ -60,10 +60,6 @@ export interface ElectronGameViewShape {
     path: string,
     options?: LoadFileOptions,
   ) => Effect.Effect<void, ElectronGameViewLoadError>;
-  readonly onFocus: (
-    view: ElectronGameViewHandle,
-    listener: () => void,
-  ) => () => void;
 }
 
 export class ElectronGameView extends Context.Service<
@@ -115,23 +111,7 @@ const loadFile: ElectronGameViewShape["loadFile"] = (view, path, options) =>
     catch: (cause) => new ElectronGameViewLoadError({ cause, path }),
   });
 
-const onFocus: ElectronGameViewShape["onFocus"] = (view, listener) => {
-  const webContents = view.webContents;
-  webContents.on("focus", listener);
-
-  let observing = true;
-  return () => {
-    if (!observing) return;
-    observing = false;
-    try {
-      if (!webContents.isDestroyed()) {
-        webContents.removeListener("focus", listener);
-      }
-    } catch {}
-  };
-};
-
 export const layer = Layer.succeed(
   ElectronGameView,
-  ElectronGameView.of({ create, loadFile, onFocus }),
+  ElectronGameView.of({ create, loadFile }),
 );
