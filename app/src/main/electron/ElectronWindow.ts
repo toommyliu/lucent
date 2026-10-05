@@ -25,8 +25,9 @@ export interface ElectronWindowWebContents {
   readonly focus: WebContents["focus"];
   readonly id: number;
   readonly isDestroyed: () => boolean;
-  readonly off: WebContents["removeListener"];
   readonly on: WebContents["on"];
+  readonly once: WebContents["once"];
+  readonly removeListener: WebContents["removeListener"];
   readonly openDevTools: WebContents["openDevTools"];
   readonly send: WebContents["send"];
 }
@@ -45,6 +46,7 @@ export interface ElectronNativeWindowHandle {
   readonly getContentBounds: BrowserWindow["getContentBounds"];
   readonly on: BaseWindow["on"];
   readonly once: BaseWindow["once"];
+  readonly removeListener: BaseWindow["removeListener"];
   readonly restore: () => void;
   readonly setBackgroundColor: (backgroundColor: string) => void;
   readonly setMenuBarVisibility: (visible: boolean) => void;

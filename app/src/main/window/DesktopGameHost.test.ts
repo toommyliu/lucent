@@ -64,9 +64,6 @@ const makeHost = (ids: readonly number[]) => {
       kind: "game",
       rendererId: id,
       rendererReady: true,
-      stopObservingFocus: () => {},
-      stopObservingReloads: () => {},
-      stopObservingShortcutInput: () => {},
     });
   }
   const host: DesktopGameHostRecord = {
@@ -82,13 +79,11 @@ const makeHost = (ids: readonly number[]) => {
     rendererId: 1,
     selectedId: ids[0] ?? Number.NaN,
     shortcutModifierPressed: false,
-    stopObservingShortcutInput: () => {},
     tabMenuOpen: false,
     window,
   };
   const hosts = makeDesktopGameHosts({
     getGameViewRecord: (id) => records.get(id),
-    onShortcutError: () => {},
     onStateChanged: () => {},
     platform: "darwin",
   });
