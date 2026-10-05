@@ -11,6 +11,7 @@ import {
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
@@ -82,8 +83,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
   const shell = yield* ElectronShell;
   const updates = yield* DesktopUpdates;
   const windows = yield* DesktopWindows;
-  const context = yield* Effect.context<never>();
-  const runPromise = Effect.runPromiseWith(context);
+  const run = yield* FiberSet.makeRuntime<never, void>();
   const isDarwin = env.platform === "darwin";
   const usesMenuSymbols =
     isDarwin && Number.parseInt(process.getSystemVersion(), 10) >= 26;
@@ -94,25 +94,20 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       .getNativeWindowId(rendererId)
       .pipe(Effect.map((id) => BaseWindow.fromId(id)?.setMenu(null)));
 
-  const logMenuFailure = (operation: string, cause: unknown): void => {
-    void runPromise(
-      Effect.logWarning("Application menu action failed").pipe(
-        Effect.annotateLogs({
-          component: "menu",
-          data: {
-            operation,
-            cause,
-          },
-        }),
-      ),
+  const logMenuFailure = (operation: string, cause: unknown) =>
+    Effect.logWarning("Application menu action failed").pipe(
+      Effect.annotateLogs({
+        component: "menu",
+        data: {
+          operation,
+          cause,
+        },
+      }),
     );
-  };
-
-  const openSettings = (): void => {
-    void runPromise(windows.open("settings")).catch((cause) =>
-      logMenuFailure("open-settings", cause),
+  const catchMenuFailure = (operation: string) =>
+    Effect.catchCause((cause) =>
+      logMenuFailure(operation, Cause.squash(cause)),
     );
-  };
 
   const toggleDevTools = (): void => {
     const target = webContents.getFocusedWebContents();
@@ -128,7 +123,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         target.openDevTools({ mode: "detach" });
       }
     } catch (cause) {
-      logMenuFailure("toggle-dev-tools", cause);
+      run(logMenuFailure("toggle-dev-tools", cause));
     }
   };
 
@@ -144,9 +139,11 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         try {
           reloadContents(target, bypassCache);
         } catch (cause) {
-          logMenuFailure(
-            bypassCache ? "force-reload-renderer" : "reload-renderer",
-            cause,
+          run(
+            logMenuFailure(
+              bypassCache ? "force-reload-renderer" : "reload-renderer",
+              cause,
+            ),
           );
         }
       };
@@ -156,32 +153,30 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         return;
       }
 
-      void runPromise(
-        windows.reloadFocusedGameContents(
-          browserWindow.id,
-          target.id,
-          bypassCache,
-        ),
-      )
-        .then((handled) => {
-          if (!handled) reloadTarget();
-        })
-        .catch((cause) =>
-          logMenuFailure(
-            bypassCache ? "force-reload-game-view" : "reload-game-view",
-            cause,
+      run(
+        windows
+          .reloadFocusedGameContents(browserWindow.id, target.id, bypassCache)
+          .pipe(
+            Effect.map((handled) => {
+              if (!handled) reloadTarget();
+            }),
+            catchMenuFailure(
+              bypassCache ? "force-reload-game-view" : "reload-game-view",
+            ),
           ),
-        );
+      );
     };
 
-  const openWindow = (kind: "about" | "account-manager" | "game"): void => {
-    void runPromise(windows.open(kind)).catch((cause) =>
-      logMenuFailure(`open-${kind}`, cause),
+  const openWindow = (
+    kind: "about" | "account-manager" | "game" | "settings",
+  ): void => {
+    run(
+      windows.open(kind).pipe(Effect.asVoid, catchMenuFailure(`open-${kind}`)),
     );
   };
 
   const checkForUpdates = (): void => {
-    void runPromise(
+    run(
       updates.checkNow({ force: true }).pipe(
         Effect.flatMap((state) =>
           showUpdateCheckDialog(state, {
@@ -190,8 +185,9 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
             updates,
           }),
         ),
+        catchMenuFailure("check-for-updates"),
       ),
-    ).catch((cause) => logMenuFailure("check-for-updates", cause));
+    );
   };
 
   const showChromiumPerformanceRecordingFailure = (
@@ -232,19 +228,18 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     }).pipe(Effect.asVoid);
 
   const startChromiumPerformanceRecording = (): void => {
-    void runPromise(
+    run(
       chromiumPerformanceRecording.start.pipe(
         Effect.catch((cause) =>
           showChromiumPerformanceRecordingFailure("start", cause),
         ),
+        catchMenuFailure("start-chromium-performance-recording"),
       ),
-    ).catch((cause) =>
-      logMenuFailure("start-chromium-performance-recording", cause),
     );
   };
 
   const captureChromiumHeapSnapshot = (): void => {
-    void runPromise(
+    run(
       chromiumPerformanceRecording.captureHeapSnapshot.pipe(
         Effect.flatMap((result) => {
           if (result.failedSnapshotCount === 0) {
@@ -269,12 +264,13 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         Effect.catch((cause) =>
           showChromiumPerformanceRecordingFailure("snapshot", cause),
         ),
+        catchMenuFailure("capture-chromium-heap-snapshot"),
       ),
-    ).catch((cause) => logMenuFailure("capture-chromium-heap-snapshot", cause));
+    );
   };
 
   const stopChromiumPerformanceRecording = (): void => {
-    void runPromise(
+    run(
       chromiumPerformanceRecording.stop.pipe(
         Effect.flatMap((result) =>
           result === undefined
@@ -284,9 +280,8 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
         Effect.catch((cause) =>
           showChromiumPerformanceRecordingFailure("save", cause),
         ),
+        catchMenuFailure("stop-chromium-performance-recording"),
       ),
-    ).catch((cause) =>
-      logMenuFailure("stop-chromium-performance-recording", cause),
     );
   };
 
@@ -323,7 +318,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
     }).pipe(Effect.asVoid);
 
   const clearData = (): void => {
-    void runPromise(
+    run(
       clearAppData.pipe(
         Effect.flatMap(() => showDataClearResult("succeeded")),
         Effect.catch((cause) =>
@@ -331,13 +326,16 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
             .pipe(Effect.annotateLogs({ component: "menu" }))
             .pipe(Effect.flatMap(() => showDataClearResult("failed"))),
         ),
+        catchMenuFailure("clear-app-data"),
       ),
-    ).catch((cause) => logMenuFailure("clear-app-data", cause));
+    );
   };
 
   const updateTheme = (themeMode: ThemeMode): void => {
-    void runPromise(settings.updateAppearance({ themeMode })).catch((cause) =>
-      logMenuFailure("update-theme", cause),
+    run(
+      settings
+        .updateAppearance({ themeMode })
+        .pipe(catchMenuFailure("update-theme")),
     );
   };
 
@@ -404,7 +402,7 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       label: "Settings",
       accelerator: isDarwin ? "Command+," : "Control+,",
       ...menuSymbol("gearshape"),
-      click: openSettings,
+      click: () => openWindow("settings"),
     };
     const aboutMenuItem: MenuItemConstructorOptions = {
       label: `About ${app.name}`,
@@ -566,15 +564,15 @@ const makeDesktopApplicationMenu = Effect.gen(function* () {
       }
       yield* rebuild;
       const unsubscribe = yield* settings.onChanged(() => {
-        void runPromise(rebuild).catch((cause) =>
-          logMenuFailure("rebuild", cause),
-        );
+        run(rebuild.pipe(catchMenuFailure("rebuild")));
       });
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
       const unsubscribeChromiumPerformanceRecording =
         yield* chromiumPerformanceRecording.onChanged(() => {
-          void runPromise(rebuild).catch((cause) =>
-            logMenuFailure("rebuild-chromium-performance-recording", cause),
+          run(
+            rebuild.pipe(
+              catchMenuFailure("rebuild-chromium-performance-recording"),
+            ),
           );
         });
       yield* Effect.addFinalizer(() =>
