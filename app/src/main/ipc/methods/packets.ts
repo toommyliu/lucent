@@ -117,9 +117,7 @@ export const publishCaptured = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.packets.publishCaptured")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
-      const rendererReady = yield* windows
-        .isRendererReady(sender.rendererId)
-        .pipe(Effect.catch(() => Effect.succeed(false)));
+      const rendererReady = yield* windows.isRendererReady(sender.rendererId);
       if (rendererReady) {
         yield* notifyPacketsWindow(
           sender.rendererId,
@@ -137,9 +135,7 @@ export const publishStatus = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.packets.publishStatus")(
     function* (payload, sender) {
       const windows = yield* DesktopWindows;
-      const rendererReady = yield* windows
-        .isRendererReady(sender.rendererId)
-        .pipe(Effect.catch(() => Effect.succeed(false)));
+      const rendererReady = yield* windows.isRendererReady(sender.rendererId);
       if (!rendererReady) {
         return;
       }

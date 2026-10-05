@@ -34,14 +34,15 @@ export const makeGamePackets = Effect.gen(function* () {
   const statuses = new Map<number, PacketsStatusPayload>();
 
   const getStatus: GamePacketsShape["getStatus"] = (gameRendererId) =>
-    windows.isRendererReady(gameRendererId).pipe(
-      Effect.map((rendererReady) =>
-        rendererReady
-          ? (statuses.get(gameRendererId) ?? stoppedStatus())
-          : stoppedStatus(),
-      ),
-      Effect.orElseSucceed(() => stoppedStatus("The game is unavailable")),
-    );
+    windows
+      .isRendererReady(gameRendererId)
+      .pipe(
+        Effect.map((rendererReady) =>
+          rendererReady
+            ? (statuses.get(gameRendererId) ?? stoppedStatus())
+            : stoppedStatus(),
+        ),
+      );
 
   const publishStatus: GamePacketsShape["publishStatus"] = Effect.fn(
     "GamePackets.publishStatus",

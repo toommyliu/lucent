@@ -141,16 +141,17 @@ export const makeGameFollowers = Effect.gen(function* () {
     request(gameRendererId, (client) => client.FollowerMe());
 
   const get: GameFollowersShape["get"] = (gameRendererId) =>
-    windows.isRendererReady(gameRendererId).pipe(
-      Effect.map((rendererReady) =>
-        rendererReady
-          ? normalizeFollowerState(
-              states.get(gameRendererId) ?? createIdleFollowerState(),
-            )
-          : createIdleFollowerState(),
-      ),
-      Effect.orElseSucceed(() => createIdleFollowerState()),
-    );
+    windows
+      .isRendererReady(gameRendererId)
+      .pipe(
+        Effect.map((rendererReady) =>
+          rendererReady
+            ? normalizeFollowerState(
+                states.get(gameRendererId) ?? createIdleFollowerState(),
+              )
+            : createIdleFollowerState(),
+        ),
+      );
 
   const getConfig: GameFollowersShape["getConfig"] = (gameRendererId) =>
     Effect.sync(() => configs.get(gameRendererId) ?? null);
@@ -163,12 +164,13 @@ export const makeGameFollowers = Effect.gen(function* () {
     });
 
   const getPlayers: GameFollowersShape["getPlayers"] = (gameRendererId) =>
-    windows.isRendererReady(gameRendererId).pipe(
-      Effect.map((rendererReady) =>
-        rendererReady ? (playersByGame.get(gameRendererId) ?? []) : [],
-      ),
-      Effect.orElseSucceed(() => []),
-    );
+    windows
+      .isRendererReady(gameRendererId)
+      .pipe(
+        Effect.map((rendererReady) =>
+          rendererReady ? (playersByGame.get(gameRendererId) ?? []) : [],
+        ),
+      );
 
   const setPlayers: GameFollowersShape["setPlayers"] = (
     gameRendererId,
