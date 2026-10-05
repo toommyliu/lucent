@@ -46,12 +46,13 @@ export interface DesktopGameViewRecord {
   readonly rendererId: number;
   rendererReady: boolean;
   /** Rejects delayed readiness from a failed generation until navigation advances it. */
+  /** Rejects delayed readiness from a failed generation until navigation advances it. */
   unavailableGeneration?: number;
 }
 
 export interface DesktopGameHostRecord {
   readonly scope: Scope.Closeable;
-  closing: boolean;
+  nativeCloseRequested?: true;
   groupControlsNativeDialogOpen: boolean;
   readonly groupControlsView: ElectronGameViewHandle;
   groupControlsOpen: boolean;
@@ -195,30 +196,7 @@ const setShortcutModifierPressed = (
   } catch {}
 };
 
-/** Owns the mutable mechanics shared by grouped game hosts. */
 export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
-  const hosts = new Map<number, DesktopGameHostRecord>();
-  const groupControlHosts = new Map<number, DesktopGameHostRecord>();
-
-  const find = (rendererId: number): DesktopGameHostRecord | null => {
-    const host = hosts.get(rendererId) ?? groupControlHosts.get(rendererId);
-    if (
-      host === undefined ||
-      host.closing ||
-      host.scope.state._tag === "Closed" ||
-      !isElectronWindowUsable(host.window) ||
-      host.groupControlsView.webContents.isDestroyed() ||
-      host.hostView.webContents.isDestroyed()
-    ) {
-      if (host !== undefined) {
-        hosts.delete(host.rendererId);
-        groupControlHosts.delete(host.groupControlsView.webContents.id);
-      }
-      return null;
-    }
-    return host;
-  };
-
   const state = (host: DesktopGameHostRecord): GameViewHostState => ({
     capacity: MAX_GAME_VIEWS_PER_WINDOW,
     groupControlsOpen: host.groupControlsOpen,
@@ -315,7 +293,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
 
   const finishResize = (host: DesktopGameHostRecord): void => {
     cancelResize(host);
-    if (host.closing || host.scope.state._tag === "Closed") return;
+    if (host.scope.state._tag === "Closed" || host.nativeCloseRequested) return;
 
     try {
       applyLayout(host);
@@ -323,7 +301,7 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
   };
 
   const scheduleResize = (host: DesktopGameHostRecord): void => {
-    if (host.closing || host.scope.state._tag === "Closed") return;
+    if (host.scope.state._tag === "Closed" || host.nativeCloseRequested) return;
 
     if (host.resizeSettleTimer !== undefined) {
       clearTimeout(host.resizeSettleTimer);
@@ -505,30 +483,16 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
       focus(host, id);
     };
 
-  const register = (host: DesktopGameHostRecord): void => {
-    hosts.set(host.rendererId, host);
-    groupControlHosts.set(host.groupControlsView.webContents.id, host);
-  };
-
-  const unregister = (host: DesktopGameHostRecord): void => {
-    hosts.delete(host.rendererId);
-    groupControlHosts.delete(host.groupControlsView.webContents.id);
-  };
-
   return {
     activate,
     cancelResize,
-    find,
     finishResize,
     focus,
-    hasGroupControlsRenderer: (rendererId: number) =>
-      groupControlHosts.has(rendererId),
     makeShortcutInputListener,
     presentation,
     publishPresentations,
     publishState,
     refresh,
-    register,
     scheduleResize,
     select,
     setGroupControlsOpen,
@@ -536,7 +500,5 @@ export const makeDesktopGameHosts = (options: DesktopGameHostsOptions) => {
     setTabMenuOpen,
     syncTabBarLayout: applyLayout,
     state,
-    unregister,
-    values: () => hosts.values(),
   };
 };

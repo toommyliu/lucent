@@ -68,7 +68,6 @@ const makeHost = (ids: readonly number[]) => {
   }
   const host: DesktopGameHostRecord = {
     scope: Scope.makeUnsafe(),
-    closing: false,
     groupControlsNativeDialogOpen: false,
     groupControlsOpen: false,
     groupControlsView: makeView(),

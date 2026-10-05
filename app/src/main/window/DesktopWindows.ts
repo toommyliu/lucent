@@ -358,33 +358,7 @@ const createGameViewOptions = (
   },
 });
 
-const createGameGroupControlsViewOptions = (
-  env: DesktopEnvironment["Service"],
-  settings: AppSettings,
-  snapshot: AppearanceSnapshot,
-): WebContentsViewConstructorOptions => ({
-  webPreferences: createRendererWebPreferences(
-    env,
-    "game-group-controls",
-    settings,
-    snapshot,
-  ),
-});
-
-const createGameHostViewOptions = (
-  env: DesktopEnvironment["Service"],
-  settings: AppSettings,
-  snapshot: AppearanceSnapshot,
-): WebContentsViewConstructorOptions => ({
-  webPreferences: createRendererWebPreferences(
-    env,
-    "game-host",
-    settings,
-    snapshot,
-  ),
-});
-
-interface DesktopRendererRecordBase {
+interface DesktopBrowserWindowRecord {
   readonly scope: Scope.Closeable;
   readonly rendererId: number;
   generation: number;
@@ -394,18 +368,21 @@ interface DesktopRendererRecordBase {
   rendererReady: boolean;
   /** Rejects delayed readiness from a failed generation until navigation advances it. */
   unavailableGeneration?: number;
-}
-
-interface DesktopBrowserWindowRecord extends DesktopRendererRecordBase {
-  readonly gameHostRendererId?: never;
-  readonly gameView?: never;
   hidden: boolean;
   loggedInUsername?: string;
   publishedPresentation?: GameViewPresentation;
   readonly window: ElectronWindowHandle;
 }
 
-type DesktopRendererRecord = DesktopBrowserWindowRecord | DesktopGameViewRecord;
+type DesktopWindowRecord = DesktopBrowserWindowRecord | DesktopGameViewRecord;
+
+interface DesktopChromeRendererRecord {
+  readonly rendererId: number;
+  readonly kind: "game-host" | "game-group-controls";
+  readonly host: DesktopGameHostRecord;
+}
+
+type DesktopRendererRecord = DesktopWindowRecord | DesktopChromeRendererRecord;
 
 export interface DesktopWindowClosedEvent {
   readonly rendererId: number;
@@ -447,12 +424,12 @@ export interface DesktopWindowRendererReadyEvent {
 }
 
 const isGameViewRecord = (
-  record: DesktopRendererRecord,
-): record is DesktopGameViewRecord => record.gameView !== undefined;
+  record: DesktopWindowRecord | undefined,
+): record is DesktopGameViewRecord =>
+  record !== undefined && "gameView" in record;
 
-/** Returns the native window containing a desktop renderer. */
 const nativeWindowForRenderer = (
-  record: DesktopRendererRecord,
+  record: DesktopWindowRecord,
 ): ElectronNativeWindowHandle =>
   isGameViewRecord(record) ? record.hostWindow : record.window;
 
@@ -585,6 +562,30 @@ const makeDesktopWindows = Effect.gen(function* () {
   let showGameUsernameInWindowTitle =
     initialSettings.preferences.showGameUsernameInWindowTitle;
   const renderers = new Map<number, DesktopRendererRecord>();
+  const getWindowRenderer = (id: number): DesktopWindowRecord | undefined => {
+    const record = renderers.get(id);
+    return record !== undefined && !("host" in record) ? record : undefined;
+  };
+  const getGameViewRecord = (id: number): DesktopGameViewRecord | undefined => {
+    const record = getWindowRenderer(id);
+    return isGameViewRecord(record) ? record : undefined;
+  };
+  const findGameHost = (id: number): DesktopGameHostRecord | null => {
+    const record = renderers.get(id);
+    return record !== undefined &&
+      "host" in record &&
+      record.host.scope.state._tag !== "Closed" &&
+      !record.host.nativeCloseRequested
+      ? record.host
+      : null;
+  };
+  const getGameHosts = function* () {
+    for (const record of renderers.values()) {
+      if (record.kind !== "game-host") continue;
+      const host = findGameHost(record.rendererId);
+      if (host !== null) yield host;
+    }
+  };
   const setGameWindowTitle = (
     window: ElectronNativeWindowHandle,
     username: string | undefined,
@@ -601,24 +602,16 @@ const makeDesktopWindows = Effect.gen(function* () {
     } catch {}
   };
   const refreshGameHostWindowTitle = (host: DesktopGameHostRecord): void => {
-    const selected = renderers.get(host.selectedId);
     setGameWindowTitle(
       host.window,
-      selected !== undefined && isGameViewRecord(selected)
-        ? selected.loggedInUsername
-        : undefined,
+      getGameViewRecord(host.selectedId)?.loggedInUsername,
     );
   };
   const refreshStandaloneGameWindowTitle = (
     record: DesktopBrowserWindowRecord,
   ): void => setGameWindowTitle(record.window, record.loggedInUsername);
   const gameHosts = makeDesktopGameHosts({
-    getGameViewRecord: (id) => {
-      const record = renderers.get(id);
-      return record !== undefined && isGameViewRecord(record)
-        ? record
-        : undefined;
-    },
+    getGameViewRecord,
     onStateChanged: refreshGameHostWindowTitle,
     platform: env.platform,
   });
@@ -627,10 +620,9 @@ const makeDesktopWindows = Effect.gen(function* () {
       const nextValue = nextSettings.preferences.showGameUsernameInWindowTitle;
       if (showGameUsernameInWindowTitle === nextValue) return;
       showGameUsernameInWindowTitle = nextValue;
-      for (const host of gameHosts.values()) {
-        refreshGameHostWindowTitle(host);
-      }
       for (const record of renderers.values()) {
+        if (record.kind === "game-host")
+          refreshGameHostWindowTitle(record.host);
         if (record.kind === "game" && !isGameViewRecord(record)) {
           refreshStandaloneGameWindowTitle(record);
         }
@@ -695,6 +687,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   const hasPresentableTopLevelWindow = (): boolean =>
     [...renderers.values()].some(
       (record) =>
+        !("host" in record) &&
         getDesktopWindowDefinition(record.kind).scope !== "game-child" &&
         (isGameViewRecord(record) || !record.hidden),
     );
@@ -724,10 +717,10 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   const revealRenderer: DesktopWindowsShape["revealRenderer"] = (id) =>
     Effect.gen(function* () {
-      const record = renderers.get(id);
+      const record = getWindowRenderer(id);
       if (record === undefined) return false;
       if (isGameViewRecord(record)) {
-        const host = gameHosts.find(record.gameHostRendererId);
+        const host = findGameHost(record.gameHostRendererId);
         if (host === null) return false;
         gameHosts.focus(host, id);
       }
@@ -739,38 +732,26 @@ const makeDesktopWindows = Effect.gen(function* () {
   const findGameHostForView = (
     rendererId: number,
   ): DesktopGameHostRecord | null => {
-    const record = renderers.get(rendererId);
-    if (record === undefined || !isGameViewRecord(record)) {
-      return null;
-    }
-    return gameHosts.find(record.gameHostRendererId);
-  };
-
-  const findGameHostForNativeWindow = (
-    nativeWindowId: number,
-  ): DesktopGameHostRecord | null => {
-    for (const candidate of gameHosts.values()) {
-      const host = gameHosts.find(candidate.rendererId);
-      if (host !== null && host.window.id === nativeWindowId) {
-        return host;
-      }
-    }
-    return null;
+    const record = getGameViewRecord(rendererId);
+    return record === undefined
+      ? null
+      : findGameHost(record.gameHostRendererId);
   };
 
   const reloadFocusedGameContents: DesktopWindowsShape["reloadFocusedGameContents"] =
     (nativeWindowId, focusedRendererId, bypassCache) =>
       Effect.try({
         try: () => {
-          const host = findGameHostForNativeWindow(nativeWindowId);
-          if (host === null || host.layout !== "focused") {
+          const host = [...getGameHosts()].find(
+            (host) => host.window.id === nativeWindowId,
+          );
+          if (host === undefined || host.layout !== "focused") {
             return false;
           }
 
-          const selected = renderers.get(host.selectedId);
+          const selected = getGameViewRecord(host.selectedId);
           if (
             selected === undefined ||
-            !isGameViewRecord(selected) ||
             selected.gameHostRendererId !== host.rendererId ||
             (focusedRendererId !== host.rendererId &&
               focusedRendererId !== selected.rendererId)
@@ -806,13 +787,13 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
-        const host = gameHosts.find(rendererId);
-        if (host !== null) return host.window.id;
         const record = renderers.get(rendererId);
         if (record === undefined) {
           throw new Error(`Desktop renderer is not open: ${rendererId}`);
         }
-        return nativeWindowForRenderer(record).id;
+        return "host" in record
+          ? record.host.window.id
+          : nativeWindowForRenderer(record).id;
       },
       catch: (cause) =>
         new DesktopWindowError({
@@ -831,35 +812,22 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   const getRendererKind: DesktopWindowsShape["getRendererKind"] = (
     rendererId,
-  ) =>
-    Effect.sync(() => {
-      const record = renderers.get(rendererId);
-      if (record !== undefined) {
-        return record.kind;
-      }
-      if (
-        gameHosts.hasGroupControlsRenderer(rendererId) &&
-        gameHosts.find(rendererId) !== null
-      ) {
-        return "game-group-controls";
-      }
-      return gameHosts.find(rendererId) === null ? null : "game-host";
-    });
+  ) => Effect.sync(() => renderers.get(rendererId)?.kind ?? null);
 
   const getOwnerRendererId: DesktopWindowsShape["getOwnerRendererId"] = (
     rendererId,
-  ) => Effect.sync(() => renderers.get(rendererId)?.ownerId ?? null);
+  ) => Effect.sync(() => getWindowRenderer(rendererId)?.ownerId ?? null);
 
   const isRendererReady: DesktopWindowsShape["isRendererReady"] = (
     rendererId,
-  ) => Effect.sync(() => renderers.get(rendererId)?.rendererReady ?? false);
+  ) => Effect.sync(() => getWindowRenderer(rendererId)?.rendererReady ?? false);
 
   const getRendererGeneration: DesktopWindowsShape["getRendererGeneration"] = (
     rendererId,
   ) =>
     Effect.try({
       try: () => {
-        const record = renderers.get(rendererId);
+        const record = getWindowRenderer(rendererId);
         if (record === undefined) {
           throw new Error(`Desktop window is not open: ${rendererId}`);
         }
@@ -880,7 +848,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     Effect.gen(function* () {
       const readyEvent = yield* Effect.try({
         try: () => {
-          const record = renderers.get(rendererId);
+          const record = getWindowRenderer(rendererId);
           if (record === undefined) {
             throw new Error(`Desktop window is not open: ${rendererId}`);
           }
@@ -903,7 +871,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           if (isGameViewRecord(record)) {
             record.gameViewPhase = "ready";
             delete record.gameViewError;
-            const host = gameHosts.find(record.gameHostRendererId);
+            const host = findGameHost(record.gameHostRendererId);
             if (host !== null) {
               gameHosts.publishState(host);
             }
@@ -935,7 +903,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
-        if (!renderers.has(ownerRendererId)) {
+        if (getWindowRenderer(ownerRendererId) === undefined) {
           throw new Error(
             `Desktop window owner is not open: ${ownerRendererId}`,
           );
@@ -944,6 +912,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         return [...renderers.values()]
           .filter(
             (record) =>
+              !("host" in record) &&
               record.ownerId === ownerRendererId &&
               (kind === undefined || record.kind === kind),
           )
@@ -986,7 +955,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     const removedIndex = host.orderedIds.indexOf(id);
 
     renderers.delete(id);
-    if (host.scope.state._tag === "Closed") return;
+    if (host.scope.state._tag === "Closed" || host.nativeCloseRequested) return;
 
     if (isElectronWindowUsable(host.window)) {
       try {
@@ -999,7 +968,7 @@ const makeDesktopWindows = Effect.gen(function* () {
       delete host.stackedGameViewId;
     }
     if (host.orderedIds.length === 0) {
-      host.closing = true;
+      host.nativeCloseRequested = true;
       host.window.close();
       return;
     }
@@ -1017,7 +986,7 @@ const makeDesktopWindows = Effect.gen(function* () {
 
   const closeRenderer: DesktopWindowsShape["closeRenderer"] = (rendererId) =>
     Effect.suspend(() => {
-      const record = renderers.get(rendererId);
+      const record = getWindowRenderer(rendererId);
       if (record === undefined) {
         return Effect.succeed(false);
       }
@@ -1035,6 +1004,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     Effect.forEach(
       renderers.entries(),
       ([id, record]) => {
+        if ("host" in record) return Effect.void;
         const nativeWindow = nativeWindowForRenderer(record);
         if (!isElectronWindowUsable(nativeWindow)) {
           return Effect.void;
@@ -1069,9 +1039,12 @@ const makeDesktopWindows = Effect.gen(function* () {
   const findOpenInstance = (
     kind: DesktopWindowKind,
     ownerId: number | undefined,
-  ): DesktopRendererRecord | undefined =>
+  ): DesktopWindowRecord | undefined =>
     [...renderers.values()].find(
-      (record) => record.kind === kind && record.ownerId === ownerId,
+      (record): record is DesktopWindowRecord =>
+        !("host" in record) &&
+        record.kind === kind &&
+        record.ownerId === ownerId,
     );
 
   const updateGameViewPhase = (
@@ -1079,10 +1052,8 @@ const makeDesktopWindows = Effect.gen(function* () {
     phase: DesktopGameViewRecord["gameViewPhase"],
     error?: string,
   ): void => {
-    const record = renderers.get(id);
-    if (record === undefined || !isGameViewRecord(record)) {
-      return;
-    }
+    const record = getGameViewRecord(id);
+    if (record === undefined) return;
 
     if (record.gameViewPhase === phase && record.gameViewError === error) {
       return;
@@ -1094,7 +1065,7 @@ const makeDesktopWindows = Effect.gen(function* () {
     } else {
       record.gameViewError = error;
     }
-    const host = gameHosts.find(record.gameHostRendererId);
+    const host = findGameHost(record.gameHostRendererId);
     if (host !== null) {
       gameHosts.publishState(host);
     }
@@ -1199,6 +1170,12 @@ const makeDesktopWindows = Effect.gen(function* () {
       snapshot: AppearanceSnapshot,
       options?: DesktopWindowOpenOptions,
     ) {
+      if (host.nativeCloseRequested) {
+        return yield* new DesktopWindowError({
+          id: String(host.rendererId),
+          detail: "The game window is closing.",
+        });
+      }
       if (host.orderedIds.length >= MAX_GAME_VIEWS_PER_WINDOW) {
         return yield* new DesktopWindowError({
           id: String(host.rendererId),
@@ -1351,15 +1328,23 @@ const makeDesktopWindows = Effect.gen(function* () {
         snapshot,
       ),
     );
-    const groupControlsView = yield* electronGameView.create(
-      createGameGroupControlsViewOptions(env, bootstrapSettings, snapshot),
-    );
-    groupControlsView.setBackgroundColor("#00000000");
+    const createChromeView = Effect.fn(function* (
+      kind: DesktopChromeRendererRecord["kind"],
+    ) {
+      const view = yield* electronGameView.create({
+        webPreferences: createRendererWebPreferences(
+          env,
+          kind,
+          bootstrapSettings,
+          snapshot,
+        ),
+      });
+      view.setBackgroundColor("#00000000");
+      return view;
+    });
+    const groupControlsView = yield* createChromeView("game-group-controls");
     // The tabs and their overflow menu share one persistent view that expands on demand.
-    const hostView = yield* electronGameView.create(
-      createGameHostViewOptions(env, bootstrapSettings, snapshot),
-    );
-    hostView.setBackgroundColor("#00000000");
+    const hostView = yield* createChromeView("game-host");
     yield* Effect.try({
       try: () => window.contentView.addChildView(hostView.native),
       catch: (cause) =>
@@ -1372,7 +1357,6 @@ const makeDesktopWindows = Effect.gen(function* () {
     const hostWebContents = hostView.webContents;
     const host: DesktopGameHostRecord = {
       scope,
-      closing: false,
       groupControlsNativeDialogOpen: false,
       groupControlsOpen: false,
       groupControlsView,
@@ -1386,20 +1370,23 @@ const makeDesktopWindows = Effect.gen(function* () {
       tabMenuOpen: false,
       window,
     };
-    gameHosts.register(host);
     yield* Scope.addFinalizer(
       scope,
-      Effect.sync(() => {
-        gameHosts.cancelResize(host);
-        gameHosts.unregister(host);
-      }),
+      Effect.sync(() => gameHosts.cancelResize(host)),
     );
-    hostWebContents.once("destroyed", () => {
-      gameHosts.unregister(host);
-    });
-    groupControlsView.webContents.once("destroyed", () => {
-      gameHosts.unregister(host);
-    });
+    const chromeViews = [
+      ["game-group-controls", groupControlsView],
+      ["game-host", hostView],
+    ] as const;
+    for (const [kind, view] of chromeViews) {
+      const id = view.webContents.id;
+      renderers.set(id, { rendererId: id, kind, host });
+      yield* Scope.addFinalizer(
+        scope,
+        Effect.sync(() => renderers.delete(id)),
+      );
+      view.webContents.once("destroyed", () => dispose(scope));
+    }
     yield* listen(
       hostWebContents,
       "before-input-event",
@@ -1433,43 +1420,35 @@ const makeDesktopWindows = Effect.gen(function* () {
     });
     window.once("closed", () => dispose(scope));
 
-    return yield* Effect.gen(function* () {
-      const id = yield* inScope(host.scope, (scope) =>
-        createGameViewInHost(scope, host, bootstrapSettings, snapshot, options),
-      );
-      yield* Effect.all(
-        [
-          electronGameView.loadFile(
-            groupControlsView,
-            viewHtmlPath("game-group-controls"),
-          ),
-          electronGameView.loadFile(hostView, viewHtmlPath("game-host")),
-        ],
-        { concurrency: "unbounded", discard: true },
-      );
-      yield* electronWindow.reveal(window);
-      const initialGameView = renderers.get(id);
-      if (
-        initialGameView !== undefined &&
-        isGameViewRecord(initialGameView) &&
-        !initialGameView.gameView.webContents.isDestroyed()
-      ) {
-        // Revealing the window can focus the host's first button and open its
-        // tooltip. Start interaction in the game without changing the layout.
-        initialGameView.gameView.webContents.focus();
-      }
-      hasOpenedTopLevelWindow = true;
-      yield* Effect.logInfo("Multi-game window opened").pipe(
-        Effect.annotateLogs({
-          component: "window",
-          data: {
-            hostRendererId: host.rendererId,
-            id,
-          },
-        }),
-      );
-      return id;
-    });
+    const id = yield* inScope(host.scope, (scope) =>
+      createGameViewInHost(scope, host, bootstrapSettings, snapshot, options),
+    );
+    yield* Effect.forEach(
+      chromeViews,
+      ([kind, view]) => electronGameView.loadFile(view, viewHtmlPath(kind)),
+      { concurrency: "unbounded", discard: true },
+    );
+    yield* electronWindow.reveal(window);
+    const initialGameView = getGameViewRecord(id);
+    if (
+      initialGameView !== undefined &&
+      !initialGameView.gameView.webContents.isDestroyed()
+    ) {
+      // Revealing the window can focus the host's first button and open its
+      // tooltip. Start interaction in the game without changing the layout.
+      initialGameView.gameView.webContents.focus();
+    }
+    hasOpenedTopLevelWindow = true;
+    yield* Effect.logInfo("Multi-game window opened").pipe(
+      Effect.annotateLogs({
+        component: "window",
+        data: {
+          hostRendererId: host.rendererId,
+          id,
+        },
+      }),
+    );
+    return id;
   });
 
   const requireGameHost = (
@@ -1477,7 +1456,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   ): Effect.Effect<DesktopGameHostRecord, DesktopWindowError> =>
     Effect.try({
       try: () => {
-        const host = gameHosts.find(hostRendererId);
+        const host = findGameHost(hostRendererId);
         if (host === null) {
           throw new Error(`Game view host is not open: ${hostRendererId}`);
         }
@@ -1496,26 +1475,21 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) => requireGameHost(hostRendererId).pipe(Effect.map(gameHosts.state));
 
   const getGameViewHostRendererId: DesktopWindowsShape["getGameViewHostRendererId"] =
-    Effect.fn("DesktopWindows.getGameViewHostRendererId")(
-      function* (gameRendererId) {
-        const host = yield* Effect.try({
-          try: () => {
-            const host = findGameHostForView(gameRendererId);
-            if (host === null) {
-              throw new Error(`Game view host is not open: ${gameRendererId}`);
-            }
-            return host;
-          },
-          catch: (cause) =>
-            new DesktopWindowError({
-              cause,
-              detail: `Failed to resolve game view host: ${gameRendererId}`,
-              id: String(gameRendererId),
-            }),
-        });
-        return host.rendererId;
-      },
-    );
+    (gameRendererId) =>
+      Effect.try({
+        try: () => {
+          const host = findGameHostForView(gameRendererId);
+          if (host === null)
+            throw new Error(`Game view host is not open: ${gameRendererId}`);
+          return host.rendererId;
+        },
+        catch: (cause) =>
+          new DesktopWindowError({
+            cause,
+            detail: `Failed to resolve game view host: ${gameRendererId}`,
+            id: String(gameRendererId),
+          }),
+      });
 
   const setGameViewTabMenuOpen: DesktopWindowsShape["setGameViewTabMenuOpen"] =
     (hostRendererId, open) =>
@@ -1592,10 +1566,9 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.gen(function* () {
       const host = yield* requireGameHost(hostRendererId);
-      const record = renderers.get(id);
+      const record = getGameViewRecord(id);
       if (
         record === undefined ||
-        !isGameViewRecord(record) ||
         record.gameHostRendererId !== host.rendererId
       ) {
         return yield* new DesktopWindowError({
@@ -1761,14 +1734,14 @@ const makeDesktopWindows = Effect.gen(function* () {
     (gameRendererId) =>
       Effect.try({
         try: () => {
-          const record = renderers.get(gameRendererId);
+          const record = getWindowRenderer(gameRendererId);
           if (record === undefined || record.kind !== "game") {
             throw new Error(`Game renderer is not open: ${gameRendererId}`);
           }
           if (!isGameViewRecord(record)) {
             return standaloneGameViewPresentation(record.window);
           }
-          const host = gameHosts.find(record.gameHostRendererId);
+          const host = findGameHost(record.gameHostRendererId);
           if (host === null) {
             throw new Error(`Game view host is not open: ${gameRendererId}`);
           }
@@ -1788,7 +1761,7 @@ const makeDesktopWindows = Effect.gen(function* () {
   ) =>
     Effect.try({
       try: () => {
-        const record = renderers.get(gameRendererId);
+        const record = getWindowRenderer(gameRendererId);
         if (record === undefined || record.kind !== "game") {
           throw new Error(`Game renderer is not open: ${gameRendererId}`);
         }
@@ -1816,7 +1789,7 @@ const makeDesktopWindows = Effect.gen(function* () {
           record.gameViewName = gameViewName;
           record.loggedInUsername = gameViewName;
         }
-        const host = gameHosts.find(record.gameHostRendererId);
+        const host = findGameHost(record.gameHostRendererId);
         if (host !== null) {
           gameHosts.publishState(host);
         }
@@ -1847,7 +1820,7 @@ const makeDesktopWindows = Effect.gen(function* () {
             throw new Error(`${kind} requires an owning game window.`);
           }
 
-          const owner = renderers.get(options.ownerRendererId);
+          const owner = getWindowRenderer(options.ownerRendererId);
           if (
             owner === undefined ||
             owner.kind !== "game" ||
@@ -1896,9 +1869,8 @@ const makeDesktopWindows = Effect.gen(function* () {
           if (gameHostTarget !== undefined && gameHostTarget.kind !== "new") {
             const reusableHost =
               gameHostTarget.kind === "available"
-                ? [...gameHosts.values()].find(
+                ? [...getGameHosts()].find(
                     (host) =>
-                      gameHosts.find(host.rendererId) !== null &&
                       host.orderedIds.length < MAX_GAME_VIEWS_PER_WINDOW,
                   )
                 : (findGameHostForView(gameHostTarget.rendererId) ?? undefined);
@@ -1960,7 +1932,7 @@ const makeDesktopWindows = Effect.gen(function* () {
         );
         const webContents = window.webContents;
         const rendererId = webContents.id;
-        const record: DesktopRendererRecord = {
+        const record: DesktopBrowserWindowRecord = {
           rendererId,
           generation: 1,
           kind,
