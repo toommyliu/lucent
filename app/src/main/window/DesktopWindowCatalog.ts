@@ -58,7 +58,7 @@ const desktopWindowCatalog: ReadonlyMap<
     {
       kind: "about",
       width: 360,
-      height: 300,
+      height: 211,
       closeBehavior: "destroy",
       fixedSize: true,
       scope: "application",
