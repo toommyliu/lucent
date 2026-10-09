@@ -279,11 +279,7 @@ export function App() {
               <AlertDescription>{error}</AlertDescription>
               {loadFailed ? (
                 <AlertActions>
-                  <Button
-                    onClick={() => void load()}
-                    size="sm"
-                    type="button"
-                  >
+                  <Button onClick={() => void load()} size="sm" type="button">
                     Retry
                   </Button>
                 </AlertActions>

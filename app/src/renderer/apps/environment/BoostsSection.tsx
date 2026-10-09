@@ -130,9 +130,9 @@ export function BoostsSection({
   const [fetching, setFetching] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
-  const [bankBoosts, setBankBoosts] = useState<
-    readonly EnvironmentBankBoost[]
-  >([]);
+  const [bankBoosts, setBankBoosts] = useState<readonly EnvironmentBankBoost[]>(
+    [],
+  );
 
   const fetchBoosts = async (): Promise<void> => {
     setFetching(true);
