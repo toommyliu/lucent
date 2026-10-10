@@ -222,7 +222,6 @@ export abstract class LiveEntity<State extends EntityData>
               ),
             );
           }
-          commit("passive", entry.name, undefined);
         }
         break;
       case "set-stack":

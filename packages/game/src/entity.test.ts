@@ -164,19 +164,19 @@ describe("entity aura ownership", () => {
       1_002_000,
     );
     expect(entity.getAura("Focus", { kind: "active" })?.stack).toBe(4);
-    expect(entity.getAura("Focus", { kind: "passive" })).toBeNull();
+    expect(entity.getAura("Focus", { kind: "passive" })?.stack).toBe(1);
     entity.projectAuras(
       { type: "set-stack", entries: [{ name: "Focus", stack: 2 }] },
       1_002_000,
     );
-    expect(entity.getAura("Focus")?.stack).toBe(4);
+    expect(entity.getAura("Focus", { kind: "active" })?.stack).toBe(4);
     expect(
       entity.writeAuraMonsterState(1).map((change) => change.type),
     ).toEqual(["removed"]);
     entity.projectAuras({ type: "apply", entries: [focus] }, 1_003_000);
-    expect(entity.getAura("Focus")?.stack).toBe(5);
+    expect(entity.getAura("Focus", { kind: "active" })?.stack).toBe(5);
     expect(entity.writeAuraMonsterState(2)).toEqual([]);
-    expect(entity.getAura("Focus")?.stack).toBe(5);
+    expect(entity.getAura("Focus", { kind: "active" })?.stack).toBe(5);
     expect(
       entity.writeAuraMonsterState(1).map((change) => change.type),
     ).toEqual(["removed"]);

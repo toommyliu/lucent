@@ -422,6 +422,18 @@ const projectMoveArea = (
         "moveToArea did not establish the local player",
       );
     } else {
+      if (previousSelf !== null && self !== previousSelf) {
+        self.projectAuras(
+          {
+            type: "passives",
+            mode: "replace",
+            entries: previousSelf.auras
+              .filter((aura) => aura.kind === "passive")
+              .map((aura) => aura.toJSON()),
+          },
+          nowMs,
+        );
+      }
       yield* store.world.setSelf(self.username);
       yield* store.projection.complete("player");
     }
