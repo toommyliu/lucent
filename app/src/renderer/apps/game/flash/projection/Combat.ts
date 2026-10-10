@@ -37,6 +37,7 @@ const AuraChange = Schema.Struct({
     "aura-",
     "aura--",
     "aura-p",
+    "aura=",
   ]),
   tInf: Schema.String,
 });
@@ -281,6 +282,17 @@ export const projectCombat = (
           : parseCombatEntityReferences(change.value.cInf)[0];
       for (const target of parseCombatEntityReferences(change.value.tInf)) {
         for (const payload of payloads) {
+          if (change.value.cmd === "aura=") {
+            if (payload.stk !== undefined) {
+              yield* store.world.setAuraStack(
+                target.type,
+                target.id,
+                payload.nam,
+                Math.max(1, payload.stk),
+              );
+            }
+            continue;
+          }
           const eventDetails = {
             ...(payload.dur === undefined ? {} : { duration: payload.dur }),
             ...(payload.icon === undefined ? {} : { icon: payload.icon }),

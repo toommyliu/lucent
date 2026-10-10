@@ -955,6 +955,125 @@ describe("Projection", () => {
     }),
   );
 
+  it.effect.each([
+    { command: "cb", packet: extension },
+    { command: "ct", packet: server },
+  ])(
+    "synchronizes existing aura stacks through $command",
+    ({ command, packet }) =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          packet(command, {
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "p:10,m:1",
+                aura: {
+                  nam: "Counter Attack",
+                  dur: 10,
+                  icon: "scroll-enrage",
+                  cat: "buff",
+                  val: 5,
+                  isNew: true,
+                },
+              },
+              {
+                cmd: "aura+p",
+                tInf: "p:10",
+                aura: { nam: "Counter Attack", dur: 0 },
+              },
+            ],
+          }),
+        );
+        const player = yield* store.world.getPlayer(10);
+        const monster = yield* store.world.getMonster(1);
+        const playerAura = player?.getAura("Counter Attack", {
+          kind: "active",
+        });
+        const monsterAura = monster?.getAura("Counter Attack");
+        events.length = 0;
+
+        for (let repeat = 0; repeat < 2; repeat += 1) {
+          yield* pipeline.packet(
+            packet(command, {
+              a: [
+                {
+                  cmd: "aura=",
+                  tInf: "p:10,m:1",
+                  auras: [
+                    {
+                      nam: "Counter Attack",
+                      stk: "4",
+                      dur: 99,
+                      val: 99,
+                      isNew: true,
+                      msgOn: "Should not be published",
+                      msgOff: "Should not be published",
+                    },
+                    { nam: "Unknown Aura", stk: 3 },
+                  ],
+                },
+              ],
+            }),
+          );
+          expect(playerAura?.toJSON()).toEqual({
+            name: "Counter Attack",
+            kind: "active",
+            duration: 10,
+            icon: "scroll-enrage",
+            category: "buff",
+            value: 5,
+            stack: 4,
+          });
+          expect(monsterAura?.stack).toBe(4);
+          expect(
+            player?.getAura("Counter Attack", { kind: "passive" })?.stack,
+          ).toBe(1);
+          expect(player?.getAura("Unknown Aura")).toBeNull();
+          expect(monster?.getAura("Unknown Aura")).toBeNull();
+          expect(events).toEqual([]);
+        }
+
+        yield* pipeline.packet(
+          packet(command, {
+            a: [
+              {
+                cmd: "aura=",
+                tInf: "p:10,m:1",
+                aura: { nam: "Counter Attack" },
+              },
+            ],
+          }),
+        );
+        expect(playerAura?.stack).toBe(4);
+        expect(monsterAura?.stack).toBe(4);
+
+        for (const { stk, expected } of [
+          { stk: 2, expected: 2 },
+          { stk: 0, expected: 1 },
+          { stk: -2, expected: 1 },
+          { stk: "2.9", expected: 2 },
+        ]) {
+          yield* pipeline.packet(
+            packet(command, {
+              a: [
+                {
+                  cmd: "aura=",
+                  tInf: "p:10,m:1",
+                  aura: { nam: "Counter Attack", stk },
+                },
+              ],
+            }),
+          );
+          expect(playerAura?.stack).toBe(expected);
+          expect(monsterAura?.stack).toBe(expected);
+        }
+        expect(events).toEqual([]);
+      }),
+  );
+
   it.effect("clears players and monsters when entering another area", () =>
     Effect.gen(function* () {
       const { store, pipeline, userIdReads } = yield* makeWorldProjection();
