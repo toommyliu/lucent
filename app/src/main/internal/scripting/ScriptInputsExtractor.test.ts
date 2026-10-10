@@ -137,6 +137,27 @@ describe("ScriptInputsExtractor service", () => {
     }),
   );
 
+  it.effect("discovers inputs for the shipped Wheel of Doom script", () =>
+    Effect.gen(function* () {
+      const source = yield* Effect.promise(() =>
+        readFile(
+          new URL(
+            "../../../../../script-packages/lucent-dailies/scripts/spin-wheel-of-doom.js",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      const definition = yield* extractInputs(source);
+
+      expect(definition?.id).toBe("lucent-dailies-spin-wheel-of-doom");
+      if (definition === null) return;
+      expect(normalizeScriptInputValues(definition)).toEqual({
+        bankRewards: false,
+      });
+    }),
+  );
+
   it.effect("rejects duplicate field keys", () =>
     Effect.gen(function* () {
       const result = yield* extractInputsResult(`
