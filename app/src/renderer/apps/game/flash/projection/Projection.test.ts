@@ -147,6 +147,50 @@ const enterTestArea = (pipeline: ReturnType<typeof makePipeline>) =>
   });
 
 describe("Projection", () => {
+  it.effect("keeps classes in inventory when item mutations carry bBank", () =>
+    Effect.gen(function* () {
+      const { store, pipeline } = yield* makeItemProjection();
+      yield* pipeline.packet(
+        extension("addItems", {
+          items: {
+            7: {
+              CharItemID: 70,
+              bBank: 1,
+              iQty: 10_000,
+              sES: "ar",
+              sName: "Owned Class",
+              sType: "Class",
+            },
+          },
+        }),
+      );
+      expect(yield* store.items.get("bank", 7)).toBeNull();
+      expect(
+        (yield* store.items.get("inventory", 7))?.snapshot(),
+      ).toMatchObject({
+        context: "inventory",
+      });
+      expect((yield* store.items.get("inventory", 7))?.classRank).toBe(4);
+      yield* pipeline.packet(
+        extension("removeItem", { CharItemID: 70, bBank: 1, iQty: 1 }),
+      );
+      expect(yield* store.items.get("inventory", 7)).toBeNull();
+    }),
+  );
+
+  it.effect("routes Guild item additions into inventory", () =>
+    Effect.gen(function* () {
+      const { store, pipeline } = yield* makeItemProjection();
+      yield* pipeline.packet(
+        extension("addItems", {
+          items: { 8: { sName: "Guild Item", sType: "Guild", iQty: 1 } },
+        }),
+      );
+      expect((yield* store.items.get("inventory", 8))?.name).toBe("Guild Item");
+      expect(yield* store.items.get("house", 8)).toBeNull();
+    }),
+  );
+
   it.effect(
     "indexes valid inventory entries and diagnoses malformed neighbors",
     () =>
