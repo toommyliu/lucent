@@ -1,5 +1,9 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+
+import { normalizeScriptInputValues } from "@lucent/core/scriptInputs";
 
 import {
   ScriptInputsExtractor,
@@ -102,6 +106,27 @@ describe("ScriptInputsExtractor service", () => {
             default: ["Weapon", "Armor"],
           },
         ],
+      });
+    }),
+  );
+
+  it.effect("discovers inputs for the shipped Wheel of Doom script", () =>
+    Effect.gen(function* () {
+      const source = yield* Effect.promise(() =>
+        readFile(
+          new URL(
+            "../../../../../script-packages/lucent-dailies/scripts/spin-wheel-of-doom.js",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      const definition = yield* extractInputs(source);
+
+      expect(definition?.id).toBe("lucent-dailies-spin-wheel-of-doom");
+      if (definition === null) return;
+      expect(normalizeScriptInputValues(definition)).toEqual({
+        bankRewards: false,
       });
     }),
   );
