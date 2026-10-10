@@ -26,7 +26,7 @@ export interface AuraData {
   icon?: string;
   kind: AuraKind;
   name: string;
-  persistent?: boolean;
+  persistent: boolean;
   stack: number;
   value?: number | string;
 }
@@ -53,7 +53,7 @@ export class LiveAura extends LiveModel<AuraData> implements Aura {
     return this.modelData.name;
   }
   get persistent(): boolean {
-    return this.modelData.persistent ?? false;
+    return this.modelData.persistent;
   }
   get stack(): number {
     return this.modelData.stack;
@@ -62,7 +62,7 @@ export class LiveAura extends LiveModel<AuraData> implements Aura {
     return this.modelData.value;
   }
   toJSON(): AuraSnapshot {
-    return { ...this.modelData, persistent: this.persistent };
+    return this.snapshot();
   }
 }
 

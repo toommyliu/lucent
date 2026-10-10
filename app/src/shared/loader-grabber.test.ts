@@ -37,7 +37,7 @@ describe("loader grabber requests", () => {
 });
 
 describe("loader grabber aura snapshots", () => {
-  it("preserves projected expiry and persistence and accepts older snapshots", () => {
+  it("preserves projected expiry and requires persistence", () => {
     const monster = new LiveMonster({
       aggressive: false,
       cell: "r1",
@@ -79,19 +79,14 @@ describe("loader grabber aura snapshots", () => {
         persistent: true,
       },
     ]);
-    const legacyAura = {
+    const missingPersistence = {
       name: "Focus",
       kind: "active",
       stack: 2,
       duration: 8,
     };
-    expect(decode({ ...monster.toJSON(), auras: [legacyAura] }).auras).toEqual([
-      {
-        name: "Focus",
-        kind: "active",
-        stack: 2,
-        duration: 8,
-      },
-    ]);
+    expect(() =>
+      decode({ ...monster.toJSON(), auras: [missingPersistence] }),
+    ).toThrow("persistent");
   });
 });

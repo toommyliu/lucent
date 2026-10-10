@@ -207,7 +207,13 @@ describe("active aura reduction", () => {
     },
     {
       name: "decay does not time an untimed row",
-      before: { name: "Focus", kind: "active", stack: 5, duration: 0 },
+      before: {
+        name: "Focus",
+        kind: "active",
+        stack: 5,
+        duration: 0,
+        persistent: false,
+      },
       edit: { type: "decay", name: "Focus", stack: 2, refreshSeconds: 12 },
       now: 1_003_000,
       duration: 0,
@@ -273,7 +279,7 @@ describe("active aura reduction", () => {
     },
   );
 
-  it("retains omitted metadata and defaults persistence for old inputs", () => {
+  it("retains omitted metadata and explicit persistence", () => {
     expect(
       reduceActiveAura(
         timed,
@@ -304,6 +310,7 @@ describe("active aura reduction", () => {
       kind: "active",
       stack: 1,
       duration: 0,
+      persistent: false,
     });
     expect(aura.persistent).toBe(false);
     expect(aura.toJSON()).toEqual({

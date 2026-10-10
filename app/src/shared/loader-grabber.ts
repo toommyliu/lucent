@@ -151,7 +151,7 @@ const AuraSchema = Schema.Struct({
   icon: Schema.optionalKey(Schema.String),
   kind: Schema.Literals(["active", "passive"]),
   name: Schema.String,
-  persistent: Schema.optionalKey(Schema.Boolean),
+  persistent: Schema.Boolean,
   stack: Schema.Number,
   value: Schema.optionalKey(Schema.Union([Schema.Number, Schema.String])),
 });
