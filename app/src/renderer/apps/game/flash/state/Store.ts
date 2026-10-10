@@ -272,6 +272,18 @@ export const makeStore = Effect.gen(function* () {
         }
         return state;
       }),
+    setAuraStack: (
+      target: "monster" | "player",
+      id: number,
+      name: string,
+      stack: number,
+    ) =>
+      SynchronizedRef.update(worldRef, (state) => {
+        entityForAura(state, target, id)
+          ?.getAura(name, { kind: "active" })
+          ?.update({ stack });
+        return state;
+      }),
     clearArea: SynchronizedRef.update(worldRef, (state) => {
       clearArea(state);
       return state;

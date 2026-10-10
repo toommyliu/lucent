@@ -50,6 +50,7 @@ const makeTarget = () => {
       return true;
     },
     "bank.getSlots": () => 2,
+    "bank.getUsedSlots": () => 2,
     "bank.getItems": () => bankItems,
     "bank.isLoaded": () => bankLoaded,
     "bank.loadItems": (force = false) => {
@@ -85,12 +86,15 @@ const makeTarget = () => {
       calls.bankOpenViews.push(view);
       bankView = view;
     },
-    "bank.swap": () => {
+    "bank.swap": (
+      inventorySelector: { itemId: number },
+      bankSelector: { itemId: number },
+    ) => {
       calls.swaps += 1;
       emitExtension(target, {
-        bankItemID: 42,
+        bankItemID: bankSelector.itemId,
         cmd: "bankSwapInv",
-        invItemID: 50,
+        invItemID: inventorySelector.itemId,
       });
       return true;
     },
@@ -106,6 +110,16 @@ const makeTarget = () => {
       force = false,
     ) => {
       calls.skillUses.push({ force, index, selector });
+      return true;
+    },
+    "drops.accept": (itemId: number) => {
+      emitExtension(target, {
+        ItemID: itemId,
+        bBank: 1,
+        bSuccess: 1,
+        cmd: "getDrop",
+        iQty: 1,
+      });
       return true;
     },
     "house.getSlots": () => 1,
@@ -145,6 +159,23 @@ const makeTarget = () => {
     "player.isMember": () => false,
     "shops.isOpen": (shopId = 0) =>
       openShopId !== 0 && (shopId === 0 || shopId === openShopId),
+    "shops.canBuyItem": () => true,
+    "shops.buy": () => {
+      bankItems = [
+        { ItemID: 42, bCoins: 1, iQty: 3, sName: "Indexed Item" },
+        { ItemID: 43, bHouse: 1, sName: "Banked House Item" },
+        { ItemID: 44, sName: "Occupied Slot" },
+        { ItemID: 45, sType: "Class", sName: "Banked Class" },
+      ];
+      emitExtension(target, {
+        cmd: "buyItem",
+        bitSuccess: 1,
+        bBank: 1,
+        CharItemID: 420,
+        ItemID: 42,
+        iQty: 1,
+      });
+    },
     "shops.load": (shopId: number) => {
       calls.shopLoads += 1;
       openShopId = shopId;
@@ -355,11 +386,8 @@ describe("Api", () => {
       expect(calls.bankLoadForces).toEqual([]);
 
       expect(yield* api.bank.open()).toBe(true);
-      const bankedClass = yield* api.bank.get(45);
-      expect(bankedClass).not.toBeNull();
-      expect(bankedClass?.category).toBe("Class");
-      expect(bankedClass?.classRank).toBe(10);
-      expect(yield* api.player.getClassRank(45)).toBe(10);
+      expect(yield* api.bank.get(45)).toBeNull();
+      expect(yield* api.player.getClassRank(45)).toBeNull();
 
       const inventoryLoad = yield* api.wait.forPacket(
         {
@@ -373,6 +401,13 @@ describe("Api", () => {
             emitExtension(target, {
               cmd: "loadInventoryBig",
               items: [
+                {
+                  ItemID: 45,
+                  iQty: 302_500,
+                  sES: "ar",
+                  sName: "Owned Class",
+                  sType: "Class",
+                },
                 {
                   ItemID: 46,
                   bEquip: 1,
@@ -470,6 +505,58 @@ describe("Api", () => {
       }),
   );
 
+  it.effect(
+    "keeps classes out of bank snapshots after a purchase refresh",
+    () =>
+      Effect.gen(function* () {
+        const { api, target } = yield* makeApiHarness();
+        expect(yield* api.bank.load()).toBe(true);
+        const loaded = yield* api.wait.forPacket(
+          { command: "loadShop", direction: "extension", encoding: "json" },
+          {
+            trigger: Effect.sync(() => {
+              emitExtension(target, {
+                cmd: "loadShop",
+                ShopID: 1,
+                items: [{ ItemID: 42, sName: "Indexed Item" }],
+              });
+              return true;
+            }),
+          },
+        );
+        expect(loaded).not.toBeNull();
+        expect(yield* api.shops.buy(42)).toBe(true);
+        expect((yield* api.bank.get(42))?.quantity).toBe(3);
+        expect(yield* api.bank.get(45)).toBeNull();
+      }),
+  );
+
+  it.effect("accepts classes into inventory despite a bank response flag", () =>
+    Effect.gen(function* () {
+      const { api, target } = yield* makeApiHarness();
+      const packet = yield* api.wait.forPacket(
+        { command: "dropItem", direction: "extension", encoding: "json" },
+        {
+          timeout: "1 second",
+          trigger: Effect.sync(() => {
+            emitExtension(target, {
+              cmd: "dropItem",
+              items: {
+                70: { ItemID: 70, sName: "Dropped Class", sType: "Class" },
+              },
+            });
+            return true;
+          }),
+        },
+      );
+      expect(packet).not.toBeNull();
+      expect(yield* api.drops.accept(70)).toBe(true);
+      expect(yield* api.drops.contains(70)).toBe(false);
+      expect((yield* api.inventory.get(70))?.context).toBe("inventory");
+      expect(yield* api.bank.get(70)).toBeNull();
+    }),
+  );
+
   it.effect("guards full containers and projects deposits and swaps", () =>
     Effect.gen(function* () {
       const { api, calls, closeBankUi, target } = yield* makeApiHarness();
@@ -493,10 +580,12 @@ describe("Api", () => {
       expect(yield* api.bank.contains(51)).toBe(true);
       expect(yield* api.inventory.contains(51)).toBe(false);
 
-      expect(yield* api.bank.swap(50, 42)).toBe(true);
+      expect(yield* api.bank.swap(50, 42)).toBe(false);
+      expect(calls.swaps).toBe(0);
+      expect(yield* api.bank.swap(50, 44)).toBe(true);
       expect(calls.swaps).toBe(1);
       expect(yield* api.bank.contains(50)).toBe(true);
-      expect(yield* api.inventory.contains(42)).toBe(true);
+      expect(yield* api.inventory.contains(44)).toBe(true);
     }),
   );
 

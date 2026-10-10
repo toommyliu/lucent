@@ -3,7 +3,7 @@ import {
   normalizeItemQuantity,
   resolveEnhancementStrategy,
 } from "@lucent/game";
-import type { ItemQuery } from "@lucent/game";
+import type { ItemQuery, LiveItem } from "@lucent/game";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
@@ -63,6 +63,17 @@ const isDirectInventoryUseItem = (category: string, link: string): boolean =>
   category.trim().toLowerCase() === "serveruse" ||
   isDirectInventoryConsumable(link);
 
+const miscCategories = new Set(["Item", "Note", "Quest Item", "Resource"]);
+
+const inventoryPool = (item: LiveItem) => {
+  if (item.category === "Class") return "class";
+  if (item.houseItem || item.category === "Guild") return "house";
+  return miscCategories.has(item.category) &&
+    !(item.category === "Item" && /^\s*\d+\s*$/.test(item.meta))
+    ? "misc"
+    : "bag";
+};
+
 export const makeInventory = (
   bridge: BridgeService,
   store: Store,
@@ -96,7 +107,53 @@ export const makeInventory = (
       .pipe(Effect.map(Option.getOrElse(() => 0)));
 
   const getUsedSlots = () =>
-    store.items.getAll("inventory").pipe(Effect.map((items) => items.length));
+    getAll().pipe(
+      Effect.map(
+        (items) => items.filter((item) => inventoryPool(item) === "bag").length,
+      ),
+    );
+
+  const canAccept = Effect.fn("Inventory.canAccept")(function* (
+    item: LiveItem,
+    replacing?: LiveItem,
+  ) {
+    const pool = inventoryPool(item);
+    if (pool === "class") return true;
+    if (
+      replacing !== undefined &&
+      (pool === "house" || inventoryPool(replacing) === pool)
+    ) {
+      return true;
+    }
+    if (pool === "house") {
+      const slots = yield* bridge
+        .invoke("house.getSlots", undefined, WireInt)
+        .pipe(Effect.map(Option.getOrElse(() => 0)));
+      return (yield* store.items.getAll("house")).length < slots;
+    }
+
+    const current = yield* get(item.itemId);
+    if (
+      replacing === undefined &&
+      current !== null &&
+      current.quantity < (current.maxStack ?? 1)
+    ) {
+      return true;
+    }
+    if (pool === "misc" && current !== null) return true;
+
+    const slots =
+      pool === "bag"
+        ? yield* getSlots()
+        : yield* bridge
+            .invoke("inventory.getMiscSlots", undefined, WireInt)
+            .pipe(Effect.map(Option.getOrElse(() => 0)));
+    const items = yield* getAll();
+    const used = items.filter(
+      (candidate) => inventoryPool(candidate) === pool,
+    ).length;
+    return used < slots;
+  });
 
   const contains = (selector: ItemQuery, quantity?: number) =>
     get(selector).pipe(
@@ -377,6 +434,7 @@ export const makeInventory = (
   );
 
   return {
+    canAccept,
     contains,
     equip,
     equipByEnhancement,

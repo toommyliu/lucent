@@ -168,6 +168,7 @@ export const AuraPayload = Schema.Struct({
     Schema.Union([Schema.String, Schema.Array(Schema.String)]),
   ),
   nam: Schema.String,
+  stk: Schema.optionalKey(WireInt),
   // AQW uses val for numeric values and string data such as a locked skill's name.
   val: Schema.optionalKey(Schema.Union([WireNumber, Schema.String])),
 });
