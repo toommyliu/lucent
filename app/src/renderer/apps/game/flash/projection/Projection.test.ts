@@ -148,6 +148,73 @@ const enterTestArea = (pipeline: ReturnType<typeof makePipeline>) =>
   });
 
 describe("Projection", () => {
+  it.effect(
+    "isolates malformed seed slots and applies AS3 scalar conversions",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* pipeline.packet(
+          extension("moveToArea", {
+            areaName: "battleon-42",
+            uoBranch: [
+              {
+                entID: 10,
+                strUsername: "Hero",
+                au: [
+                  ["Curse of Times", "inver2", 6.4, 5, 0, 8],
+                  ["Bad", "icon", { toString: null }, 1, 0, 8],
+                  [42, null, 5, "garbage", "1"],
+                ],
+              },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => aura.toJSON()),
+        ).toEqual([
+          {
+            name: "Curse of Times",
+            kind: "active",
+            icon: "inver2",
+            stack: 5,
+            duration: 8,
+            expiresAt: 1_006_400,
+            persistent: false,
+          },
+          {
+            name: "42",
+            kind: "active",
+            icon: "null",
+            stack: 1,
+            duration: 5,
+            expiresAt: 1_005_000,
+            persistent: true,
+          },
+        ]);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "p:10",
+                auras: [
+                  { nam: "Focus", stk: "garbage", persist: "true" },
+                  { nam: "Elixir", persist: "1" },
+                ],
+              },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.getAura("Focus")?.toJSON(),
+        ).toMatchObject({ stack: 0, persistent: false });
+        expect((yield* store.world.getMe)?.getAura("Elixir")?.persistent).toBe(
+          true,
+        );
+      }),
+  );
+
   it.effect("keeps classes in inventory when item mutations carry bBank", () =>
     Effect.gen(function* () {
       const { store, pipeline } = yield* makeItemProjection();
@@ -1272,157 +1339,192 @@ describe("Projection", () => {
   );
 
   it.effect(
-    "publishes monster death and aura metadata, then clears auras on respawn",
+    "publishes aura metadata and clears it on death before respawn",
     () =>
       Effect.gen(function* () {
         const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
         yield* enterTestArea(pipeline);
         yield* pipeline.packet(
-          extension("cb", { m: { "1": { intHP: 0, intState: 0 } } }),
-        );
-        expect(events.some((event) => event.type === "monster-death")).toBe(
-          true,
-        );
-        yield* pipeline.packet(
           extension("cb", {
+            m: { "1": { intState: 2 } },
             a: [
               {
-                auras: [
-                  {
-                    dur: "6",
-                    icon: "scroll-enrage",
-                    nam: "Focus",
-                  },
-                ],
-                cInf: "p:10",
                 cmd: "aura+",
                 tInf: "m:1",
+                cInf: "p:10",
+                auras: [
+                  {
+                    nam: "Focus",
+                    t: "s",
+                    dur: "6",
+                    stk: 5,
+                    icon: "scroll-enrage",
+                  },
+                ],
               },
             ],
           }),
         );
-        expect((yield* store.world.getMonster(1))?.auras[0]?.name).toBe(
-          "Focus",
-        );
         expect(
-          events.find(
-            (event) => event.type === "aura-added" && event.name === "Focus",
-          ),
-        ).toEqual({
+          (yield* store.world.getMonster(1))?.getAura("Focus")?.stack,
+        ).toBe(5);
+        expect(events.find((event) => event.type === "aura-added")).toEqual({
           type: "aura-added",
           duration: 6,
           icon: "scroll-enrage",
           name: "Focus",
+          stack: 5,
           sourceId: 10,
           sourceType: "player",
           targetId: 1,
           targetType: "monster",
         });
-
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("cb", {
+            m: { "1": { intHP: 0, intState: 0 } },
+            a: [{ cmd: "aura+", tInf: "m:1", aura: { nam: "Focus", stk: 5 } }],
+          }),
+        );
+        expect(events).toContainEqual({
+          type: "monster-death",
+          monsterMapId: 1,
+        });
+        expect(
+          events.filter((event) => event.type.startsWith("aura-")),
+        ).toEqual([
+          {
+            type: "aura-removed",
+            duration: 6,
+            icon: "scroll-enrage",
+            name: "Focus",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        expect((yield* store.world.getMonster(1))?.auras).toEqual([]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("cb", { m: { "1": { intState: 0 } } }),
+        );
         yield* pipeline.packet(
           extension("respawnMon", ["respawnMon", "", "1"]),
         );
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [{ cmd: "aura+", tInf: "m:1", aura: { nam: "Focus" } }],
+          }),
+        );
+        expect(events).toEqual([{ type: "monster-respawn", monsterMapId: 1 }]);
         expect((yield* store.world.getMonster(1))?.auras).toEqual([]);
       }),
   );
 
-  it.effect("stacks player auras and publishes removal messages", () =>
-    Effect.gen(function* () {
-      const { store, pipeline, events } = yield* makeWorldProjection();
-      yield* enterTestArea(pipeline);
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            { cmd: "unsupported-aura", tInf: "p:10" },
-            {
-              auras: [{ nam: "Empowered", dur: "10" }],
-              cmd: "aura+",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getPlayer(10))?.auras[0]?.name).toBe(
-        "Empowered",
-      );
-
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            {
-              auras: [{ nam: "Empowered", dur: 10 }],
-              cmd: "aura++",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(2);
-
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            {
-              aura: { nam: "Empowered" },
-              cmd: "aura--",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(1);
-
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            {
-              aura: {
-                isNew: true,
-                nam: "Skill Locked",
-                val: "Ravenous",
+  it.effect(
+    "uses explicit stacks and publishes self-only removal messages",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              { cmd: "unsupported-aura", tInf: "p:10" },
+              {
+                auras: [
+                  { nam: "Empowered", t: "s", dur: "10", stk: 4, isNew: true },
+                ],
+                cmd: "aura+",
+                tInf: "p:10",
               },
-              cmd: "aura+",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect(
-        (yield* store.world.getPlayer(10))?.getAura("Skill Locked")?.value,
-      ).toBe("Ravenous");
+            ],
+          }),
+        );
+        expect((yield* store.world.getPlayer(10))?.auras[0]?.name).toBe(
+          "Empowered",
+        );
 
-      yield* pipeline.packet(
-        extension("cb", {
-          a: [
-            {
-              aura: {
-                msgOff: "@Ravenous can now be used again!",
-                nam: "Skill Locked",
-                val: "Ravenous",
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                auras: [{ nam: "Empowered", dur: 10 }],
+                cmd: "aura++",
+                tInf: "p:10",
               },
-              cmd: "aura-",
-              tInf: "p:10",
-            },
-          ],
-        }),
-      );
-      expect(events.slice(-2)).toEqual([
-        {
-          type: "aura-removed",
-          name: "Skill Locked",
-          targetId: 10,
-          targetType: "player",
-        },
-        {
-          type: "update-message",
-          message: "Ravenous can now be used again!",
-          source: "aura",
-        },
-      ]);
-      expect(
-        (yield* store.world.getPlayer(10))?.getAura("Skill Locked"),
-      ).toBeNull();
-    }),
+            ],
+          }),
+        );
+        expect((yield* store.world.getPlayer(10))?.auras[0]?.stack).toBe(1);
+
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                aura: { nam: "Empowered" },
+                cmd: "aura--",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect((yield* store.world.getPlayer(10))?.hasAura("Empowered")).toBe(
+          false,
+        );
+
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                aura: {
+                  isNew: true,
+                  nam: "Skill Locked",
+                  val: "Ravenous",
+                },
+                cmd: "aura+",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getPlayer(10))?.getAura("Skill Locked")?.value,
+        ).toBe("Ravenous");
+
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                aura: {
+                  msgOff: "@Ravenous can now be used again!",
+                  nam: "Skill Locked",
+                  val: "Ravenous",
+                },
+                cmd: "aura-",
+                tInf: "p:10",
+              },
+            ],
+          }),
+        );
+        expect(events.slice(-2)).toEqual([
+          {
+            type: "aura-removed",
+            duration: 0,
+            name: "Skill Locked",
+            targetId: 10,
+            targetType: "player",
+          },
+          {
+            type: "update-message",
+            message: "Ravenous can now be used again!",
+            source: "aura",
+          },
+        ]);
+        expect(
+          (yield* store.world.getPlayer(10))?.getAura("Skill Locked"),
+        ).toBeNull();
+      }),
   );
 
   it.effect.each([
@@ -1433,22 +1535,24 @@ describe("Projection", () => {
     ({ command, packet }) =>
       Effect.gen(function* () {
         const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
         yield* enterTestArea(pipeline);
         yield* pipeline.packet(
           packet(command, {
             a: [
-              {
+              ...["p:10", "m:1"].map((tInf) => ({
                 cmd: "aura+",
-                tInf: "p:10,m:1",
+                tInf,
                 aura: {
                   nam: "Counter Attack",
                   dur: 10,
+                  t: "s",
                   icon: "scroll-enrage",
                   cat: "buff",
                   val: 5,
                   isNew: true,
                 },
-              },
+              })),
               {
                 cmd: "aura+p",
                 tInf: "p:10",
@@ -1468,30 +1572,29 @@ describe("Projection", () => {
         for (let repeat = 0; repeat < 2; repeat += 1) {
           yield* pipeline.packet(
             packet(command, {
-              a: [
-                {
-                  cmd: "aura=",
-                  tInf: "p:10,m:1",
-                  auras: [
-                    {
-                      nam: "Counter Attack",
-                      stk: "4",
-                      dur: 99,
-                      val: 99,
-                      isNew: true,
-                      msgOn: "Should not be published",
-                      msgOff: "Should not be published",
-                    },
-                    { nam: "Unknown Aura", stk: 3 },
-                  ],
-                },
-              ],
+              a: ["p:10", "m:1"].map((tInf) => ({
+                cmd: "aura=",
+                tInf,
+                auras: [
+                  {
+                    nam: "Counter Attack",
+                    stk: "4",
+                    dur: 99,
+                    val: 99,
+                    isNew: true,
+                    msgOn: "Should not be published",
+                    msgOff: "Should not be published",
+                  },
+                  { nam: "Unknown Aura", stk: 3 },
+                ],
+              })),
             }),
           );
-          expect(playerAura?.toJSON()).toEqual({
+          expect(playerAura?.toJSON()).toMatchObject({
             name: "Counter Attack",
             kind: "active",
             duration: 10,
+            expiresAt: 1_010_000,
             icon: "scroll-enrage",
             category: "buff",
             value: 5,
@@ -1503,18 +1606,34 @@ describe("Projection", () => {
           ).toBe(1);
           expect(player?.getAura("Unknown Aura")).toBeNull();
           expect(monster?.getAura("Unknown Aura")).toBeNull();
-          expect(events).toEqual([]);
+          expect(events).toMatchObject(
+            repeat === 0
+              ? [
+                  {
+                    type: "aura-updated",
+                    name: "Counter Attack",
+                    stack: 4,
+                    targetId: 10,
+                  },
+                  {
+                    type: "aura-updated",
+                    name: "Counter Attack",
+                    stack: 4,
+                    targetId: 1,
+                  },
+                ]
+              : [],
+          );
+          events.length = 0;
         }
 
         yield* pipeline.packet(
           packet(command, {
-            a: [
-              {
-                cmd: "aura=",
-                tInf: "p:10,m:1",
-                aura: { nam: "Counter Attack" },
-              },
-            ],
+            a: ["p:10", "m:1"].map((tInf) => ({
+              cmd: "aura=",
+              tInf,
+              aura: { nam: "Counter Attack" },
+            })),
           }),
         );
         expect(playerAura?.stack).toBe(4);
@@ -1528,18 +1647,471 @@ describe("Projection", () => {
         ]) {
           yield* pipeline.packet(
             packet(command, {
-              a: [
-                {
-                  cmd: "aura=",
-                  tInf: "p:10,m:1",
-                  aura: { nam: "Counter Attack", stk },
-                },
-              ],
+              a: ["p:10", "m:1"].map((tInf) => ({
+                cmd: "aura=",
+                tInf,
+                aura: { nam: "Counter Attack", stk },
+              })),
             }),
           );
           expect(playerAura?.stack).toBe(expected);
           expect(monsterAura?.stack).toBe(expected);
         }
+        expect(events.map((event) => event.type)).toEqual([
+          "aura-updated",
+          "aura-updated",
+          "aura-updated",
+          "aura-updated",
+          "aura-updated",
+          "aura-updated",
+        ]);
+      }),
+  );
+
+  it.effect("skips malformed seed rows without discarding valid siblings", () =>
+    Effect.gen(function* () {
+      const { store, pipeline } = yield* makeWorldProjection();
+      yield* TestClock.setTime(1_000_000);
+      yield* pipeline.packet(
+        extension("moveToArea", {
+          areaId: 12,
+          areaName: "battleon-42",
+          monBranch: [],
+          uoBranch: [
+            {
+              entID: 10,
+              strUsername: "Hero",
+              au: [
+                null,
+                ["Short", "icon"],
+                [null, "icon", 8, 1, 0],
+                ["Inspired", "old", 8, 1, 0],
+                ["Inspired", "imr2,iihelm", 6.4, 5, 0],
+                ["Untimed", null, 0, -2, 1, 900],
+                ["Expired", "ice", -1, 0, 0, 900],
+              ],
+            },
+          ],
+        }),
+      );
+      expect(
+        (yield* store.world.getMe)?.auras.map((aura) => aura.toJSON()),
+      ).toMatchObject([
+        {
+          name: "Inspired",
+          icon: "imr2,iihelm",
+          stack: 5,
+          duration: 6.4,
+          expiresAt: 1_006_400,
+        },
+        {
+          name: "Untimed",
+          icon: "null",
+          stack: 1,
+          duration: 0,
+          persistent: true,
+        },
+        { name: "Expired", stack: 1, duration: 0, persistent: false },
+      ]);
+      expect(
+        (yield* store.world.getMe)?.getAura("Untimed")?.expiresAt,
+      ).toBeUndefined();
+      expect(
+        (yield* store.world.getMe)?.getAura("Expired")?.expiresAt,
+      ).toBeUndefined();
+    }),
+  );
+
+  it.effect.each([
+    {
+      name: "ct",
+      packet: (patch: Record<string, number>) =>
+        server("ct", { m: { "1": patch } }),
+    },
+    {
+      name: "cb",
+      packet: (patch: Record<string, number>) =>
+        extension("cb", { m: { "1": patch } }),
+    },
+    {
+      name: "JSON mtls",
+      packet: (patch: Record<string, number>) =>
+        extension("mtls", { id: 1, o: patch }),
+    },
+    {
+      name: "string mtls",
+      packet: (patch: Record<string, number>) =>
+        stringExtension("mtls", [
+          "mtls",
+          "",
+          "1",
+          Object.entries(patch)
+            .map(([key, value]) => `${key}:${value}`)
+            .join(","),
+        ]),
+    },
+  ])("applies server aura lifecycle through $name", ({ packet }) =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeWorldProjection();
+      yield* enterTestArea(pipeline);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              cmd: "aura+",
+              tInf: "m:1",
+              aura: { nam: "Focus", stk: 5, persist: true },
+            },
+            { cmd: "aura+p", tInf: "m:1", aura: { nam: "Brand of Chaos" } },
+          ],
+        }),
+      );
+      expect((yield* store.world.getMonster(1))?.getAura("Focus")?.stack).toBe(
+        5,
+      );
+      yield* pipeline.packet(packet({ intHP: 0 }));
+      expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(true);
+      yield* pipeline.packet(packet({ intState: 2 }));
+      expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(true);
+      events.length = 0;
+      yield* pipeline.packet(packet({ intState: 1 }));
+      expect(
+        (yield* store.world.getMonster(1))?.auras.map((aura) => aura.name),
+      ).toEqual(["Brand of Chaos"]);
+      expect(
+        events.filter((event) => event.type === "aura-removed"),
+      ).toMatchObject([{ name: "Focus" }]);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [{ cmd: "aura+", tInf: "m:1", aura: { nam: "Focus", stk: 4 } }],
+        }),
+      );
+      expect((yield* store.world.getMonster(1))?.getAura("Focus")?.stack).toBe(
+        4,
+      );
+      yield* pipeline.packet(packet({ intState: 1 }));
+      expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(false);
+      yield* pipeline.packet(packet({ intState: 0 }));
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [{ cmd: "aura+", tInf: "m:1", aura: { nam: "Focus", stk: 5 } }],
+        }),
+      );
+      expect(
+        (yield* store.world.getMonster(1))?.auras.map((aura) => aura.name),
+      ).toEqual(["Brand of Chaos"]);
+    }),
+  );
+
+  it.effect(
+    "keeps synthetic monster metadata writes separate from the server gate",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* pipeline.packet(
+          extension("moveToArea", {
+            areaId: 12,
+            areaName: "battleon-42",
+            uoBranch: [],
+            monBranch: [
+              {
+                MonID: 5,
+                MonMapID: 1,
+                intState: 1,
+                intHPMax: 100,
+                au: [["Curse of Times", "inver2", 6.4, 5, 0, 8]],
+              },
+            ],
+          }),
+        );
+        const monster = yield* store.world.getMonster(1);
+        const aura = monster?.getAura("Curse of Times");
+        expect(aura?.stack).toBe(5);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("respawnMon", ["respawnMon", "", "1"]),
+        );
+        expect(monster?.hp).toBe(100);
+        expect(monster?.getAura("Curse of Times")).toBe(aura);
+        yield* pipeline.packet(extension("addGoldExp", { id: 1, typ: "m" }));
+        expect(monster?.hp).toBe(0);
+        expect(monster?.getAura("Curse of Times")).toBe(aura);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [{ cmd: "aura+", tInf: "m:1", aura: { nam: "Focus", stk: 4 } }],
+          }),
+        );
+        expect(monster?.getAura("Focus")?.stack).toBe(4);
+        expect(events.filter((event) => event.type === "aura-removed")).toEqual(
+          [],
+        );
+      }),
+  );
+
+  it.effect(
+    "ignores unknown or invalid snapshots and clears an empty snapshot",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "p:10",
+                aura: { nam: "Focus", stk: 5, val: 7, cat: "buff" },
+              },
+            ],
+          }),
+        );
+        const aura = (yield* store.world.getMe)?.getAura("Focus");
+        expect(aura?.stack).toBe(5);
+        events.length = 0;
+        for (const data of [
+          { unm: "Unknown", au: [["Inspired", "imr2,iihelm", 8, 1, 0, 12]] },
+          { unm: "Hero" },
+          { unm: "Hero", au: null },
+          { unm: "Hero", au: {} },
+        ]) {
+          yield* pipeline.packet(extension("auSnap", data));
+          expect((yield* store.world.getMe)?.getAura("Focus")).toBe(aura);
+        }
+        expect(yield* store.world.getPlayer("Unknown")).toBeNull();
+        expect(events).toEqual([]);
+        yield* pipeline.packet(
+          extension("auSnap", {
+            unm: "Hero",
+            au: [["Focus", "inver2", 6.4, 4, 0, 8]],
+          }),
+        );
+        expect((yield* store.world.getMe)?.getAura("Focus")).toBe(aura);
+        expect(aura?.toJSON()).toMatchObject({
+          stack: 4,
+          value: 7,
+          category: "buff",
+        });
+        events.length = 0;
+        yield* pipeline.packet(extension("auSnap", { unm: "Hero", au: [] }));
+        expect((yield* store.world.getMe)?.auras).toEqual([]);
+        expect(events).toMatchObject([{ type: "aura-removed", name: "Focus" }]);
+      }),
+  );
+
+  it.effect(
+    "isolates malformed aura rows and rejects compound HUD targets",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events, diagnostics } =
+          yield* makeItemProjection();
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "unsupported-aura",
+                tInf: "p:10",
+                aura: { nam: "Ignored" },
+              },
+              {
+                cmd: "aura+",
+                tInf: "p:10",
+                auras: [null, { dur: 4 }, { nam: "Focus", stk: 5 }],
+              },
+              {
+                cmd: "aura+",
+                tInf: "p:10",
+                auras: [],
+                aura: { nam: "Suppressed" },
+              },
+              {
+                cmd: "aura+",
+                tInf: "m:1",
+                auras: null,
+                aura: { nam: "Inspired", stk: 4 },
+              },
+              { cmd: "aura+", tInf: "p:10,m:1", aura: { nam: "Compound" } },
+              { cmd: "aura+", tInf: "p:10>m:1", aura: { nam: "Directed" } },
+              { cmd: "aura+", tInf: "m:99", aura: { nam: "Unknown" } },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getPlayer(10))?.auras.map((aura) => [
+            aura.name,
+            aura.stack,
+          ]),
+        ).toEqual([["Focus", 5]]);
+        expect(
+          (yield* store.world.getMonster(1))?.auras.map((aura) => [
+            aura.name,
+            aura.stack,
+          ]),
+        ).toEqual([["Inspired", 4]]);
+        expect(yield* store.world.getMonster(99)).toBeNull();
+        expect(
+          events.filter((event) => event.type.startsWith("aura-")),
+        ).toMatchObject([
+          { type: "aura-added", name: "Focus" },
+          { type: "aura-added", name: "Inspired" },
+        ]);
+        expect(diagnostics.length).toBeGreaterThan(0);
+      }),
+  );
+
+  it.effect(
+    "keeps counter notices command-based for decay and rejected targets",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "m:1",
+                aura: {
+                  nam: "Counter Attack",
+                  stk: 5,
+                  t: "s",
+                  dur: 6,
+                  msgOn: "Counter ready",
+                },
+              },
+            ],
+          }),
+        );
+        expect(events).toMatchObject([
+          {
+            type: "counter-attack-start",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+            durationMs: 6_000,
+          },
+          { type: "aura-added", name: "Counter Attack", stack: 5 },
+          {
+            type: "update-message",
+            source: "aura",
+            message: "Counter ready",
+            monsterMapId: 1,
+          },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura-",
+                tInf: "m:1",
+                aura: {
+                  nam: "Counter Attack",
+                  stk: 1,
+                  msgOff: "Counter ended",
+                },
+              },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getMonster(1))?.getAura("Counter Attack")?.stack,
+        ).toBe(1);
+        expect(events).toMatchObject([
+          {
+            type: "counter-attack-end",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+          },
+          { type: "aura-updated", name: "Counter Attack", stack: 1 },
+          {
+            type: "update-message",
+            source: "aura",
+            message: "Counter ended",
+            monsterMapId: 1,
+          },
+        ]);
+        yield* pipeline.packet(
+          extension("cb", { m: { "1": { intState: 0 } } }),
+        );
+        events.length = 0;
+        for (const tInf of ["m:1", "m:99"]) {
+          yield* pipeline.packet(
+            extension("cb", {
+              a: [
+                {
+                  cmd: "aura+",
+                  tInf,
+                  aura: {
+                    nam: "Counter Attack",
+                    t: "s",
+                    dur: 6,
+                    msgOn: "Counter ready",
+                  },
+                },
+              ],
+            }),
+          );
+        }
+        expect(events).toMatchObject([
+          { type: "counter-attack-start", monsterMapId: 1, durationMs: 6_000 },
+          { type: "update-message", message: "Counter ready", monsterMapId: 1 },
+          { type: "counter-attack-start", monsterMapId: 99, durationMs: 6_000 },
+          {
+            type: "update-message",
+            message: "Counter ready",
+            monsterMapId: 99,
+          },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura-",
+                tInf: "m:99",
+                aura: { nam: "Counter Attack", msgOff: "@Self only" },
+              },
+            ],
+          }),
+        );
+        expect(events).toMatchObject([
+          { type: "counter-attack-end", monsterMapId: 99 },
+        ]);
+      }),
+  );
+
+  it.effect(
+    "keeps auras after the display expiry until a server mutation",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "p:10",
+                aura: { nam: "Focus", t: "s", dur: 6, stk: 5 },
+              },
+            ],
+          }),
+        );
+        const aura = (yield* store.world.getMe)?.getAura("Focus");
+        expect(aura?.toJSON()).toMatchObject({
+          stack: 5,
+          expiresAt: 1_006_000,
+        });
+        events.length = 0;
+        yield* TestClock.setTime(2_000_000);
+        expect((yield* store.world.getMe)?.getAura("Focus")).toBe(aura);
         expect(events).toEqual([]);
       }),
   );

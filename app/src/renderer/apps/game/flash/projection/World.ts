@@ -1,3 +1,4 @@
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -21,6 +22,7 @@ import {
   type EntityPatchPayload as EntityPatch,
 } from "../contract/payload/World";
 import type { Store } from "../state/Store";
+import { auraEvents, decodeAuraSeed } from "./Auras";
 
 const MoveArea = Schema.Struct({
   areaId: Schema.optionalKey(PositiveWireInt),
@@ -258,6 +260,7 @@ const projectMoveArea = (
   packet: ExtensionPacket,
   diagnose: DiagnosticReporter,
   bridge: BridgeService | undefined,
+  nowMs: number,
 ) =>
   Effect.gen(function* () {
     const decoded = decodeMoveArea(packet.data);
@@ -278,6 +281,7 @@ const projectMoveArea = (
       ...mapName,
     };
 
+    const invalidAuraEntries: unknown[] = [];
     const invalidMonsterEntries: unknown[] = [];
     const definitions = new Map<number, Record<string, unknown>>();
     for (const value of decoded.value.mondef ?? []) {
@@ -328,7 +332,11 @@ const projectMoveArea = (
       if (Option.isNone(decodedMonster)) {
         invalidMonsterEntries.push(value);
       } else {
-        monsters.push(toMonster(decodedMonster.value));
+        const monster = toMonster(decodedMonster.value);
+        const seed = decodeAuraSeed(branch["au"]);
+        monster.projectAuras({ type: "seed", entries: seed.entries }, nowMs);
+        invalidAuraEntries.push(...seed.rejected);
+        monsters.push(monster);
       }
     }
 
@@ -349,7 +357,11 @@ const projectMoveArea = (
       if (Option.isNone(player)) {
         invalidPlayerEntries.push(value);
       } else {
-        players.push(toPlayer(player.value));
+        const entity = toPlayer(player.value);
+        const seed = decodeAuraSeed(player.value.au);
+        entity.projectAuras({ type: "seed", entries: seed.entries }, nowMs);
+        invalidAuraEntries.push(...seed.rejected);
+        players.push(entity);
       }
     }
 
@@ -360,6 +372,16 @@ const projectMoveArea = (
           `Ignored ${invalidPlayerEntries.length} malformed player entries`,
         ),
         invalidPlayerEntries,
+      );
+    }
+
+    if (invalidAuraEntries.length > 0) {
+      yield* diagnose(
+        "world:moveToArea:aura-entries",
+        new Error(
+          `Ignored ${invalidAuraEntries.length} malformed aura entries`,
+        ),
+        invalidAuraEntries,
       );
     }
 
@@ -475,9 +497,10 @@ export const projectExtensionWorld = (
   bridge?: BridgeService,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
+    const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
     switch (packet.command) {
       case "moveToArea":
-        return yield* projectMoveArea(store, packet, diagnose, bridge);
+        return yield* projectMoveArea(store, packet, diagnose, bridge, nowMs);
       case "initUserData":
       case "initUserDatas": {
         const data = packet.data;
@@ -680,7 +703,7 @@ export const projectExtensionWorld = (
           ]);
           return [];
         }
-        const result = yield* store.world.patchMonster(
+        const result = yield* store.world.writeMonster(
           decoded.value.id,
           monsterPatch(decoded.value.o),
         );
@@ -692,9 +715,16 @@ export const projectExtensionWorld = (
           );
           return [];
         }
-        return result.becameDead
+        const events: Event[] = result.becameDead
           ? [{ type: "monster-death", monsterMapId: decoded.value.id }]
           : [];
+        events.push(
+          ...auraEvents(
+            { type: "monster", id: decoded.value.id },
+            result.auraChanges,
+          ),
+        );
+        return events;
       }
       case "mtcid": {
         yield* Effect.log("[world] mtcid packet received", { packet });
@@ -738,9 +768,14 @@ export const projectExtensionWorld = (
       }
       case "clearAuras": {
         const current = yield* store.world.getMe;
-        if (current !== null)
-          yield* store.world.clearAuras("player", current.entityId);
-        return [];
+        if (current === null) return [];
+        const target = { type: "player", id: current.entityId } as const;
+        const changes = yield* store.world.projectAuras(
+          target,
+          { type: "clear-local" },
+          nowMs,
+        );
+        return auraEvents(target, changes);
       }
       case "event": {
         const decoded = decodeZone(packet.data);
@@ -779,9 +814,6 @@ export const projectExtensionWorld = (
             mp: monster.maxMp,
             state: EntityState.Idle,
           });
-          // Aura removals need not accompany respawnMon; a new life must not
-          // inherit projected effects from the previous one.
-          yield* store.world.clearAuras("monster", id);
           events.push({ type: "monster-respawn", monsterMapId: id });
         }
         return events;

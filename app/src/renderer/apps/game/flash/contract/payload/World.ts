@@ -21,6 +21,7 @@ const toEntityState = (value: number | undefined): EntityState => {
 };
 
 const PlayerFields = {
+  au: Schema.optionalKey(Schema.Unknown),
   afk: Schema.optionalKey(WireBoolean),
   entID: PositiveWireInt,
   entType: Schema.optionalKey(Schema.String),
@@ -49,6 +50,7 @@ export const PlayerPayload = Schema.Union([
 export type PlayerPayload = typeof PlayerPayload.Type;
 
 export const MonsterPayload = Schema.Struct({
+  au: Schema.optionalKey(Schema.Unknown),
   MonID: Schema.optionalKey(PositiveWireInt),
   MonMapID: PositiveWireInt,
   bRed: Schema.optionalKey(WireBoolean),
@@ -106,8 +108,8 @@ export const toPlayer = (payload: PlayerPayload): LivePlayer => {
   });
 };
 
-export const toMonster = (payload: MonsterPayload): LiveMonster =>
-  new LiveMonster({
+export const toMonster = (payload: MonsterPayload): LiveMonster => {
+  const monster = new LiveMonster({
     aggressive: payload.bRed ?? false,
     cell: payload.strFrame ?? "",
     hp: payload.intHP ?? 0,
@@ -121,6 +123,11 @@ export const toMonster = (payload: MonsterPayload): LiveMonster =>
     race: payload.sRace ?? "",
     state: toEntityState(payload.intState),
   });
+  if (payload.intState !== undefined) {
+    monster.writeAuraMonsterState(toEntityState(payload.intState));
+  }
+  return monster;
+};
 
 export const entityState = (
   value: number | undefined,

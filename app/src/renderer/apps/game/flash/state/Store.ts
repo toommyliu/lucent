@@ -2,9 +2,10 @@ import * as Effect from "effect/Effect";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 import type {
+  AuraDelta,
+  AuraMutation,
   AuraQueryOptions,
   ItemQuery,
-  LiveAura,
   LiveItem,
   LiveMonster,
   LivePlayer,
@@ -48,6 +49,17 @@ import {
   resetProjections,
   type ProjectionKey,
 } from "./Projection";
+
+export interface AuraTarget {
+  readonly type: "monster" | "player";
+  readonly id: number;
+}
+
+export interface MonsterWriteResult {
+  readonly monster: LiveMonster;
+  readonly becameDead: boolean;
+  readonly auraChanges: readonly AuraDelta[];
+}
 
 const entityForAura = (
   state: ReturnType<typeof makeWorldState>,
@@ -247,43 +259,14 @@ export const makeStore = Effect.gen(function* () {
   };
 
   const world = {
-    addAura: (
-      target: "monster" | "player",
-      id: number,
-      aura: LiveAura,
-      operation: "add" | "refresh",
-    ) =>
-      SynchronizedRef.update(worldRef, (state) => {
-        entityForAura(state, target, id)?.addAura(aura, operation);
-        return state;
-      }),
-    clearAuras: (target?: "monster" | "player", id?: number) =>
-      SynchronizedRef.update(worldRef, (state) => {
-        if (target !== undefined && id !== undefined) {
-          entityForAura(state, target, id)?.clearAuras();
-          return state;
-        }
-
-        if (target !== "player") {
-          for (const monster of state.monsters.values()) monster.clearAuras();
-        }
-        if (target !== "monster") {
-          for (const player of state.players.values()) player.clearAuras();
-        }
-        return state;
-      }),
-    setAuraStack: (
-      target: "monster" | "player",
-      id: number,
-      name: string,
-      stack: number,
-    ) =>
-      SynchronizedRef.update(worldRef, (state) => {
-        entityForAura(state, target, id)
-          ?.getAura(name, { kind: "active" })
-          ?.update({ stack });
-        return state;
-      }),
+    projectAuras: (target: AuraTarget, mutation: AuraMutation, nowMs: number) =>
+      SynchronizedRef.modify(worldRef, (state) => [
+        entityForAura(state, target.type, target.id)?.projectAuras(
+          mutation,
+          nowMs,
+        ) ?? [],
+        state,
+      ]),
     clearArea: SynchronizedRef.update(worldRef, (state) => {
       clearArea(state);
       return state;
@@ -366,6 +349,30 @@ export const makeStore = Effect.gen(function* () {
         putPlayer(state, player),
         state,
       ]),
+    writeMonster: (id: number, patch: Partial<MonsterData>) =>
+      SynchronizedRef.modify(
+        worldRef,
+        (
+          state,
+        ): [MonsterWriteResult | null, ReturnType<typeof makeWorldState>] => {
+          const current = state.monsters.get(id);
+          if (current === undefined) return [null, state];
+          const wasAlive = current.alive;
+          current.update(patch);
+          const auraChanges =
+            patch.state === undefined
+              ? []
+              : current.writeAuraMonsterState(patch.state);
+          return [
+            {
+              auraChanges,
+              becameDead: wasAlive && current.dead,
+              monster: current,
+            },
+            state,
+          ];
+        },
+      ),
     patchMonster: (id: number, patch: Partial<MonsterData>) =>
       SynchronizedRef.modify(worldRef, (state) => {
         const current = state.monsters.get(id);
@@ -387,16 +394,6 @@ export const makeStore = Effect.gen(function* () {
           { becameDead: wasAlive && current.dead, player: current },
           state,
         ];
-      }),
-    removeAura: (
-      target: "monster" | "player",
-      id: number,
-      name: string,
-      kind?: "active" | "passive",
-    ) =>
-      SynchronizedRef.update(worldRef, (state) => {
-        entityForAura(state, target, id)?.removeAura(name, kind);
-        return state;
       }),
     removePlayer: (username: string) =>
       SynchronizedRef.modify(worldRef, (state) => {

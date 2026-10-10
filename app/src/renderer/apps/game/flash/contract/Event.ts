@@ -69,12 +69,26 @@ export type ProjectionEvent =
       readonly type: "players-changed";
     }
   | {
-      /** An aura is added to or refreshed on a player or monster. */
       readonly type: "aura-added";
       /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
       readonly name: string;
+      readonly stack: number;
+      /** The applying entity's map-scoped ID, when known. */
+      readonly sourceId?: number;
+      readonly sourceType?: "monster" | "player";
+      /** The affected entity's map-scoped ID. */
+      readonly targetId: number;
+      readonly targetType: "monster" | "player";
+    }
+  | {
+      readonly type: "aura-updated";
+      /** The aura duration in seconds, when available. */
+      readonly duration?: number;
+      readonly icon?: string;
+      readonly name: string;
+      readonly stack: number;
       /** The applying entity's map-scoped ID, when known. */
       readonly sourceId?: number;
       readonly sourceType?: "monster" | "player";
@@ -233,7 +247,7 @@ export type ProjectionEventSelector =
       readonly sourceType?: "monster" | "player";
       readonly targetId?: number;
       readonly targetType?: "monster" | "player";
-      readonly type: "aura-added" | "aura-removed";
+      readonly type: "aura-added" | "aura-updated" | "aura-removed";
     }
   | {
       readonly durationMs?: number;

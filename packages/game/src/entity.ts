@@ -1,6 +1,13 @@
 import { LiveModel, normalizeGameText } from "./model";
-import { LiveAura } from "./aura";
-import type { Aura, AuraKind, AuraQueryOptions, AuraSnapshot } from "./aura";
+import { LiveAura, reduceActiveAura } from "./aura";
+import type {
+  Aura,
+  AuraDelta,
+  AuraKind,
+  AuraMutation,
+  AuraQueryOptions,
+  AuraSnapshot,
+} from "./aura";
 
 const percent = (value: number, maximum: number): number =>
   maximum <= 0 ? 0 : (value / maximum) * 100;
@@ -62,6 +69,7 @@ export abstract class LiveEntity<State extends EntityData>
   implements Entity
 {
   readonly #auras = new Map<string, LiveAura>();
+  #acceptsActiveSync = true;
 
   get alive(): boolean {
     return this.hp > 0 && this.state !== EntityState.Dead;
@@ -115,35 +123,17 @@ export abstract class LiveEntity<State extends EntityData>
     return this.modelData.state;
   }
 
-  /** @internal */
-  addAura(aura: LiveAura, operation: "add" | "refresh"): void {
-    const key = this.auraKey(aura.name, aura.kind);
-    const current = this.#auras.get(key);
-    if (current === undefined) {
-      this.#auras.set(key, aura);
-      return;
-    }
-
-    const stack = operation === "add" ? current.stack + 1 : current.stack;
-    current.update({ ...aura.toJSON(), stack });
-  }
-
-  /** @internal */
-  clearAuras(): void {
-    this.#auras.clear();
-  }
-
   getAura(name: string, options?: AuraQueryOptions): LiveAura | null {
-    if (options?.kind !== undefined) {
-      return this.#auras.get(this.auraKey(name, options.kind)) ?? null;
-    }
-
     const normalizedName = normalizeGameText(name);
-    return (
-      this.auras.find(
-        (aura) => normalizeGameText(aura.name) === normalizedName,
-      ) ?? null
-    );
+    for (const aura of this.#auras.values()) {
+      if (
+        normalizeGameText(aura.name) === normalizedName &&
+        (options?.kind === undefined || aura.kind === options.kind)
+      ) {
+        return aura;
+      }
+    }
+    return null;
   }
 
   hasAura(name: string, options?: AuraQueryOptions): boolean {
@@ -151,24 +141,152 @@ export abstract class LiveEntity<State extends EntityData>
   }
 
   /** @internal */
-  removeAura(name: string, kind?: AuraKind): void {
-    const normalizedName = normalizeGameText(name);
-    for (const [key, aura] of this.#auras) {
-      if (
-        normalizeGameText(aura.name) !== normalizedName ||
-        (kind !== undefined && aura.kind !== kind)
+  projectAuras(mutation: AuraMutation, nowMs: number): readonly AuraDelta[] {
+    const changes: AuraDelta[] = [];
+    const commit = (
+      kind: AuraKind,
+      name: string,
+      after: AuraSnapshot | undefined,
+    ) => {
+      const key = `${kind}:${name}`;
+      const current = this.#auras.get(key);
+      const before = current?.toJSON();
+      if (after === undefined) {
+        if (before !== undefined) {
+          this.#auras.delete(key);
+          changes.push({ type: "removed", before });
+        }
+      } else if (current === undefined || before === undefined) {
+        this.#auras.set(key, new LiveAura({ ...after }));
+        changes.push({ type: "added", after: { ...after } });
+      } else if (
+        before.stack !== after.stack ||
+        before.duration !== after.duration ||
+        before.expiresAt !== after.expiresAt ||
+        before.icon !== after.icon ||
+        before.category !== after.category ||
+        before.value !== after.value ||
+        before.persistent !== after.persistent
       ) {
-        continue;
+        current.replaceFrom(new LiveAura({ ...after }));
+        changes.push({ type: "updated", before, after: { ...after } });
       }
-
-      const stack = Math.max(0, aura.stack - 1);
-      if (stack === 0) this.#auras.delete(key);
-      else aura.update({ stack });
+    };
+    switch (mutation.type) {
+      case "seed": {
+        const entries = new Map(
+          mutation.entries.map((entry) => [entry.name, entry]),
+        );
+        for (const aura of this.#auras.values()) {
+          if (aura.kind === "active" && !entries.has(aura.name)) {
+            commit("active", aura.name, undefined);
+          }
+        }
+        for (const entry of entries.values()) {
+          commit(
+            "active",
+            entry.name,
+            reduceActiveAura(
+              this.#auras.get(`active:${entry.name}`)?.toJSON(),
+              { type: "seed", entry },
+              nowMs,
+            ),
+          );
+        }
+        break;
+      }
+      case "apply":
+        if (!this.#acceptsActiveSync) break;
+        for (const entry of mutation.entries) {
+          commit(
+            "active",
+            entry.name,
+            reduceActiveAura(
+              this.#auras.get(`active:${entry.name}`)?.toJSON(),
+              { type: "apply", entry },
+              nowMs,
+            ),
+          );
+        }
+        break;
+      case "withdraw":
+        for (const entry of mutation.entries) {
+          if (this.#acceptsActiveSync) {
+            commit(
+              "active",
+              entry.name,
+              reduceActiveAura(
+                this.#auras.get(`active:${entry.name}`)?.toJSON(),
+                entry,
+                nowMs,
+              ),
+            );
+          }
+          commit("passive", entry.name, undefined);
+        }
+        break;
+      case "set-stack":
+        if (!this.#acceptsActiveSync) break;
+        for (const entry of mutation.entries) {
+          commit(
+            "active",
+            entry.name,
+            reduceActiveAura(
+              this.#auras.get(`active:${entry.name}`)?.toJSON(),
+              { type: "set-stack", ...entry },
+              nowMs,
+            ),
+          );
+        }
+        break;
+      case "passives": {
+        const entries = new Map(
+          mutation.entries.map((entry) => [entry.name, entry]),
+        );
+        if (mutation.mode === "replace") {
+          for (const aura of this.#auras.values()) {
+            if (aura.kind === "passive" && !entries.has(aura.name)) {
+              commit("passive", aura.name, undefined);
+            }
+          }
+        }
+        for (const entry of entries.values()) {
+          commit("passive", entry.name, {
+            ...entry,
+            kind: "passive",
+            stack: 1,
+            persistent: false,
+          });
+        }
+        break;
+      }
+      case "remove-passives":
+        for (const name of mutation.names) commit("passive", name, undefined);
+        break;
+      case "clear-local":
+        for (const aura of this.#auras.values()) {
+          if (aura.kind === "active" && !aura.persistent) {
+            commit("active", aura.name, undefined);
+          }
+        }
+        break;
     }
+    return changes;
   }
 
-  private auraKey(name: string, kind: AuraKind): string {
-    return `${kind}:${normalizeGameText(name)}`;
+  /** @internal */
+  writeAuraMonsterState(state: EntityState): readonly AuraDelta[] {
+    this.#acceptsActiveSync = state !== EntityState.Dead;
+    const changes: AuraDelta[] = [];
+    if (state !== EntityState.InCombat) {
+      for (const [key, aura] of this.#auras) {
+        if (aura.kind === "active") {
+          changes.push({ type: "removed", before: aura.toJSON() });
+          this.#auras.delete(key);
+        }
+      }
+    }
+    return changes;
   }
 
   isInCell(cell: string): boolean {
