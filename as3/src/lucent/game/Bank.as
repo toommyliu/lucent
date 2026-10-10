@@ -7,7 +7,6 @@ package lucent.game
   [BridgeNamespace("bank")]
   public class Bank
   {
-    private static var items:Array = [];
     private static var loaded:Boolean = false;
     private static var loading:Boolean = false;
 
@@ -36,7 +35,6 @@ package lucent.game
 
         var snapshot:Array = response as Array;
         Main.Game.world.addItemsToBank(snapshot);
-        items = snapshot;
         loading = false;
         loaded = true;
       }
@@ -54,7 +52,8 @@ package lucent.game
     [BridgeExport]
     public static function getItems():Array
     {
-      return items;
+      var game:Object = Main.Game;
+      return game.world.bankinfo.BankArray;
     }
 
     [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
@@ -77,7 +76,7 @@ package lucent.game
         }
       }
 
-      return ItemLookup.find(game.world.bankinfo.items, selector);
+      return ItemLookup.find(game.world.bankinfo.BankArray, selector);
     }
 
     [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
@@ -130,7 +129,15 @@ package lucent.game
     public static function getUsedSlots():int
     {
       var game:Object = Main.Game;
-      return game.world.myAvatar.iBankCount;
+      var usedSlots:int = 0;
+      for each (var item:Object in game.world.bankinfo.BankArray)
+      {
+        if (item.bCoins == 0)
+        {
+          usedSlots++;
+        }
+      }
+      return usedSlots;
     }
 
     [BridgeTsParamType("selector: FlashTypes.InventoryItemSelector")]
@@ -177,13 +184,7 @@ package lucent.game
       }
 
       var game:Object = Main.Game;
-      game.sfc.sendXtMessage(
-        "zm",
-        "bankSwapInv",
-        [invItem.ItemID, invItem.CharItemID, bankItem.ItemID, bankItem.CharItemID],
-        "str",
-        game.world.curRoom
-      );
+      game.world.sendBankSwapInvRequest(bankItem, invItem);
       return true;
     }
 
@@ -216,7 +217,6 @@ package lucent.game
     [BridgeIgnore]
     public static function onLogout():void
     {
-      items = [];
       loaded = false;
       loading = false;
     }

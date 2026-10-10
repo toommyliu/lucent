@@ -94,6 +94,7 @@ declare global {
         selector: FlashTypes.InventoryItemSelector,
       ) => Record<string, unknown> | null;
       "inventory.getItems": () => unknown[];
+      "inventory.getMiscSlots": () => number;
       "inventory.getSlots": () => number;
       "inventory.getUsedSlots": () => number;
       "inventory.unequipConsumable": (
