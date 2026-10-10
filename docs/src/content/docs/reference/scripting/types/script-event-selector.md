@@ -48,7 +48,7 @@ type ScriptEventSelector = {
     readonly sourceType?: "monster" | "player";
     readonly targetId?: number;
     readonly targetType?: "monster" | "player";
-    readonly type: "aura-added" | "aura-removed";
+    readonly type: "aura-added" | "aura-updated" | "aura-removed";
 } | {
     readonly durationMs?: number;
     readonly monsterMapId?: number;

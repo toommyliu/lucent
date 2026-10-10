@@ -11,8 +11,9 @@ sidebar:
 
 | Event | When it happens |
 | --- | --- |
-| <a href="#event-aura-added"><code>aura-added</code></a> | An aura is added to or refreshed on a player or monster. |
+| <a href="#event-aura-added"><code>aura-added</code></a> | An aura first appears on a player or monster. |
 | <a href="#event-aura-removed"><code>aura-removed</code></a> | An aura is removed from a player or monster. |
+| <a href="#event-aura-updated"><code>aura-updated</code></a> | An existing aura changes stack, timer, or metadata. |
 | <a href="#event-counter-attack-end"><code>counter-attack-end</code></a> | A monster's counter attack ends. |
 | <a href="#event-counter-attack-start"><code>counter-attack-start</code></a> | A monster's counter attack starts. |
 | <a href="#event-item-drop"><code>item-drop</code></a> | An item drops. |
@@ -37,7 +38,7 @@ Each event includes the information shown below.
 
 ### `aura-added`
 
-An aura is added to or refreshed on a player or monster.
+An aura first appears on a player or monster.
 
 ```ts
 {
@@ -46,6 +47,7 @@ An aura is added to or refreshed on a player or monster.
   readonly duration?: number;
   readonly icon?: string;
   readonly name: string;
+  readonly stack: number;
   /** The applying entity's map-scoped ID, when known. */
   readonly sourceId?: number;
   readonly sourceType?: "monster" | "player";
@@ -68,6 +70,29 @@ An aura is removed from a player or monster.
   readonly duration?: number;
   readonly icon?: string;
   readonly name: string;
+  /** The applying entity's map-scoped ID, when known. */
+  readonly sourceId?: number;
+  readonly sourceType?: "monster" | "player";
+  /** The affected entity's map-scoped ID. */
+  readonly targetId: number;
+  readonly targetType: "monster" | "player";
+}
+```
+
+<a id="event-aura-updated"></a>
+
+### `aura-updated`
+
+An existing aura changes stack, timer, or metadata.
+
+```ts
+{
+  readonly type: "aura-updated";
+  /** The aura duration in seconds, when available. */
+  readonly duration?: number;
+  readonly icon?: string;
+  readonly name: string;
+  readonly stack: number;
   /** The applying entity's map-scoped ID, when known. */
   readonly sourceId?: number;
   readonly sourceType?: "monster" | "player";
