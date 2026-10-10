@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as TestClock from "effect/testing/TestClock";
 
 import type { Event } from "../contract/Event";
 import type { Packet } from "../contract/Packet";
@@ -798,6 +799,475 @@ describe("Projection", () => {
         expect((yield* store.world.getMe)?.cell).toBe("Boss");
         expect((yield* store.world.getMe)?.pad).toBe("Right");
         expect(locationReads()).toBe(2);
+      }),
+  );
+
+  it.effect("uses server stacks and preserves full duration on refresh", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeWorldProjection();
+      yield* TestClock.setTime(1_000_000);
+      yield* enterTestArea(pipeline);
+      events.length = 0;
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              cmd: "aura+",
+              tInf: "p:10",
+              aura: {
+                nam: "Empowered",
+                stk: 4,
+                t: "s",
+                dur: 8,
+                isNew: true,
+              },
+            },
+          ],
+        }),
+      );
+      const aura = (yield* store.world.getPlayer(10))?.getAura("Empowered");
+      expect(aura?.toJSON()).toMatchObject({
+        stack: 4,
+        duration: 8,
+        expiresAt: 1_008_000,
+      });
+      yield* TestClock.setTime(1_002_000);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              cmd: "aura+",
+              tInf: "p:10",
+              aura: {
+                nam: "Empowered",
+                stk: 5,
+                t: "s",
+                dur: 3,
+                isNew: false,
+              },
+            },
+          ],
+        }),
+      );
+      expect((yield* store.world.getPlayer(10))?.getAura("Empowered")).toBe(
+        aura,
+      );
+      expect(aura?.toJSON()).toMatchObject({
+        stack: 5,
+        duration: 8,
+        expiresAt: 1_005_000,
+      });
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [{ cmd: "aura++", tInf: "p:10", aura: { nam: "Empowered" } }],
+        }),
+      );
+      expect(aura?.toJSON()).toMatchObject({ stack: 1, duration: 0 });
+      expect(
+        events.filter((event) => event.type.startsWith("aura-")),
+      ).toMatchObject([
+        { type: "aura-added", name: "Empowered", stack: 4 },
+        { type: "aura-updated", name: "Empowered", stack: 5 },
+        { type: "aura-updated", name: "Empowered", stack: 1 },
+      ]);
+    }),
+  );
+
+  it.effect("seeds every room leaf from server aura tuples", () =>
+    Effect.gen(function* () {
+      const { store, pipeline } = yield* makeWorldProjection();
+      yield* TestClock.setTime(1_000_000);
+      yield* pipeline.packet(
+        extension("moveToArea", {
+          areaId: 12,
+          areaName: "battleon-42",
+          monBranch: [
+            {
+              MonID: 5,
+              MonMapID: 1,
+              intState: 0,
+              au: [["Curse of Times", "inver2", 6.4, 5, 0, 8]],
+            },
+          ],
+          monmap: [{ MonMapID: 1, strFrame: "OffCell" }],
+          uoBranch: [
+            {
+              entID: 10,
+              strUsername: "Hero",
+              au: [["Potent Battle Elixir", "ice", 854.2, 1, 1, 900]],
+            },
+            {
+              entID: 11,
+              strUsername: "Ally",
+              au: [["Curse of Times", "inver2", 6.4, 5, 0, 8]],
+            },
+          ],
+        }),
+      );
+      for (const entity of [
+        yield* store.world.getMonster(1),
+        yield* store.world.getPlayer(11),
+      ]) {
+        expect(entity?.getAura("Curse of Times")?.toJSON()).toMatchObject({
+          name: "Curse of Times",
+          icon: "inver2",
+          stack: 5,
+          duration: 8,
+          expiresAt: 1_006_400,
+          persistent: false,
+        });
+      }
+      expect(
+        (yield* store.world.getMe)?.getAura("Potent Battle Elixir")?.toJSON(),
+      ).toMatchObject({
+        stack: 1,
+        duration: 900,
+        expiresAt: 1_854_200,
+        persistent: true,
+      });
+    }),
+  );
+
+  it.effect.each([
+    { state: 0, accepted: false },
+    { state: 1, accepted: true },
+  ])(
+    "clears monster auras on server state $state before aura sync",
+    ({ state, accepted }) =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          server("ct", {
+            m: { "1": { intState: 2 } },
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "m:1",
+                cInf: "p:10",
+                aura: {
+                  nam: "Focus",
+                  stk: 5,
+                  t: "s",
+                  dur: 6,
+                },
+              },
+            ],
+          }),
+        );
+        expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(true);
+        events.length = 0;
+        yield* pipeline.packet(
+          server("ct", {
+            m: { "1": { intState: state } },
+            a: [
+              { cmd: "aura+", tInf: "m:1", aura: { nam: "Inspired", stk: 2 } },
+            ],
+          }),
+        );
+        expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(
+          false,
+        );
+        expect((yield* store.world.getMonster(1))?.hasAura("Inspired")).toBe(
+          accepted,
+        );
+        expect(
+          events.filter((event) => event.type === "aura-removed"),
+        ).toMatchObject([
+          {
+            type: "aura-removed",
+            name: "Focus",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        if (!accepted) {
+          yield* pipeline.packet(
+            extension("respawnMon", ["respawnMon", "", "1"]),
+          );
+          yield* pipeline.packet(
+            extension("cb", {
+              a: [
+                { cmd: "aura+", tInf: "m:1", aura: { nam: "Focus", stk: 5 } },
+              ],
+            }),
+          );
+          expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(
+            false,
+          );
+          yield* pipeline.packet(server("ct", { m: { "1": { intState: 0 } } }));
+          expect(
+            events.filter((event) => event.type === "aura-removed"),
+          ).toHaveLength(1);
+          yield* pipeline.packet(
+            server("ct", {
+              m: { "1": { intState: 1 } },
+              a: [
+                { cmd: "aura+", tInf: "m:1", aura: { nam: "Focus", stk: 5 } },
+              ],
+            }),
+          );
+          expect(
+            (yield* store.world.getMonster(1))?.getAura("Focus")?.stack,
+          ).toBe(5);
+        }
+      }),
+  );
+
+  it.effect("decays aura- stacks and refreshes the remaining timer", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeWorldProjection();
+      yield* TestClock.setTime(1_000_000);
+      yield* enterTestArea(pipeline);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              cmd: "aura+",
+              tInf: "p:10",
+              aura: {
+                nam: "Styx Water",
+                stk: 4,
+                t: "s",
+                dur: 8,
+              },
+            },
+          ],
+        }),
+      );
+      expect((yield* store.world.getMe)?.hasAura("Styx Water")).toBe(true);
+      events.length = 0;
+      yield* TestClock.setTime(1_003_000);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              cmd: "aura-",
+              tInf: "p:10",
+              aura: {
+                nam: "Styx Water",
+                stk: 1,
+                dur: 7,
+              },
+            },
+          ],
+        }),
+      );
+      expect(
+        (yield* store.world.getMe)?.getAura("Styx Water")?.toJSON(),
+      ).toMatchObject({
+        stack: 1,
+        duration: 8,
+        expiresAt: 1_010_000,
+      });
+      expect(
+        events.filter((event) => event.type.startsWith("aura-")),
+      ).toMatchObject([{ type: "aura-updated", name: "Styx Water", stack: 1 }]);
+    }),
+  );
+
+  it.effect(
+    "keeps persistent and passive auras when clearing the local player",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura+",
+                tInf: "p:10",
+                auras: [
+                  {
+                    nam: "Potent Battle Elixir",
+                    t: "s",
+                    dur: 900,
+                    persist: true,
+                    icon: "ice",
+                  },
+                  { nam: "Empowered", stk: 4 },
+                ],
+              },
+              { cmd: "aura+p", tInf: "p:10", aura: { nam: "Empowered" } },
+              { cmd: "aura+", tInf: "m:1", aura: { nam: "Focus" } },
+            ],
+          }),
+        );
+        expect((yield* store.world.getMe)?.auras).toHaveLength(3);
+        events.length = 0;
+        yield* pipeline.packet(extension("clearAuras", {}));
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => [
+            aura.name,
+            aura.kind,
+          ]),
+        ).toEqual([
+          ["Potent Battle Elixir", "active"],
+          ["Empowered", "passive"],
+        ]);
+        expect((yield* store.world.getMonster(1))?.hasAura("Focus")).toBe(true);
+        expect(
+          events.filter((event) => event.type.startsWith("aura-")),
+        ).toMatchObject([
+          { type: "aura-removed", name: "Empowered", targetId: 10 },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(extension("clearAuras", {}));
+        expect(events).toEqual([]);
+      }),
+  );
+
+  it.effect("reseeds a known player from auSnap and preserves passives", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeWorldProjection();
+      yield* TestClock.setTime(1_000_000);
+      yield* enterTestArea(pipeline);
+      yield* pipeline.packet(
+        extension("cb", {
+          a: [
+            {
+              cmd: "aura+",
+              tInf: "p:10",
+              aura: { nam: "Empowered", persist: true },
+            },
+            { cmd: "aura+p", tInf: "p:10", aura: { nam: "Brand of Chaos" } },
+          ],
+        }),
+      );
+      expect((yield* store.world.getMe)?.auras).toHaveLength(2);
+      events.length = 0;
+      yield* pipeline.packet(
+        extension("auSnap", {
+          unm: "Hero",
+          au: [["Inspired", "imr2,iihelm", 8, 1, 0, 12]],
+        }),
+      );
+      expect(
+        (yield* store.world.getMe)?.auras.map((aura) => [aura.name, aura.kind]),
+      ).toEqual([
+        ["Brand of Chaos", "passive"],
+        ["Inspired", "active"],
+      ]);
+      expect(
+        (yield* store.world.getMe)?.getAura("Inspired")?.toJSON(),
+      ).toMatchObject({
+        stack: 1,
+        duration: 12,
+        expiresAt: 1_008_000,
+      });
+      expect(
+        events.filter((event) => event.type.startsWith("aura-")),
+      ).toMatchObject([
+        { type: "aura-removed", name: "Empowered" },
+        { type: "aura-added", name: "Inspired", stack: 1 },
+      ]);
+    }),
+  );
+
+  it.effect(
+    "replaces standalone passive sets while embedded passives merge",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              { cmd: "aura+p", tInf: "p:10", aura: { nam: "Old Class" } },
+              { cmd: "aura+", tInf: "p:10", aura: { nam: "Empowered" } },
+            ],
+          }),
+        );
+        expect((yield* store.world.getMe)?.auras).toHaveLength(2);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("aura+p", {
+            cmd: "aura+p",
+            tInf: "p:10",
+            auras: [{ nam: "Brand of Chaos", passive: true }],
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => aura.name),
+        ).toEqual(["Empowered", "Brand of Chaos"]);
+        expect(
+          events.filter((event) => event.type.startsWith("aura-")),
+        ).toMatchObject([
+          { type: "aura-removed", name: "Old Class" },
+          { type: "aura-added", name: "Brand of Chaos", stack: 1 },
+        ]);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              { cmd: "aura+p", tInf: "p:10", aura: { nam: "Merged Passive" } },
+            ],
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => aura.name),
+        ).toEqual(["Empowered", "Brand of Chaos", "Merged Passive"]);
+        yield* pipeline.packet(
+          extension("aura+p", { cmd: "aura+p", tInf: "p:10", auras: [] }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => aura.name),
+        ).toEqual(["Empowered"]);
+      }),
+  );
+
+  it.effect.each(["aura+", "aura++", "aura-", "aura--", "aura+p", "auSnap"])(
+    "projects standalone %s only from its extension copy",
+    (command) =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [{ cmd: "aura+", tInf: "p:10", aura: { nam: "Focus" } }],
+          }),
+        );
+        events.length = 0;
+        const data =
+          command === "auSnap"
+            ? {
+                cmd: command,
+                unm: "Hero",
+                au: [["Inspired", "imr2,iihelm", 8, 1, 0, 12]],
+              }
+            : { cmd: command, tInf: "p:10", aura: { nam: "Focus", stk: 5 } };
+        yield* pipeline.packet(server(command, data));
+        expect((yield* store.world.getMe)?.getAura("Focus")?.stack).toBe(1);
+        expect(events).toEqual([]);
+        yield* pipeline.packet(extension(command, data));
+        if (command === "auSnap") {
+          expect((yield* store.world.getMe)?.getAura("Inspired")?.stack).toBe(
+            1,
+          );
+          expect((yield* store.world.getMe)?.hasAura("Focus")).toBe(false);
+        } else if (command === "aura+p") {
+          expect(
+            (yield* store.world.getMe)?.getAura("Focus", { kind: "passive" })
+              ?.stack,
+          ).toBe(1);
+        } else {
+          expect((yield* store.world.getMe)?.getAura("Focus")?.stack).toBe(5);
+        }
+        expect(
+          events.filter((event) => event.type.startsWith("aura-")),
+        ).toHaveLength(command === "auSnap" ? 2 : 1);
+        events.length = 0;
+        yield* pipeline.packet(extension(command, data));
+        expect(events).toEqual([]);
+        yield* pipeline.packet(server("aura*", { cmd: "aura*", tInf: "m:1" }));
+        yield* pipeline.packet(
+          extension("aura*", { cmd: "aura*", tInf: "m:1" }),
+        );
+        expect(events).toEqual([]);
       }),
   );
 
