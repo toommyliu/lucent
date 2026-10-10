@@ -8,6 +8,7 @@ import { toItem } from "../contract/payload/Items";
 import { makeBridge } from "../bridge/Bridge";
 import { makePipeline, type ProjectionTrace } from "../protocol/Pipeline";
 import { makeStore } from "../state/Store";
+import { auraEvents } from "./Auras";
 
 Object.defineProperty(globalThis, "window", {
   configurable: true,
@@ -1988,10 +1989,11 @@ describe("Projection", () => {
   );
 
   it.effect(
-    "keeps counter notices command-based for decay and rejected targets",
+    "derives counter notices from applied and removed aura deltas",
     () =>
       Effect.gen(function* () {
         const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
         yield* enterTestArea(pipeline);
         events.length = 0;
         yield* pipeline.packet(
@@ -2011,21 +2013,59 @@ describe("Projection", () => {
             ],
           }),
         );
-        expect(events).toMatchObject([
+        expect(events).toEqual([
           {
             type: "counter-attack-start",
             monsterMapId: 1,
             source: "aura",
             triggerId: "anti-counter",
             triggerText: "Counter Attack",
-            durationMs: 6_000,
+            durationMs: 6000,
           },
-          { type: "aura-added", name: "Counter Attack", stack: 5 },
+          {
+            type: "aura-added",
+            duration: 6,
+            name: "Counter Attack",
+            stack: 5,
+            targetId: 1,
+            targetType: "monster",
+          },
           {
             type: "update-message",
             source: "aura",
             message: "Counter ready",
             monsterMapId: 1,
+          },
+        ]);
+        events.length = 0;
+        yield* TestClock.setTime(1_002_000);
+        yield* pipeline.packet(
+          extension("cb", {
+            a: [
+              {
+                cmd: "aura++",
+                tInf: "m:1",
+                aura: { nam: "Counter Attack", stk: 5, t: "s", dur: 6 },
+              },
+            ],
+          }),
+        );
+        expect(events).toEqual([
+          {
+            type: "counter-attack-start",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+            durationMs: 6000,
+          },
+          {
+            type: "aura-updated",
+            duration: 6,
+            name: "Counter Attack",
+            stack: 5,
+            targetId: 1,
+            targetType: "monster",
           },
         ]);
         events.length = 0;
@@ -2047,15 +2087,15 @@ describe("Projection", () => {
         expect(
           (yield* store.world.getMonster(1))?.getAura("Counter Attack")?.stack,
         ).toBe(1);
-        expect(events).toMatchObject([
+        expect(events).toEqual([
           {
-            type: "counter-attack-end",
-            monsterMapId: 1,
-            source: "aura",
-            triggerId: "anti-counter",
-            triggerText: "Counter Attack",
+            type: "aura-updated",
+            duration: 6,
+            name: "Counter Attack",
+            stack: 1,
+            targetId: 1,
+            targetType: "monster",
           },
-          { type: "aura-updated", name: "Counter Attack", stack: 1 },
           {
             type: "update-message",
             source: "aura",
@@ -2063,9 +2103,27 @@ describe("Projection", () => {
             monsterMapId: 1,
           },
         ]);
+        events.length = 0;
         yield* pipeline.packet(
-          extension("cb", { m: { "1": { intState: 0 } } }),
+          extension("cb", { m: { "1": { intState: 0, intHP: 0 } } }),
         );
+        expect(events).toEqual([
+          { type: "monster-death", monsterMapId: 1 },
+          {
+            type: "counter-attack-end",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+          },
+          {
+            type: "aura-removed",
+            duration: 6,
+            name: "Counter Attack",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
         events.length = 0;
         for (const tInf of ["m:1", "m:99"]) {
           yield* pipeline.packet(
@@ -2074,41 +2132,301 @@ describe("Projection", () => {
                 {
                   cmd: "aura+",
                   tInf,
-                  aura: {
-                    nam: "Counter Attack",
-                    t: "s",
-                    dur: 6,
-                    msgOn: "Counter ready",
-                  },
+                  aura: { nam: "Counter Attack", t: "s", dur: 6 },
                 },
+                { cmd: "aura-", tInf, aura: { nam: "Counter Attack" } },
               ],
             }),
           );
         }
-        expect(events).toMatchObject([
-          { type: "counter-attack-start", monsterMapId: 1, durationMs: 6_000 },
-          { type: "update-message", message: "Counter ready", monsterMapId: 1 },
-          { type: "counter-attack-start", monsterMapId: 99, durationMs: 6_000 },
+        expect(events).toEqual([]);
+        expect((yield* store.world.getMonster(1))?.auras).toEqual([]);
+        expect(yield* store.world.getMonster(99)).toBeNull();
+        yield* pipeline.packet(
+          extension("mtls", { id: 1, o: { intState: 2, intHP: 100 } }),
+        );
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "m:1",
+            aura: { nam: "Counter Attack", t: "s", dur: 6 },
+          }),
+        );
+        expect(
+          (yield* store.world.getMonster(1))?.hasAura("Counter Attack"),
+        ).toBe(true);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("mtls", { id: 1, o: { intState: 1 } }),
+        );
+        expect(events).toEqual([
+          {
+            type: "counter-attack-end",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+          },
+          {
+            type: "aura-removed",
+            duration: 6,
+            name: "Counter Attack",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+      }),
+  );
+
+  it.effect(
+    "uses applied counter duration and keeps no-op aura messages command-based",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "m:1",
+            aura: { nam: "Counter Attack", t: "s", dur: 12 },
+          }),
+        );
+        events.length = 0;
+        yield* TestClock.setTime(1_002_000);
+        const refresh = {
+          cmd: "aura+",
+          tInf: "m:1",
+          aura: {
+            nam: "Counter Attack",
+            t: "s",
+            dur: 6,
+            msgOn: "Counter ready",
+          },
+        };
+        yield* pipeline.packet(extension("aura+", refresh));
+        expect(events).toEqual([
+          {
+            type: "counter-attack-start",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+            durationMs: 6000,
+          },
+          {
+            type: "aura-updated",
+            duration: 12,
+            name: "Counter Attack",
+            stack: 1,
+            targetId: 1,
+            targetType: "monster",
+          },
           {
             type: "update-message",
+            source: "aura",
             message: "Counter ready",
-            monsterMapId: 99,
+            monsterMapId: 1,
+          },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(extension("aura+", refresh));
+        expect(events).toEqual([
+          {
+            type: "update-message",
+            source: "aura",
+            message: "Counter ready",
+            monsterMapId: 1,
           },
         ]);
         events.length = 0;
         yield* pipeline.packet(
-          extension("cb", {
-            a: [
-              {
-                cmd: "aura-",
-                tInf: "m:99",
-                aura: { nam: "Counter Attack", msgOff: "@Self only" },
-              },
-            ],
+          extension("aura-", {
+            cmd: "aura-",
+            tInf: "m:1",
+            aura: { nam: "Counter Attack" },
           }),
         );
-        expect(events).toMatchObject([
-          { type: "counter-attack-end", monsterMapId: 99 },
+        expect(events).toEqual([
+          {
+            type: "counter-attack-end",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+          },
+          {
+            type: "aura-removed",
+            duration: 12,
+            name: "Counter Attack",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "m:1",
+            aura: { nam: "Counter Attack", dur: 6 },
+          }),
+        );
+        expect(events).toEqual([
+          {
+            type: "counter-attack-start",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+          },
+          {
+            type: "aura-added",
+            duration: 0,
+            name: "Counter Attack",
+            stack: 1,
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        expect(
+          (yield* store.world.getMonster(1))?.getAura("Counter Attack")
+            ?.expiresAt,
+        ).toBeUndefined();
+      }),
+  );
+
+  it.effect(
+    "ends counter notices on seed removal and ignores passive deltas",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline } = yield* makeWorldProjection();
+        yield* TestClock.setTime(1_000_000);
+        yield* enterTestArea(pipeline);
+        const target = { type: "monster", id: 1 } as const;
+        const seed = yield* store.world.projectAuras(
+          target,
+          {
+            type: "seed",
+            entries: [
+              {
+                name: "Counter Attack",
+                icon: "scroll-enrage",
+                stack: 5,
+                persistent: false,
+                timer: { type: "timed", remainingSeconds: 6, fullSeconds: 8 },
+              },
+            ],
+          },
+          1_000_000,
+        );
+        expect(auraEvents(target, seed)).toEqual([
+          {
+            type: "aura-added",
+            duration: 8,
+            icon: "scroll-enrage",
+            name: "Counter Attack",
+            stack: 5,
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        const removed = yield* store.world.projectAuras(
+          target,
+          { type: "seed", entries: [] },
+          1_002_000,
+        );
+        expect(auraEvents(target, removed)).toEqual([
+          {
+            type: "counter-attack-end",
+            monsterMapId: 1,
+            source: "aura",
+            triggerId: "anti-counter",
+            triggerText: "Counter Attack",
+          },
+          {
+            type: "aura-removed",
+            duration: 8,
+            icon: "scroll-enrage",
+            name: "Counter Attack",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        const passive = yield* store.world.projectAuras(
+          target,
+          {
+            type: "passives",
+            mode: "replace",
+            entries: [{ name: "Counter Attack", duration: 0 }],
+          },
+          1_002_000,
+        );
+        expect(auraEvents(target, passive)).toEqual([
+          {
+            type: "aura-added",
+            duration: 0,
+            name: "Counter Attack",
+            stack: 1,
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+        const passiveRemoved = yield* store.world.projectAuras(
+          target,
+          { type: "passives", mode: "replace", entries: [] },
+          1_002_000,
+        );
+        expect(auraEvents(target, passiveRemoved)).toEqual([
+          {
+            type: "aura-removed",
+            duration: 0,
+            name: "Counter Attack",
+            targetId: 1,
+            targetType: "monster",
+          },
+        ]);
+      }),
+  );
+
+  it.effect.each(["clearAuras", "auSnap"])(
+    "removes player counter auras without counter notices through %s",
+    (command) =>
+      Effect.gen(function* () {
+        const { pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "p:10",
+            aura: { nam: "Counter Attack", t: "s", dur: 6 },
+          }),
+        );
+        expect(events).toEqual([
+          {
+            type: "aura-added",
+            duration: 6,
+            name: "Counter Attack",
+            stack: 1,
+            targetId: 10,
+            targetType: "player",
+          },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension(
+            command,
+            command === "auSnap" ? { unm: "Hero", au: [] } : {},
+          ),
+        );
+        expect(events).toEqual([
+          {
+            type: "aura-removed",
+            duration: 6,
+            name: "Counter Attack",
+            targetId: 10,
+            targetType: "player",
+          },
         ]);
       }),
   );

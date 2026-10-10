@@ -10,10 +10,7 @@ import type { DiagnosticReporter } from "../contract/Diagnostic";
 import type { Event } from "../contract/Event";
 import type { ExtensionPacket } from "../contract/Packet";
 import { parseCombatEntityReferences } from "../contract/payload/Combat";
-import {
-  antiCounterDurationMsFromAura,
-  matchAntiCounterAura,
-} from "../domain/AntiCounter";
+import { matchAntiCounterAura } from "../domain/AntiCounter";
 import type { AuraTarget, Store } from "../state/Store";
 
 const Scalar = Schema.Union([
@@ -130,9 +127,33 @@ export function auraEvents(
   target: AuraTarget,
   changes: readonly AuraDelta[],
   source?: AuraTarget,
+  appliedAtMs?: number,
 ): readonly Event[] {
-  return changes.map((change): Event => {
+  const events: Event[] = [];
+  for (const change of changes) {
     const aura = change.type === "removed" ? change.before : change.after;
+    if (target.type === "monster" && aura.kind === "active") {
+      const match = matchAntiCounterAura(aura.name);
+      if (match !== undefined) {
+        const details = {
+          monsterMapId: target.id,
+          source: "aura" as const,
+          triggerId: match.triggerId,
+          triggerText: match.triggerText,
+        };
+        if (change.type === "removed") {
+          events.push({ type: "counter-attack-end", ...details });
+        } else if (appliedAtMs !== undefined) {
+          events.push({
+            type: "counter-attack-start",
+            ...details,
+            ...(aura.expiresAt === undefined
+              ? {}
+              : { durationMs: aura.expiresAt - appliedAtMs }),
+          });
+        }
+      }
+    }
     const details = {
       name: aura.name,
       targetId: target.id,
@@ -143,14 +164,17 @@ export function auraEvents(
         ? {}
         : { sourceId: source.id, sourceType: source.type }),
     };
-    return change.type === "removed"
-      ? { type: "aura-removed", ...details }
-      : {
-          type: change.type === "added" ? "aura-added" : "aura-updated",
-          ...details,
-          stack: aura.stack,
-        };
-  });
+    events.push(
+      change.type === "removed"
+        ? { type: "aura-removed", ...details }
+        : {
+            type: change.type === "added" ? "aura-added" : "aura-updated",
+            ...details,
+            stack: aura.stack,
+          },
+    );
+  }
+  return events;
 }
 
 function auraMutation(
@@ -264,35 +288,16 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
     }
     const adding = change.cmd === "aura+" || change.cmd === "aura++";
     for (const payload of payloads) {
-      const changes = yield* store.world.projectAuras(
-        target,
-        auraMutation(change.cmd, payload),
-        nowMs,
+      const mutation = auraMutation(change.cmd, payload);
+      const changes = yield* store.world.projectAuras(target, mutation, nowMs);
+      events.push(
+        ...auraEvents(
+          target,
+          changes,
+          source,
+          mutation.type === "apply" ? nowMs : undefined,
+        ),
       );
-      if (change.cmd !== "aura=" && target.type === "monster") {
-        const match = matchAntiCounterAura(payload.nam);
-        if (match !== undefined) {
-          const details = {
-            monsterMapId: target.id,
-            source: "aura" as const,
-            triggerId: match.triggerId,
-            triggerText: match.triggerText,
-          };
-          const durationMs = antiCounterDurationMsFromAura(
-            payload.dur ?? undefined,
-          );
-          events.push(
-            adding
-              ? {
-                  type: "counter-attack-start",
-                  ...details,
-                  ...(durationMs === undefined ? {} : { durationMs }),
-                }
-              : { type: "counter-attack-end", ...details },
-          );
-        }
-      }
-      events.push(...auraEvents(target, changes, source));
       if (change.cmd === "aura=") continue;
       const rawMessage = adding ? payload.msgOn : payload.msgOff;
       const message =
