@@ -1287,6 +1287,178 @@ describe("Projection", () => {
       }),
   );
 
+  it.effect.each(["aura-", "aura--"])(
+    "keeps a same-named passive when %s removes the active aura",
+    (command) =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        yield* pipeline.packet(
+          extension("aura+p", {
+            cmd: "aura+p",
+            tInf: "p:10",
+            auras: [{ nam: "Arcane Flux", cat: "passive", icon: "imr1" }],
+          }),
+        );
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "p:10",
+            aura: { nam: "Arcane Flux", icon: "imr2", t: "s", dur: 6 },
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => [
+            aura.name,
+            aura.kind,
+          ]),
+        ).toEqual([
+          ["Arcane Flux", "passive"],
+          ["Arcane Flux", "active"],
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension(command, {
+            cmd: command,
+            tInf: "p:10",
+            aura: { nam: "Arcane Flux" },
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => [
+            aura.name,
+            aura.kind,
+          ]),
+        ).toEqual([["Arcane Flux", "passive"]]);
+        expect(events.filter((event) => event.type === "aura-removed")).toEqual(
+          [
+            {
+              type: "aura-removed",
+              name: "Arcane Flux",
+              duration: 6,
+              icon: "imr2",
+              targetId: 10,
+              targetType: "player",
+            },
+          ],
+        );
+      }),
+  );
+
+  it.effect(
+    "keeps login passives when moveToArea rebuilds the local player",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline } = yield* makeWorldProjection();
+        yield* store.auth.setCredentials("Hero", "");
+        yield* pipeline.packet(
+          extension("initUserData", {
+            uid: 10,
+            data: { strUsername: "Hero", intHP: 100, intHPMax: 100 },
+          }),
+        );
+        yield* pipeline.packet(
+          extension("aura+p", {
+            cmd: "aura+p",
+            tInf: "p:10",
+            auras: [
+              {
+                nam: "Arcane Flux",
+                cat: "passive",
+                icon: "imr1",
+                val: 25,
+                dur: 3,
+              },
+              { nam: "Arcane Power", cat: "buff", icon: "imr2", val: "mana" },
+            ],
+          }),
+        );
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "p:10",
+            aura: { nam: "Old Active", persist: true },
+          }),
+        );
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => aura.name),
+        ).toEqual(["Arcane Flux", "Arcane Power", "Old Active"]);
+        yield* pipeline.packet(
+          extension("uotls", {
+            unm: "Companion",
+            o: { entID: 11, intHP: 100 },
+          }),
+        );
+        yield* pipeline.packet(
+          extension("aura+p", {
+            cmd: "aura+p",
+            tInf: "p:11",
+            auras: [{ nam: "Other Passive" }],
+          }),
+        );
+        expect(
+          (yield* store.world.getPlayer(11))?.auras.map((aura) => aura.name),
+        ).toEqual(["Other Passive"]);
+        yield* pipeline.packet(
+          extension("moveToArea", {
+            areaId: 13,
+            areaName: "yulgar-1",
+            uoBranch: [
+              {
+                entID: 11,
+                uoName: "Companion",
+                au: [["Inspired", "ice", 0, 1, 0]],
+              },
+              {
+                entID: 20,
+                uoName: "hErO",
+                au: [["New Active", "imr3", 0, 2, 0]],
+              },
+            ],
+          }),
+        );
+        const self = yield* store.world.getMe;
+        expect(self?.entityId).toBe(20);
+        expect(
+          self?.auras
+            .filter((aura) => aura.kind === "passive")
+            .map((aura) => aura.toJSON()),
+        ).toEqual([
+          {
+            name: "Arcane Flux",
+            kind: "passive",
+            category: "passive",
+            icon: "imr1",
+            value: 25,
+            duration: 3,
+            stack: 1,
+            persistent: false,
+          },
+          {
+            name: "Arcane Power",
+            kind: "passive",
+            category: "buff",
+            icon: "imr2",
+            value: "mana",
+            duration: 0,
+            stack: 1,
+            persistent: false,
+          },
+        ]);
+        expect(
+          self?.auras
+            .filter((aura) => aura.kind === "active")
+            .map((aura) => [aura.name, aura.stack]),
+        ).toEqual([["New Active", 2]]);
+        expect(
+          (yield* store.world.getPlayer(11))?.auras.map((aura) => [
+            aura.name,
+            aura.kind,
+          ]),
+        ).toEqual([["Inspired", "active"]]);
+      }),
+  );
+
   it.effect.each(["aura+", "aura++", "aura-", "aura--", "aura+p", "auSnap"])(
     "projects standalone %s only from its extension copy",
     (command) =>
