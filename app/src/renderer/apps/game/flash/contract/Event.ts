@@ -113,9 +113,9 @@ export type ProjectionEvent =
       readonly targetType: "monster" | "player";
     }
   | {
-      /** A monster's counter attack starts. */
+      /** A monster's counter attack is applied, refreshed, or announced in a combat message. */
       readonly type: "counter-attack-start";
-      /** The expected window duration in milliseconds, when known. */
+      /** The applied aura duration or announced window in milliseconds, when known. */
       readonly durationMs?: number;
       /** The monster's map-scoped ID. */
       readonly monsterMapId: number;
@@ -127,7 +127,7 @@ export type ProjectionEvent =
       readonly triggerText: string;
     }
   | {
-      /** A monster's counter attack ends. */
+      /** A monster's active counter-attack aura is removed, including server state clears. */
       readonly type: "counter-attack-end";
       /** The monster's map-scoped ID. */
       readonly monsterMapId: number;

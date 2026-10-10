@@ -14,8 +14,8 @@ sidebar:
 | <a href="#event-aura-added"><code>aura-added</code></a> | An aura first appears on a player or monster. |
 | <a href="#event-aura-removed"><code>aura-removed</code></a> | An aura is removed from a player or monster. |
 | <a href="#event-aura-updated"><code>aura-updated</code></a> | An existing aura changes stack, timer, or metadata. |
-| <a href="#event-counter-attack-end"><code>counter-attack-end</code></a> | A monster's counter attack ends. |
-| <a href="#event-counter-attack-start"><code>counter-attack-start</code></a> | A monster's counter attack starts. |
+| <a href="#event-counter-attack-end"><code>counter-attack-end</code></a> | A monster's active counter-attack aura is removed, including server state clears. |
+| <a href="#event-counter-attack-start"><code>counter-attack-start</code></a> | A monster's counter attack is applied, refreshed, or announced in a combat message. |
 | <a href="#event-item-drop"><code>item-drop</code></a> | An item drops. |
 | <a href="#event-join-map"><code>join-map</code></a> | A map finishes loading. |
 | <a href="#event-login"><code>login</code></a> | A game session starts. |
@@ -106,7 +106,7 @@ An existing aura changes stack, timer, or metadata.
 
 ### `counter-attack-end`
 
-A monster's counter attack ends.
+A monster's active counter-attack aura is removed, including server state clears.
 
 ```ts
 {
@@ -126,12 +126,12 @@ A monster's counter attack ends.
 
 ### `counter-attack-start`
 
-A monster's counter attack starts.
+A monster's counter attack is applied, refreshed, or announced in a combat message.
 
 ```ts
 {
   readonly type: "counter-attack-start";
-  /** The expected window duration in milliseconds, when known. */
+  /** The applied aura duration or announced window in milliseconds, when known. */
   readonly durationMs?: number;
   /** The monster's map-scoped ID. */
   readonly monsterMapId: number;
