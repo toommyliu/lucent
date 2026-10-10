@@ -279,6 +279,7 @@ describe("Army Loop Taunt renderer", () => {
         applyFocus(harness.monster(42), "iwd1,ied1");
         yield* harness.emitEvent({
           icon: "iwd1,ied1",
+          kind: "active",
           name: "focus",
           stack: 1,
           targetId: 42,
@@ -318,6 +319,7 @@ describe("Army Loop Taunt renderer", () => {
           .filter((report) => report.type === "focus-state")
           .map((report) => report.active);
       const event = {
+        kind: "active",
         name: "Focus",
         targetId: 42,
         targetType: "monster",
