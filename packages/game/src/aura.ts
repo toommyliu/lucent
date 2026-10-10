@@ -134,7 +134,6 @@ export type AuraMutation =
       readonly mode: "replace" | "merge";
       readonly entries: readonly PassiveAuraInput[];
     }
-  | { readonly type: "remove-passives"; readonly names: readonly string[] }
   | { readonly type: "clear-local" };
 
 /** @internal */

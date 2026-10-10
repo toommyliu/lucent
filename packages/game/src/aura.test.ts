@@ -378,7 +378,6 @@ describe("active aura reduction", () => {
         ],
       },
       { type: "clear-local" },
-      { type: "remove-passives", names: ["Focus"] },
       { type: "withdraw", entries: [{ type: "remove", name: "Focus" }] },
       { type: "apply", entries: [application] },
     ];
@@ -403,7 +402,7 @@ describe("active aura reduction", () => {
     for (const { changes, snapshot } of saved)
       expect(JSON.stringify(changes)).toBe(snapshot);
     expect(
-      entity.projectAuras({ type: "apply", entries: [application] }, 1_010_000),
+      entity.projectAuras({ type: "apply", entries: [application] }, 1_009_000),
     ).toEqual([]);
   });
 });

@@ -58,7 +58,6 @@ const AuraChange = Schema.Struct({
     "aura--",
     "aura=",
     "aura+p",
-    "aura-p",
     "aura*",
   ]),
   tInf: Schema.String,
@@ -202,8 +201,6 @@ function auraMutation(
             ? []
             : [{ name: payload.nam, stack: payload.stk }],
       };
-    case "aura-p":
-      return { type: "remove-passives", names: [payload.nam] };
   }
 }
 
@@ -265,7 +262,6 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
       events.push(...auraEvents(target, changes, source));
       continue;
     }
-    const passive = change.cmd === "aura-p";
     const adding = change.cmd === "aura+" || change.cmd === "aura++";
     for (const payload of payloads) {
       const changes = yield* store.world.projectAuras(
@@ -273,7 +269,7 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
         auraMutation(change.cmd, payload),
         nowMs,
       );
-      if (change.cmd !== "aura=" && !passive && target.type === "monster") {
+      if (change.cmd !== "aura=" && target.type === "monster") {
         const match = matchAntiCounterAura(payload.nam);
         if (match !== undefined) {
           const details = {
@@ -297,7 +293,7 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
         }
       }
       events.push(...auraEvents(target, changes, source));
-      if (passive || change.cmd === "aura=") continue;
+      if (change.cmd === "aura=") continue;
       const rawMessage = adding ? payload.msgOn : payload.msgOff;
       const message =
         typeof rawMessage === "string"

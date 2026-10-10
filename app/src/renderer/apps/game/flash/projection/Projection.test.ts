@@ -1943,6 +1943,7 @@ describe("Projection", () => {
                 aura: { nam: "Counter Attack", msgOn: "Directed" },
               },
               { cmd: "aura+", tInf: "m:99", aura: { nam: "Unknown" } },
+              { cmd: "aura-p", tInf: "p:10", aura: { nam: "Focus" } },
             ],
           }),
         );
@@ -1977,7 +1978,12 @@ describe("Projection", () => {
             targetType: "monster",
           },
         ]);
-        expect(diagnostics.length).toBeGreaterThan(0);
+        expect(diagnostics).toEqual([
+          "combat:malformed-aura-change",
+          "combat:malformed-aura-payload",
+          "combat:malformed-aura-payload",
+          "combat:malformed-aura-change",
+        ]);
       }),
   );
 

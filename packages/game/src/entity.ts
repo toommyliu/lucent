@@ -260,9 +260,6 @@ export abstract class LiveEntity<State extends EntityData>
         }
         break;
       }
-      case "remove-passives":
-        for (const name of mutation.names) commit("passive", name, undefined);
-        break;
       case "clear-local":
         for (const aura of this.#auras.values()) {
           if (aura.kind === "active" && !aura.persistent) {

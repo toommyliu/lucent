@@ -296,86 +296,72 @@ describe("Army Loop Taunt renderer", () => {
     }),
   );
 
-  it.effect(
-    "rereads Focus for icon changes, decay, passive removal, and replacement",
-    () =>
-      Effect.gen(function* () {
-        const harness = yield* makeHarness([
-          {
-            assignments: [
-              {
-                players: [1, 2],
-                strategy: { type: "focus" },
-                target: 42,
-              },
-            ],
-          },
-        ]);
-        const monster = harness.monster(42);
-        const reportStates = () =>
-          harness.reports
-            .filter((report) => report.type === "focus-state")
-            .map((report) => report.active);
-        const event = {
-          name: "Focus",
-          targetId: 42,
-          targetType: "monster",
-        } as const;
+  it.effect("rereads Focus for icon changes, decay, and replacement", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness([
+        {
+          assignments: [
+            {
+              players: [1, 2],
+              strategy: { type: "focus" },
+              target: 42,
+            },
+          ],
+        },
+      ]);
+      const monster = harness.monster(42);
+      const reportStates = () =>
+        harness.reports
+          .filter((report) => report.type === "focus-state")
+          .map((report) => report.active);
+      const event = {
+        name: "Focus",
+        targetId: 42,
+        targetType: "monster",
+      } as const;
 
-        applyFocus(monster, "other", 5);
-        yield* harness.emitEvent({
-          ...event,
-          type: "aura-added",
-          stack: 5,
-          icon: "other",
-        });
-        applyFocus(monster, "iwd1,ied1", 5);
-        yield* harness.emitEvent({ ...event, type: "aura-updated", stack: 5 });
-        expect(reportStates()).toEqual([true]);
+      applyFocus(monster, "other", 5);
+      yield* harness.emitEvent({
+        ...event,
+        type: "aura-added",
+        stack: 5,
+        icon: "other",
+      });
+      applyFocus(monster, "iwd1,ied1", 5);
+      yield* harness.emitEvent({ ...event, type: "aura-updated", stack: 5 });
+      expect(reportStates()).toEqual([true]);
 
-        monster.projectAuras(
-          {
-            type: "withdraw",
-            entries: [{ type: "decay", name: "Focus", stack: 2 }],
-          },
-          0,
-        );
-        yield* harness.emitEvent({ ...event, type: "aura-updated", stack: 2 });
-        expect(reportStates()).toEqual([true]);
+      monster.projectAuras(
+        {
+          type: "withdraw",
+          entries: [{ type: "decay", name: "Focus", stack: 2 }],
+        },
+        0,
+      );
+      yield* harness.emitEvent({ ...event, type: "aura-updated", stack: 2 });
+      expect(reportStates()).toEqual([true]);
 
-        monster.projectAuras(
-          {
-            type: "passives",
-            mode: "merge",
-            entries: [{ name: "Focus", duration: 0 }],
-          },
-          0,
-        );
-        monster.projectAuras({ type: "remove-passives", names: ["Focus"] }, 0);
-        yield* harness.emitEvent({ ...event, type: "aura-removed" });
-        expect(reportStates()).toEqual([true]);
+      monster.projectAuras(
+        { type: "withdraw", entries: [{ type: "remove", name: "Focus" }] },
+        0,
+      );
+      applyFocus(monster, "iwd1,ied1");
+      yield* harness.emitEvent({ ...event, type: "aura-removed" });
+      yield* harness.emitEvent({ ...event, type: "aura-added", stack: 1 });
+      expect(reportStates()).toEqual([true]);
 
-        monster.projectAuras(
-          { type: "withdraw", entries: [{ type: "remove", name: "Focus" }] },
-          0,
-        );
-        applyFocus(monster, "iwd1,ied1");
-        yield* harness.emitEvent({ ...event, type: "aura-removed" });
-        yield* harness.emitEvent({ ...event, type: "aura-added", stack: 1 });
-        expect(reportStates()).toEqual([true]);
-
-        applyFocus(monster, "other");
-        yield* harness.emitEvent({ ...event, type: "aura-updated", stack: 1 });
-        expect(reportStates()).toEqual([true, false]);
-        applyFocus(monster, "iwd1,ied1");
-        yield* harness.emitEvent({ ...event, type: "aura-added", stack: 1 });
-        monster.projectAuras(
-          { type: "withdraw", entries: [{ type: "remove", name: "Focus" }] },
-          0,
-        );
-        yield* harness.emitEvent({ ...event, type: "aura-removed" });
-        expect(reportStates()).toEqual([true, false, true, false]);
-      }),
+      applyFocus(monster, "other");
+      yield* harness.emitEvent({ ...event, type: "aura-updated", stack: 1 });
+      expect(reportStates()).toEqual([true, false]);
+      applyFocus(monster, "iwd1,ied1");
+      yield* harness.emitEvent({ ...event, type: "aura-added", stack: 1 });
+      monster.projectAuras(
+        { type: "withdraw", entries: [{ type: "remove", name: "Focus" }] },
+        0,
+      );
+      yield* harness.emitEvent({ ...event, type: "aura-removed" });
+      expect(reportStates()).toEqual([true, false, true, false]);
+    }),
   );
 
   it.effect(
