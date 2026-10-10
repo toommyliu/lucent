@@ -3,49 +3,15 @@ import {
   type FollowerState,
 } from "@lucent/core/follower";
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 
 import { FollowerIpc } from "../../../shared/ipc";
-import {
-  GameFollowerRequestError,
-  GameFollowers,
-} from "../../internal/follower/GameFollowers";
+import { GameFollowers } from "../../internal/follower/GameFollowers";
 import { DesktopWindows } from "../../window/DesktopWindows";
 import { DesktopIpc, makeDesktopIpcMethod } from "../DesktopIpc";
-import type { DesktopIpcSender } from "../DesktopIpcSenders";
-
-export class FollowerOwnerError extends Schema.TaggedError<FollowerOwnerError>()(
-  "FollowerOwnerError",
-  {
-    rendererId: Schema.Int,
-  },
-) {
-  override get message(): string {
-    return `Follower window has no owning game: ${this.rendererId}`;
-  }
-}
-
-const resolveGameRendererId = Effect.fn("desktop.ipc.follower.resolveGame")(
-  function* (sender: DesktopIpcSender) {
-    if (sender.kind === "game") {
-      return sender.rendererId;
-    }
-
-    const windows = yield* DesktopWindows;
-    const ownerRendererId = yield* windows.getOwnerRendererId(
-      sender.rendererId,
-    );
-    if (
-      ownerRendererId === null ||
-      (yield* windows.getRendererKind(ownerRendererId)) !== "game"
-    ) {
-      return yield* new FollowerOwnerError({
-        rendererId: sender.rendererId,
-      });
-    }
-    return ownerRendererId;
-  },
-);
+import {
+  resolveGameRendererId,
+  type DesktopIpcSender,
+} from "../DesktopIpcSenders";
 
 const notifyChanged = Effect.fn("desktop.ipc.follower.notifyChanged")(
   function* (
@@ -75,42 +41,29 @@ const notifyPlayersChanged = Effect.fn(
   yield* ipc.sendToRendererIds(targets, FollowerIpc.playersChanged, players);
 });
 
-const requestState = Effect.fn("desktop.ipc.follower.requestState")(function* (
-  sender: DesktopIpcSender,
-  input:
-    | {
-        readonly config: ReturnType<typeof normalizeFollowerConfig>;
-        readonly kind: "configure";
-      }
-    | { readonly kind: "get-state" }
-    | {
-        readonly config: ReturnType<typeof normalizeFollowerConfig>;
-        readonly kind: "start";
-      }
-    | { readonly kind: "stop" },
-) {
-  const followers = yield* GameFollowers;
-  const gameRendererId = yield* resolveGameRendererId(sender);
-  const outcome = yield* followers.request(gameRendererId, input);
-  if (outcome.kind === "me") {
-    return yield* new GameFollowerRequestError({
-      detail: `Follower returned ${outcome.kind} for ${input.kind}.`,
-    });
-  }
-
-  const state = yield* followers.set(gameRendererId, outcome.state);
-  yield* notifyChanged(gameRendererId, state, sender.rendererId);
-  return state;
-});
+const requestAndNotify = Effect.fn("desktop.ipc.follower.requestAndNotify")(
+  function* <E>(
+    sender: DesktopIpcSender,
+    request: (
+      followers: GameFollowers["Service"],
+      gameRendererId: number,
+    ) => Effect.Effect<FollowerState, E>,
+  ) {
+    const followers = yield* GameFollowers;
+    const gameRendererId = yield* resolveGameRendererId(sender);
+    const state = yield* request(followers, gameRendererId);
+    yield* notifyChanged(gameRendererId, state, sender.rendererId);
+    return state;
+  },
+);
 
 export const configure = makeDesktopIpcMethod({
   descriptor: FollowerIpc.configure,
   allowedSenders: ["follower"],
   handler: (payload, sender) =>
-    requestState(sender, {
-      config: normalizeFollowerConfig(payload),
-      kind: "configure",
-    }),
+    requestAndNotify(sender, (followers, gameRendererId) =>
+      followers.configure(gameRendererId, normalizeFollowerConfig(payload)),
+    ),
 });
 
 export const getConfig = makeDesktopIpcMethod({
@@ -132,7 +85,10 @@ export const getState = makeDesktopIpcMethod({
     function* (_payload, sender) {
       const followers = yield* GameFollowers;
       const gameRendererId = yield* resolveGameRendererId(sender);
-      return yield* requestState(sender, { kind: "get-state" }).pipe(
+      return yield* followers.fetchState(gameRendererId).pipe(
+        Effect.tap((state) =>
+          notifyChanged(gameRendererId, state, sender.rendererId),
+        ),
         Effect.catchTag("GameFollowerRequestError", () =>
           followers.get(gameRendererId),
         ),
@@ -159,15 +115,7 @@ export const me = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.follower.me")(function* (_payload, sender) {
     const followers = yield* GameFollowers;
     const gameRendererId = yield* resolveGameRendererId(sender);
-    const outcome = yield* followers.request(gameRendererId, {
-      kind: "me",
-    });
-    if (outcome.kind !== "me") {
-      return yield* new GameFollowerRequestError({
-        detail: `Follower returned ${outcome.kind} for me.`,
-      });
-    }
-    return outcome.username;
+    return yield* followers.me(gameRendererId);
   }),
 });
 
@@ -175,27 +123,18 @@ export const start = makeDesktopIpcMethod({
   descriptor: FollowerIpc.start,
   allowedSenders: ["follower"],
   handler: (payload, sender) =>
-    requestState(sender, {
-      config: normalizeFollowerConfig(payload),
-      kind: "start",
-    }),
+    requestAndNotify(sender, (followers, gameRendererId) =>
+      followers.start(gameRendererId, normalizeFollowerConfig(payload)),
+    ),
 });
 
 export const stop = makeDesktopIpcMethod({
   descriptor: FollowerIpc.stop,
   allowedSenders: ["follower"],
-  handler: (_payload, sender) => requestState(sender, { kind: "stop" }),
-});
-
-export const respond = makeDesktopIpcMethod({
-  descriptor: FollowerIpc.respond,
-  allowedSenders: ["game"],
-  handler: Effect.fn("desktop.ipc.follower.respond")(
-    function* (response, sender) {
-      const followers = yield* GameFollowers;
-      yield* followers.respond(sender.rendererId, response);
-    },
-  ),
+  handler: (_payload, sender) =>
+    requestAndNotify(sender, (followers, gameRendererId) =>
+      followers.stop(gameRendererId),
+    ),
 });
 
 export const publishState = makeDesktopIpcMethod({
@@ -233,6 +172,5 @@ export const methods = [
   start,
   stop,
   publishPlayers,
-  respond,
   publishState,
 ] as const;

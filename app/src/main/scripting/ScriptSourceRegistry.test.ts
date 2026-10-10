@@ -6,11 +6,8 @@ import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
-import {
-  makeScriptFiles,
-  ScriptFiles,
-} from "../internal/scripting/ScriptFiles";
-import { processScriptFile } from "../internal/scripting/ScriptFileWorker";
+import { makeScriptFiles, ScriptFiles } from "./ScriptFiles";
+import { processScriptFile } from "./ScriptFileAnalysis";
 import {
   discoverScriptCatalog,
   type DiscoveredScriptCatalog,

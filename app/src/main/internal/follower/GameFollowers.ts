@@ -5,31 +5,23 @@ import {
   type FollowerState,
 } from "@lucent/core/follower";
 import * as Context from "effect/Context";
-import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import type { RpcClientError } from "effect/unstable/rpc/RpcClientError";
 
 import {
   FollowerIpc,
-  type FollowerCommand,
-  type FollowerCommandOutcome,
-  type FollowerCommandResponse,
   type FollowerPlayers,
 } from "../../../shared/ipc/follower";
-import { createRandomId } from "../../../shared/randomId";
 import { DesktopIpc } from "../../ipc/DesktopIpc";
 import { DesktopWindows } from "../../window/DesktopWindows";
+import {
+  GameRendererRpc,
+  type GameRendererRpcClient,
+} from "../game-renderer/GameRendererRpc";
 
 export const FOLLOWER_COMMAND_TIMEOUT_MS = 5_000;
-
-export type FollowerCommandInput =
-  | { readonly config: FollowerConfig; readonly kind: "configure" }
-  | { readonly kind: "get-state" }
-  | { readonly kind: "me" }
-  | { readonly config: FollowerConfig; readonly kind: "start" }
-  | { readonly kind: "stop" };
 
 export class GameFollowerRequestError extends Schema.TaggedError<GameFollowerRequestError>()(
   "GameFollowerRequestError",
@@ -42,21 +34,18 @@ export class GameFollowerRequestError extends Schema.TaggedError<GameFollowerReq
   }
 }
 
-interface PendingCommand {
-  readonly gameRendererId: number;
-  readonly gate: Deferred.Deferred<
-    FollowerCommandOutcome,
-    GameFollowerRequestError
-  >;
-  readonly kind: FollowerCommand["kind"];
-}
-
 interface FollowerPlayersUpdate {
   readonly changed: boolean;
   readonly players: FollowerPlayers;
 }
 
+type FollowerRequest<A> = Effect.Effect<A, GameFollowerRequestError>;
+
 export interface GameFollowersShape {
+  readonly configure: (
+    gameRendererId: number,
+    config: FollowerConfig,
+  ) => FollowerRequest<FollowerState>;
   readonly getConfig: (
     gameRendererId: number,
   ) => Effect.Effect<FollowerConfig | null>;
@@ -64,15 +53,11 @@ export interface GameFollowersShape {
   readonly getPlayers: (
     gameRendererId: number,
   ) => Effect.Effect<FollowerPlayers>;
+  readonly me: (gameRendererId: number) => FollowerRequest<string>;
   readonly remove: (gameRendererId: number) => Effect.Effect<void>;
-  readonly request: (
+  readonly fetchState: (
     gameRendererId: number,
-    input: FollowerCommandInput,
-  ) => Effect.Effect<FollowerCommandOutcome, GameFollowerRequestError>;
-  readonly respond: (
-    gameRendererId: number,
-    response: FollowerCommandResponse,
-  ) => Effect.Effect<void>;
+  ) => FollowerRequest<FollowerState>;
   readonly set: (
     gameRendererId: number,
     state: FollowerState,
@@ -81,6 +66,11 @@ export interface GameFollowersShape {
     gameRendererId: number,
     players: FollowerPlayers,
   ) => Effect.Effect<FollowerPlayersUpdate>;
+  readonly start: (
+    gameRendererId: number,
+    config: FollowerConfig,
+  ) => FollowerRequest<FollowerState>;
+  readonly stop: (gameRendererId: number) => FollowerRequest<FollowerState>;
 }
 
 export class GameFollowers extends Context.Service<
@@ -90,24 +80,78 @@ export class GameFollowers extends Context.Service<
 
 export const makeGameFollowers = Effect.gen(function* () {
   const ipc = yield* DesktopIpc;
+  const rpc = yield* GameRendererRpc;
   const windows = yield* DesktopWindows;
   const states = new Map<number, FollowerState>();
   // Desired configuration survives renderer generations and is reconciled on ready.
   const configs = new Map<number, FollowerConfig>();
   const playersByGame = new Map<number, FollowerPlayers>();
-  const pendingCommands = new Map<string, PendingCommand>();
+
+  const request = <A>(
+    gameRendererId: number,
+    send: (client: GameRendererRpcClient) => Effect.Effect<A, RpcClientError>,
+  ): FollowerRequest<A> =>
+    rpc
+      .call(gameRendererId, send, { timeout: FOLLOWER_COMMAND_TIMEOUT_MS })
+      .pipe(
+        Effect.catchTag("GameRendererUnavailableError", (error) =>
+          Effect.fail(new GameFollowerRequestError({ detail: error.detail })),
+        ),
+      );
+
+  const requestState = (
+    gameRendererId: number,
+    send: (
+      client: GameRendererRpcClient,
+    ) => Effect.Effect<FollowerState, RpcClientError>,
+  ) =>
+    request(gameRendererId, send).pipe(
+      Effect.flatMap((state) => set(gameRendererId, state)),
+    );
+
+  const requestConfigured = (
+    gameRendererId: number,
+    config: FollowerConfig,
+    send: (
+      client: GameRendererRpcClient,
+    ) => Effect.Effect<FollowerState, RpcClientError>,
+  ) =>
+    Effect.suspend(() => {
+      configs.set(gameRendererId, config);
+      return requestState(gameRendererId, send);
+    });
+
+  const configure: GameFollowersShape["configure"] = (gameRendererId, config) =>
+    requestConfigured(gameRendererId, config, (client) =>
+      client.FollowerConfigure(config),
+    );
+
+  const start: GameFollowersShape["start"] = (gameRendererId, config) =>
+    requestConfigured(gameRendererId, config, (client) =>
+      client.FollowerStart(config),
+    );
+
+  const stop: GameFollowersShape["stop"] = (gameRendererId) =>
+    requestState(gameRendererId, (client) => client.FollowerStop());
+
+  const fetchState: GameFollowersShape["fetchState"] = (gameRendererId) =>
+    requestState(gameRendererId, (client) => client.FollowerGetState());
+
+  const me: GameFollowersShape["me"] = (gameRendererId) =>
+    request(gameRendererId, (client) => client.FollowerMe());
 
   const get: GameFollowersShape["get"] = (gameRendererId) =>
-    windows.isRendererReady(gameRendererId).pipe(
-      Effect.map((rendererReady) =>
-        rendererReady
-          ? normalizeFollowerState(
-              states.get(gameRendererId) ?? createIdleFollowerState(),
-            )
-          : createIdleFollowerState(),
-      ),
-      Effect.catch(() => Effect.succeed(createIdleFollowerState())),
-    );
+    windows
+      .describe(gameRendererId)
+      .pipe(
+        Effect.map((info) =>
+          info?.ready
+            ? normalizeFollowerState(
+                states.get(gameRendererId) ?? createIdleFollowerState(),
+              )
+            : createIdleFollowerState(),
+        ),
+      );
 
   const getConfig: GameFollowersShape["getConfig"] = (gameRendererId) =>
     Effect.sync(() => configs.get(gameRendererId) ?? null);
@@ -120,12 +164,13 @@ export const makeGameFollowers = Effect.gen(function* () {
     });
 
   const getPlayers: GameFollowersShape["getPlayers"] = (gameRendererId) =>
-    windows.isRendererReady(gameRendererId).pipe(
-      Effect.map((rendererReady) =>
-        rendererReady ? (playersByGame.get(gameRendererId) ?? []) : [],
-      ),
-      Effect.catch(() => Effect.succeed([])),
-    );
+    windows
+      .describe(gameRendererId)
+      .pipe(
+        Effect.map((info) =>
+          info?.ready ? (playersByGame.get(gameRendererId) ?? []) : [],
+        ),
+      );
 
   const setPlayers: GameFollowersShape["setPlayers"] = (
     gameRendererId,
@@ -153,7 +198,7 @@ export const makeGameFollowers = Effect.gen(function* () {
       playersByGame.delete(gameRendererId);
       const targets = yield* windows
         .getOwnedRendererIds(gameRendererId, "follower")
-        .pipe(Effect.catch(() => Effect.succeed([])));
+        .pipe(Effect.orElseSucceed(() => []));
       yield* Effect.all([
         ipc.sendToRendererIds(
           targets,
@@ -162,19 +207,6 @@ export const makeGameFollowers = Effect.gen(function* () {
         ),
         ipc.sendToRendererIds(targets, FollowerIpc.playersChanged, []),
       ]);
-      for (const [requestId, pending] of pendingCommands) {
-        if (pending.gameRendererId !== gameRendererId) {
-          continue;
-        }
-
-        pendingCommands.delete(requestId);
-        yield* Deferred.fail(
-          pending.gate,
-          new GameFollowerRequestError({
-            detail: "Follower game renderer is unavailable.",
-          }),
-        );
-      }
     });
 
   const remove: GameFollowersShape["remove"] = (gameRendererId) =>
@@ -183,146 +215,51 @@ export const makeGameFollowers = Effect.gen(function* () {
       Effect.asVoid,
     );
 
-  const request: GameFollowersShape["request"] = Effect.fn(
-    "GameFollowers.request",
-  )(function* (gameRendererId, input) {
-    if (input.kind === "configure" || input.kind === "start") {
-      configs.set(gameRendererId, input.config);
+  const reconcile = Effect.fn("GameFollowers.reconcile")(function* (
+    gameRendererId: number,
+  ) {
+    const config = configs.get(gameRendererId);
+    if (config === undefined) {
+      return;
     }
 
-    const rendererReady = yield* windows
-      .isRendererReady(gameRendererId)
-      .pipe(Effect.catch(() => Effect.succeed(false)));
-    if (!rendererReady) {
-      return yield* new GameFollowerRequestError({
-        detail: "The follower game renderer is reloading.",
-      });
-    }
-
-    const requestId = createRandomId("follower-command");
-    const gate = yield* Deferred.make<
-      FollowerCommandOutcome,
-      GameFollowerRequestError
-    >();
-    pendingCommands.set(requestId, {
-      gameRendererId,
-      gate,
-      kind: input.kind,
-    });
-    const command = {
-      ...input,
-      requestId,
-    } as FollowerCommand;
-
-    yield* ipc.sendToRendererIds(
-      [gameRendererId],
-      FollowerIpc.command,
-      command,
-    );
-
-    const outcome = yield* Deferred.await(gate).pipe(
-      Effect.timeoutOption(FOLLOWER_COMMAND_TIMEOUT_MS),
-      Effect.ensuring(
-        Effect.sync(() => {
-          pendingCommands.delete(requestId);
-        }),
-      ),
-    );
-    if (Option.isNone(outcome)) {
-      return yield* new GameFollowerRequestError({
-        detail: "Follower did not respond.",
-      });
-    }
-    return outcome.value;
+    const state = yield* configure(gameRendererId, config);
+    const targets = yield* windows
+      .getOwnedRendererIds(gameRendererId, "follower")
+      .pipe(Effect.orElseSucceed(() => []));
+    yield* ipc.sendToRendererIds(targets, FollowerIpc.changed, state);
   });
 
-  const respond: GameFollowersShape["respond"] = Effect.fn(
-    "GameFollowers.respond",
-  )(function* (gameRendererId, response) {
-    const pending = pendingCommands.get(response.requestId);
-    if (pending === undefined || pending.gameRendererId !== gameRendererId) {
-      return;
+  yield* windows.observe({ kind: "game" }, (event) => {
+    switch (event.type) {
+      case "closed":
+        return remove(event.rendererId);
+      case "crashed":
+      case "reloaded":
+        return invalidate(event.rendererId);
+      default:
+        return Effect.void;
     }
-
-    pendingCommands.delete(response.requestId);
-    if (!response.ok) {
-      yield* Deferred.fail(
-        pending.gate,
-        new GameFollowerRequestError({
-          detail: response.error || "Follower request failed.",
-        }),
-      );
-      return;
-    }
-
-    if (response.outcome.kind !== pending.kind) {
-      yield* Deferred.fail(
-        pending.gate,
-        new GameFollowerRequestError({
-          detail: `Follower returned ${response.outcome.kind} for ${pending.kind}.`,
-        }),
-      );
-      return;
-    }
-
-    yield* Deferred.succeed(pending.gate, response.outcome);
   });
-
-  const unsubscribeClosed = yield* windows.onClosed((event) =>
-    event.kind === "game" ? remove(event.rendererId) : Effect.void,
-  );
-  const unsubscribeDestroyed = yield* windows.onRendererDestroyed((event) =>
-    event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
-  );
-  const unsubscribeUnavailable = yield* windows.onRendererUnavailable((event) =>
-    event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
-  );
-  const unsubscribeReloaded = yield* windows.onRendererReloaded((event) =>
-    event.kind === "game" ? invalidate(event.rendererId) : Effect.void,
-  );
-  const unsubscribeReady = yield* windows.onRendererReady((event) =>
-    event.kind !== "game"
-      ? Effect.void
-      : Effect.gen(function* () {
-          const config = configs.get(event.rendererId);
-          if (config === undefined) {
-            return;
-          }
-
-          const outcome = yield* request(event.rendererId, {
-            config,
-            kind: "configure",
-          });
-          if (outcome.kind !== "configure") {
-            return;
-          }
-
-          const state = yield* set(event.rendererId, outcome.state);
-          const targets = yield* windows
-            .getOwnedRendererIds(event.rendererId, "follower")
-            .pipe(Effect.catch(() => Effect.succeed([])));
-          yield* ipc.sendToRendererIds(targets, FollowerIpc.changed, state);
-        }).pipe(Effect.catch(() => Effect.void)),
-  );
-  yield* Effect.addFinalizer(() =>
-    Effect.sync(() => {
-      unsubscribeClosed();
-      unsubscribeDestroyed();
-      unsubscribeUnavailable();
-      unsubscribeReloaded();
-      unsubscribeReady();
-    }),
+  yield* Effect.acquireRelease(
+    rpc.onConnected((gameRendererId) =>
+      reconcile(gameRendererId).pipe(Effect.ignore),
+    ),
+    (unsubscribe) => Effect.sync(unsubscribe),
   );
 
   return GameFollowers.of({
+    configure,
     getConfig,
     get,
     getPlayers,
+    me,
     remove,
-    request,
-    respond,
+    fetchState,
     set,
     setPlayers,
+    start,
+    stop,
   });
 });
 

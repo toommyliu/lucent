@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import type {
   EnvironmentBankBoost,
   EnvironmentBoostDiscovery,
-} from "../../../../shared/ipc/environment";
+} from "../../../../shared/environmentBoosts";
 import type { ApiService } from "../flash/api/Api";
 
 export interface EnvironmentBoostApi {

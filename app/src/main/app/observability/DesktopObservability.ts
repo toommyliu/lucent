@@ -1,24 +1,18 @@
 import type { EventEmitter } from "events";
 import { join } from "path";
+import * as Cause from "effect/Cause";
+import * as Logger from "effect/Logger";
+import * as References from "effect/References";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 
-import {
-  DesktopTraceSpanSchema,
-  type DesktopTraceResponse,
-  type DesktopTraceSpan,
-} from "../../../shared/ipc";
 import { DesktopEnvironment } from "../DesktopEnvironment";
 import {
   desktopLogErrorDetails,
   makeBufferedDesktopLogWriter,
 } from "./DesktopLogWriter";
-import { makeDesktopTraceBuffer } from "./DesktopTraceBuffer";
-
-export type ObservabilityLevel = "debug" | "error" | "info" | "warn";
 
 export interface DesktopDiagnosticRecord {
   readonly component: string;
@@ -28,36 +22,11 @@ export interface DesktopDiagnosticRecord {
 }
 
 export interface DesktopObservabilityShape {
-  readonly debug: (
-    component: string,
-    message: string,
-    data?: unknown,
-  ) => Effect.Effect<void>;
-  readonly error: (
-    component: string,
-    message: string,
-    cause?: unknown,
-    data?: unknown,
-  ) => Effect.Effect<void>;
   readonly flush: Effect.Effect<void>;
-  readonly info: (
-    component: string,
-    message: string,
-    data?: unknown,
-  ) => Effect.Effect<void>;
   readonly installProcessHooks: Effect.Effect<void, never, Scope.Scope>;
   readonly logFilePath: string;
   readonly record: (record: DesktopDiagnosticRecord) => Effect.Effect<void>;
   readonly recordUnsafe: (record: DesktopDiagnosticRecord) => void;
-  readonly subscribeTrace: (
-    listener: (span: DesktopTraceSpan) => void,
-  ) => () => void;
-  readonly traceSnapshot: () => DesktopTraceResponse;
-  readonly warn: (
-    component: string,
-    message: string,
-    data?: unknown,
-  ) => Effect.Effect<void>;
 }
 
 export class DesktopObservability extends Context.Service<
@@ -74,48 +43,32 @@ const makeDesktopObservability = Effect.gen(function* () {
   const recordingStartedAt = diagnosticRecordingEnabled
     ? new Date().toISOString()
     : null;
-  const traceBuffer = makeDesktopTraceBuffer(recordingStartedAt);
-  const traceListeners = new Set<(span: DesktopTraceSpan) => void>();
-  const isDesktopTraceSpan = Schema.is(DesktopTraceSpanSchema);
 
-  const writeRecord = (
-    level: ObservabilityLevel,
-    component: string,
-    message: string,
-    data?: unknown,
-    cause?: unknown,
-    event?: string,
-  ) => {
-    const record = {
-      at: new Date().toISOString(),
-      level,
+  const logger = Logger.make<unknown, void>((options) => {
+    const {
+      component = "effect",
+      data,
+      ...annotations
+    } = options.fiber.getRef(References.CurrentLogAnnotations);
+    const span = options.fiber.currentSpan;
+    bufferedWriter.write({
+      at: options.date.toISOString(),
+      level: options.logLevel.toLowerCase(),
       component,
-      message,
-      ...(event === undefined ? {} : { event }),
+      message:
+        Array.isArray(options.message) && options.message.length === 1
+          ? options.message[0]
+          : options.message,
       ...(data === undefined ? {} : { data }),
-      ...(cause === undefined ? {} : { error: desktopLogErrorDetails(cause) }),
-    };
-    return Effect.sync(() => bufferedWriter.write(record));
-  };
-
-  const info: DesktopObservabilityShape["info"] = (component, message, data) =>
-    writeRecord("info", component, message, data);
-
-  const warn: DesktopObservabilityShape["warn"] = (component, message, data) =>
-    writeRecord("warn", component, message, data);
-
-  const debug: DesktopObservabilityShape["debug"] = (
-    component,
-    message,
-    data,
-  ) => writeRecord("debug", component, message, data);
-
-  const error: DesktopObservabilityShape["error"] = (
-    component,
-    message,
-    cause,
-    data,
-  ) => writeRecord("error", component, message, data, cause);
+      ...(Object.keys(annotations).length === 0 ? {} : { annotations }),
+      ...(options.cause.reasons.length === 0
+        ? {}
+        : { error: Cause.prettyErrors(options.cause) }),
+      ...(span === undefined
+        ? {}
+        : { traceId: span.traceId, spanId: span.spanId }),
+    });
+  });
 
   const flush: DesktopObservabilityShape["flush"] = Effect.promise(() =>
     bufferedWriter.flush(),
@@ -136,28 +89,7 @@ const makeDesktopObservability = Effect.gen(function* () {
               ? {}
               : { error: desktopLogErrorDetails(diagnostic.cause) }),
           });
-          if (
-            diagnostic.component === "trace" &&
-            diagnostic.event === "span.completed" &&
-            isDesktopTraceSpan(diagnostic.data)
-          ) {
-            traceBuffer.append(diagnostic.data);
-            for (const listener of traceListeners) {
-              try {
-                listener(diagnostic.data);
-              } catch {}
-            }
-          }
         };
-
-  const subscribeTrace: DesktopObservabilityShape["subscribeTrace"] = (
-    listener,
-  ) => {
-    traceListeners.add(listener);
-    return () => {
-      traceListeners.delete(listener);
-    };
-  };
 
   const record: DesktopObservabilityShape["record"] =
     diagnosticRecordingEnabled === false
@@ -168,14 +100,18 @@ const makeDesktopObservability = Effect.gen(function* () {
     const context = yield* Effect.context<never>();
     const runPromise = Effect.runPromiseWith(context);
     const handleUncaughtException = (cause: unknown): void => {
-      void runPromise(error("process", "Uncaught exception", cause)).catch(
-        () => undefined,
-      );
+      void runPromise(
+        Effect.logError("Uncaught exception", Cause.fail(cause)).pipe(
+          Effect.annotateLogs({ component: "process" }),
+        ),
+      ).catch(() => undefined);
     };
     const handleUnhandledRejection = (cause: unknown): void => {
-      void runPromise(error("process", "Unhandled rejection", cause)).catch(
-        () => undefined,
-      );
+      void runPromise(
+        Effect.logError("Unhandled rejection", Cause.fail(cause)).pipe(
+          Effect.annotateLogs({ component: "process" }),
+        ),
+      ).catch(() => undefined);
     };
 
     yield* Effect.sync(() => {
@@ -233,22 +169,19 @@ const makeDesktopObservability = Effect.gen(function* () {
     ),
   );
 
-  return DesktopObservability.of({
-    debug,
-    error,
-    flush,
-    info,
-    installProcessHooks,
-    logFilePath,
-    record,
-    recordUnsafe,
-    subscribeTrace,
-    traceSnapshot: traceBuffer.snapshot,
-    warn,
-  });
+  return Context.make(
+    DesktopObservability,
+    DesktopObservability.of({
+      flush,
+      installProcessHooks,
+      logFilePath,
+      record,
+      recordUnsafe,
+    }),
+  ).pipe(
+    Context.add(Logger.CurrentLoggers, new Set([logger])),
+    Context.add(References.MinimumLogLevel, "Debug"),
+  );
 });
 
-export const layer = Layer.effect(
-  DesktopObservability,
-  makeDesktopObservability,
-);
+export const layer = Layer.effectContext(makeDesktopObservability);

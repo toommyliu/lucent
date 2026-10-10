@@ -21,7 +21,6 @@ export interface DesktopWindowDefinition {
   readonly kind: DesktopWindowKind;
   readonly minHeight?: number;
   readonly minWidth?: number;
-  readonly requiresFlashPlugin: boolean;
   readonly fixedSize?: boolean;
   readonly scope: DesktopWindowScope;
   readonly singleInstance: boolean;
@@ -39,7 +38,6 @@ const desktopWindowCatalog: ReadonlyMap<
       width: 1024,
       height: 768,
       closeBehavior: "destroy",
-      requiresFlashPlugin: true,
       scope: "game",
       singleInstance: false,
     },
@@ -51,7 +49,6 @@ const desktopWindowCatalog: ReadonlyMap<
       width: 651,
       height: 654,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "application",
       singleInstance: true,
     },
@@ -63,7 +60,6 @@ const desktopWindowCatalog: ReadonlyMap<
       width: 360,
       height: 300,
       closeBehavior: "destroy",
-      requiresFlashPlugin: false,
       fixedSize: true,
       scope: "application",
       singleInstance: true,
@@ -76,7 +72,6 @@ const desktopWindowCatalog: ReadonlyMap<
       width: 980,
       height: 720,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "application",
       singleInstance: true,
     },
@@ -90,7 +85,6 @@ const desktopWindowCatalog: ReadonlyMap<
       minWidth: 560,
       minHeight: 460,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "application",
       singleInstance: true,
     },
@@ -102,7 +96,6 @@ const desktopWindowCatalog: ReadonlyMap<
       width: 778,
       height: 613,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "game-child",
       singleInstance: true,
     },
@@ -116,7 +109,6 @@ const desktopWindowCatalog: ReadonlyMap<
       minWidth: 1,
       minHeight: 1,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "game-child",
       singleInstance: true,
     },
@@ -130,7 +122,6 @@ const desktopWindowCatalog: ReadonlyMap<
       minWidth: 500,
       minHeight: 480,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "game-child",
       singleInstance: true,
     },
@@ -142,7 +133,6 @@ const desktopWindowCatalog: ReadonlyMap<
       width: 620,
       height: 483,
       closeBehavior: "hide",
-      requiresFlashPlugin: false,
       scope: "game-child",
       singleInstance: true,
     },

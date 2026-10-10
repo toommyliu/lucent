@@ -20,6 +20,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import { selectDesktopBridge } from "../../../../shared/desktopBridge";
+import { EnvironmentRpcs } from "../../../../shared/gameRendererRpc";
 import { playBeep } from "../audio/beep";
 import { Api } from "../flash/api/Api";
 import {
@@ -178,7 +179,6 @@ const makeEnvironment = Effect.gen(function* () {
 
   const services = yield* Effect.context<never>();
   const runFork = Effect.runForkWith(services);
-  const runPromise = Effect.runPromiseWith(services);
   const stateRef = yield* Ref.make<EnvironmentState>(
     createEmptyEnvironmentState(),
   );
@@ -770,12 +770,6 @@ const makeEnvironment = Effect.gen(function* () {
       ),
     );
   });
-  const removeFetchBoostsListener = bridge.onFetchBoostsRequest(() =>
-    runPromise(discoverEnvironmentBoosts(api)),
-  );
-  const removeWithdrawBoostsListener = bridge.onWithdrawBoostsRequest(
-    (itemIds) => runPromise(withdrawEnvironmentBoosts(api, itemIds)),
-  );
   const removeDropListener = yield* api.events.on(
     { type: "item-drop" },
     (event) =>
@@ -801,8 +795,6 @@ const makeEnvironment = Effect.gen(function* () {
   yield* Effect.addFinalizer(() =>
     Effect.sync(() => {
       removeStateListener();
-      removeFetchBoostsListener();
-      removeWithdrawBoostsListener();
       removeDropListener();
     }),
   );
@@ -854,3 +846,14 @@ const makeEnvironment = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(Environment, makeEnvironment);
+
+export const environmentRpcHandlers = EnvironmentRpcs.toLayer(
+  Effect.gen(function* () {
+    const api = yield* Api;
+    return EnvironmentRpcs.of({
+      EnvironmentFetchBoosts: () => discoverEnvironmentBoosts(api),
+      EnvironmentWithdrawBoosts: ({ itemIds }) =>
+        withdrawEnvironmentBoosts(api, itemIds),
+    });
+  }),
+);

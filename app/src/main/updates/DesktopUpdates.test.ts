@@ -13,8 +13,7 @@ import { TestClock } from "effect/testing";
 
 import { DEFAULT_APP_SETTINGS, type AppSettings } from "@lucent/core/settings";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { layer as desktopFileSystemLayer } from "../filesystem/DesktopFileSystemNode";
-import { DesktopObservability } from "../app/observability/DesktopObservability";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
 import {
@@ -154,29 +153,10 @@ const makeUpdatesHarness = (options: {
       updateHotkeys: () => Effect.succeed(settings),
       updatePreferences: () => Effect.succeed(settings),
     });
-    const observability = DesktopObservability.of({
-      debug: () => Effect.void,
-      error: () => Effect.void,
-      flush: Effect.void,
-      info: () => Effect.void,
-      installProcessHooks: Effect.void,
-      logFilePath: join(env.appDataDir, "logs", "lucent.log"),
-      record: () => Effect.void,
-      recordUnsafe: () => undefined,
-      subscribeTrace: () => () => undefined,
-      traceSnapshot: () => ({
-        recordingStartedAt: null,
-        spans: [],
-        truncated: false,
-      }),
-      warn: () => Effect.void,
-    });
     const app = ElectronApp.of({
-      appendCommandLineSwitch: () => Effect.void,
       exit: () => Effect.void,
       getAppMetrics: Effect.succeed([]),
       getVersion: Effect.succeed(options.currentVersion),
-      isPackaged: Effect.succeed(false),
       on: () => Effect.succeed(() => undefined),
       relaunch: Effect.void,
       quit: Effect.void,
@@ -192,7 +172,6 @@ const makeUpdatesHarness = (options: {
         Layer.mergeAll(
           Layer.succeed(DesktopEnvironment, env),
           desktopFileSystemLayer,
-          Layer.succeed(DesktopObservability, observability),
           Layer.succeed(ElectronApp, app),
           Layer.succeed(ElectronShell, shell),
           Layer.succeed(

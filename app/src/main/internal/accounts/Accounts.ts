@@ -378,14 +378,8 @@ export const makeAccounts = Effect.gen(function* () {
       ),
     );
 
-  const unsubscribeCreated = yield* gameWindows.onCreated(
-    registerWindowSession,
-  );
-  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeCreated));
-
-  const unsubscribeReloaded =
-    yield* gameWindows.onReloaded(reloadWindowSession);
-  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeReloaded));
+  yield* gameWindows.onCreated(registerWindowSession);
+  yield* gameWindows.onReloaded(reloadWindowSession);
 
   const closeWindowSession = Effect.fn("Accounts.closeWindowSession")(
     function* (gameWindowId: number) {
@@ -395,8 +389,7 @@ export const makeAccounts = Effect.gen(function* () {
       }
     },
   );
-  const unsubscribeWindows = yield* gameWindows.onClosed(closeWindowSession);
-  yield* Effect.addFinalizer(() => Effect.sync(unsubscribeWindows));
+  yield* gameWindows.onClosed(closeWindowSession);
 
   const closeGameWindows: AccountsShape["closeGameWindows"] = (
     gameWindowIds,
@@ -581,7 +574,9 @@ export const makeAccounts = Effect.gen(function* () {
           ...(request.windowTarget === undefined
             ? {}
             : { windowTarget: request.windowTarget }),
-          ...(request.tiling === undefined ? {} : { tile: request.tiling }),
+          ...(request.gameViewLayout === undefined
+            ? {}
+            : { gameViewLayout: request.gameViewLayout }),
           onCreated: (event) =>
             Effect.gen(function* () {
               gameWindowId = event.gameWindowId;

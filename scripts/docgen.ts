@@ -1,9 +1,9 @@
-import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { commandOutput } from "./process.mjs";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
@@ -30,8 +30,6 @@ import {
   getScriptPackageModule,
   type ScriptPackageReference,
 } from "./docgen-packages";
-
-const execFileAsync = promisify(execFile);
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = join(SCRIPT_DIR, "..");
@@ -318,18 +316,13 @@ const normalizeGitRemoteUrl = (rawUrl: string): string | null => {
   return null;
 };
 
-const getGitSourceInfo = (
-  repoRoot: string,
-): Effect.Effect<GitSourceInfo | null> =>
+const getGitSourceInfo = (repoRoot: string) =>
   Effect.gen(function* () {
-    const remoteUrl = yield* Effect.tryPromise(async () => {
-      const result = await execFileAsync(
-        "git",
-        ["remote", "get-url", "origin"],
-        { cwd: repoRoot },
-      );
-      return result.stdout;
-    }).pipe(Effect.catch(() => Effect.succeed(null)));
+    const remoteUrl = yield* commandOutput(
+      "git",
+      ["remote", "get-url", "origin"],
+      { cwd: repoRoot },
+    ).pipe(Effect.catch(() => Effect.succeed(null)));
 
     if (remoteUrl === null) {
       return null;
@@ -3895,7 +3888,7 @@ const writeGeneratedDocs = (
     }
   });
 
-const main = (options: CliOptions): Effect.Effect<void, unknown> =>
+const main = (options: CliOptions) =>
   Effect.gen(function* () {
     const packages = yield* Effect.tryPromise(() =>
       discoverScriptPackages(options.repoRoot),
@@ -3985,6 +3978,7 @@ if (
         });
       }),
     ),
+    Effect.provide(NodeServices.layer),
     NodeRuntime.runMain,
   );
 }

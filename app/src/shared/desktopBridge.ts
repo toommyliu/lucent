@@ -28,7 +28,6 @@ import type {
 import type {
   ArmyConfigPayload,
   ArmyFailPayload,
-  ArmyLeavePayload,
   ArmyLoopTauntCommandPayload,
   ArmyLoopTauntLeavePayload,
   ArmyLoopTauntRegisterPayload,
@@ -49,13 +48,9 @@ import type {
   ScriptOpenFileResult,
   ScriptSelectFileResult,
 } from "./ipc/scripting";
-import type { EnvironmentBoostDiscovery } from "./ipc/environment";
+import type { EnvironmentBoostDiscovery } from "./environmentBoosts";
 import type { DesktopHttpBridge } from "./http";
-import type {
-  FollowerCommand,
-  FollowerCommandOutcome,
-  FollowerPlayers,
-} from "./ipc/follower";
+import type { FollowerPlayers } from "./ipc/follower";
 import type {
   ScriptInputsDefinition,
   ScriptInputValues,
@@ -98,11 +93,6 @@ import type {
   LoaderGrabberGrabRequest,
   LoaderGrabberLoadRequest,
 } from "./loader-grabber";
-import type {
-  LoaderGrabberRequest,
-  LoaderGrabberResponse,
-} from "./ipc/loaderGrabber";
-import type { PacketsRequest, PacketsResponse } from "./ipc/packets";
 import type {
   PacketCapturedPayload,
   PacketQueuePayload,
@@ -376,7 +366,6 @@ export interface DesktopGameViewHostBridge {
 }
 
 export interface DesktopGameViewBridge {
-  readonly activate: () => Promise<GameViewPresentation>;
   readonly close: () => void;
   readonly dispatchGroupOptionHotkey: (
     commandId: GameViewGroupOptionHotkeyCommandId,
@@ -403,13 +392,6 @@ export interface DesktopLoaderGrabberWindowBridge {
   readonly load: (payload: LoaderGrabberLoadRequest) => Promise<void>;
 }
 
-export interface DesktopGameLoaderGrabberBridge {
-  readonly onRequest: (
-    listener: (request: LoaderGrabberRequest) => void,
-  ) => () => void;
-  readonly respond: (response: LoaderGrabberResponse) => Promise<void>;
-}
-
 export interface DesktopPacketsWindowBridge {
   readonly getStatus: () => Promise<PacketsStatusPayload>;
   readonly onCaptured: (
@@ -426,12 +408,8 @@ export interface DesktopPacketsWindowBridge {
 }
 
 export interface DesktopGamePacketsBridge {
-  readonly onRequest: (
-    listener: (request: PacketsRequest) => void,
-  ) => () => void;
   readonly publishCaptured: (payload: PacketCapturedPayload) => Promise<void>;
   readonly publishStatus: (payload: PacketsStatusPayload) => Promise<void>;
-  readonly respond: (response: PacketsResponse) => Promise<void>;
 }
 
 export interface DesktopFollowerBridge {
@@ -449,11 +427,6 @@ export interface DesktopFollowerBridge {
 }
 
 export interface DesktopGameFollowerBridge {
-  readonly onCommand: (
-    listener: (
-      command: FollowerCommand,
-    ) => FollowerCommandOutcome | Promise<FollowerCommandOutcome>,
-  ) => () => void;
   readonly publishPlayers: (players: FollowerPlayers) => Promise<void>;
   readonly publishState: (state: FollowerState) => Promise<void>;
 }
@@ -479,16 +452,6 @@ export interface DesktopEnvironmentBridge {
   readonly getState: () => Promise<EnvironmentState>;
   readonly onChanged: (
     listener: (state: EnvironmentState) => void,
-  ) => () => void;
-  readonly onFetchBoostsRequest: (
-    listener: () =>
-      | Promise<EnvironmentBoostDiscovery>
-      | EnvironmentBoostDiscovery,
-  ) => () => void;
-  readonly onWithdrawBoostsRequest: (
-    listener: (
-      itemIds: readonly number[],
-    ) => Promise<readonly number[]> | readonly number[],
   ) => () => void;
   readonly removeBoost: (name: string) => Promise<EnvironmentState>;
   readonly removeItem: (name: string) => Promise<EnvironmentState>;
@@ -519,7 +482,7 @@ export interface DesktopEnvironmentBridge {
 
 export interface DesktopArmyBridge {
   readonly fail: (payload: ArmyFailPayload) => Promise<void>;
-  readonly leave: (payload: ArmyLeavePayload) => Promise<void>;
+  readonly leave: () => Promise<void>;
   readonly loadConfig: (configName: string) => Promise<ArmyConfigPayload>;
   readonly loopTauntAwait: (
     payload: ArmyLoopTauntRunPayload,
@@ -604,7 +567,6 @@ interface DesktopBridgeViewCapabilities {
     | "scripting"
     | "windows"
   > & {
-    readonly loaderGrabber: DesktopGameLoaderGrabberBridge;
     readonly packets: DesktopGamePacketsBridge;
   } & Partial<Pick<DesktopBridgeCapabilities, "gameConsoleObservability">>;
   readonly "game-group-controls": Pick<

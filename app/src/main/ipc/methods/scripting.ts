@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 
 import { ScriptingIpc } from "../../../shared/ipc";
-import { ScriptInputRepository } from "../../internal/scripting/ScriptInputRepository";
+import { ScriptInputRepository } from "../../scripting/ScriptInputRepository";
 import { GitHubCredentials } from "../../scripting/GitHubCredentials";
 import { ScriptPackageManager } from "../../scripting/ScriptPackageManager";
 import { ScriptPackageCatalog } from "../../scripting/ScriptPackageCatalog";

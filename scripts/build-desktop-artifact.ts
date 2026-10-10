@@ -1,5 +1,8 @@
-import { spawn } from "node:child_process";
-import { rm } from "node:fs/promises";
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import { formatCommand, runCommand } from "./process.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,52 +23,16 @@ class BuildDesktopArtifactError extends Error {
 const isBuildPlatform = (value: string): value is BuildPlatform =>
   BUILD_PLATFORMS.includes(value as BuildPlatform);
 
-const formatCommand = (
+const run = Effect.fn("buildDesktopArtifact.run")(function* (
   command: string,
-  args: ReadonlyArray<string>,
-): string =>
-  [command, ...args]
-    .map((part) => (/\s/.test(part) ? JSON.stringify(part) : part))
-    .join(" ");
-
-const run = (
-  command: string,
-  args: ReadonlyArray<string>,
-): Promise<void> => {
+  args: readonly string[],
+) {
   console.log(`$ ${formatCommand(command, args)}`);
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], {
-      cwd: REPO_ROOT,
-      env: process.env,
-      shell: process.platform === "win32",
-      stdio: "inherit",
-    });
-
-    child.on("error", (cause) => {
-      reject(
-        new BuildDesktopArtifactError(
-          `${formatCommand(command, args)} failed to start: ${cause.message}`,
-        ),
-      );
-    });
-
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-
-      const reason =
-        signal === null ? `exit code ${code ?? "unknown"}` : `signal ${signal}`;
-      reject(
-        new BuildDesktopArtifactError(
-          `${formatCommand(command, args)} failed with ${reason}`,
-        ),
-      );
-    });
+  yield* runCommand(command, args, {
+    cwd: REPO_ROOT,
+    shell: process.platform === "win32",
   });
-};
+});
 
 const detectHostPlatform = (): BuildPlatform => {
   switch (process.platform) {
@@ -147,29 +114,41 @@ const electronBuilderArgs = (
   }
 };
 
-const main = async (): Promise<void> => {
-  const platform = parsePlatform(process.argv.slice(2));
+const main = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const platform = yield* Effect.try({
+    try: () => parsePlatform(process.argv.slice(2)),
+    catch: (cause) =>
+      cause instanceof Error
+        ? cause
+        : new BuildDesktopArtifactError(String(cause)),
+  });
 
   console.log("Cleaning app/build");
-  await rm(BUILD_OUTPUT_DIR, { recursive: true, force: true });
-  await run("pnpm", ["run", "typecheck"]);
-  await run("pnpm", [
+  yield* fs.remove(BUILD_OUTPUT_DIR, { recursive: true, force: true });
+  yield* run("pnpm", ["run", "typecheck"]);
+  yield* run("pnpm", [
     "--filter",
     "@lucent/electron^...",
     "--if-present",
     "build",
   ]);
-  await run("pnpm", ["--dir", "app", "build"]);
-  await run("pnpm", [
+  yield* run("pnpm", ["--dir", "app", "build"]);
+  yield* run("pnpm", [
     "--dir",
     "app",
     "electron-builder",
     ...electronBuilderArgs(platform),
   ]);
-};
-
-main().catch((cause) => {
-  const message = cause instanceof Error ? cause.message : String(cause);
-  console.error(`Desktop artifact build failed: ${message}`);
-  process.exitCode = 1;
 });
+
+main.pipe(
+  Effect.catch((cause) =>
+    Effect.sync(() => {
+      console.error(`Desktop artifact build failed: ${cause.message}`);
+      process.exitCode = 1;
+    }),
+  ),
+  Effect.provide(NodeServices.layer),
+  NodeRuntime.runMain,
+);

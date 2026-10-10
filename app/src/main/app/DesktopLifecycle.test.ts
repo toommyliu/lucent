@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
+import { vi } from "vitest";
 import * as Effect from "effect/Effect";
+import * as Logger from "effect/Logger";
 import * as Layer from "effect/Layer";
 
 import { ElectronApp } from "../electron/ElectronApp";
@@ -8,6 +10,8 @@ import {
   layer as desktopLifecycleLayer,
 } from "./DesktopLifecycle";
 import { DesktopObservability } from "./observability/DesktopObservability";
+
+vi.mock("electron", () => ({ app: {} }));
 
 const TEST_SIGNAL = "SIGTERM";
 type ProcessSignalListener = (signal: NodeJS.Signals) => void;
@@ -30,27 +34,13 @@ const makeHarness = (flushCompletes: boolean) => {
     ? flushStarted
     : flushStarted.pipe(Effect.andThen(Effect.never));
   const observability = DesktopObservability.of({
-    debug: () => Effect.void,
-    error: (_component, message) =>
-      Effect.sync(() => {
-        events.push(`error:${message}`);
-      }),
     flush,
-    info: () => Effect.void,
     installProcessHooks: Effect.void,
     logFilePath: "lucent.log",
     record: () => Effect.void,
     recordUnsafe: () => undefined,
-    subscribeTrace: () => () => undefined,
-    traceSnapshot: () => ({
-      recordingStartedAt: null,
-      spans: [],
-      truncated: false,
-    }),
-    warn: () => Effect.void,
   });
   const app = ElectronApp.of({
-    appendCommandLineSwitch: () => Effect.void,
     exit: (code) =>
       Effect.sync(() => {
         events.push(`exit:${code}`);
@@ -58,13 +48,18 @@ const makeHarness = (flushCompletes: boolean) => {
       }),
     getAppMetrics: Effect.succeed([]),
     getVersion: Effect.succeed("1.0.0"),
-    isPackaged: Effect.succeed(false),
     on: () => Effect.succeed(() => undefined),
     quit: Effect.void,
     relaunch: Effect.void,
     whenReady: Effect.void,
   });
   const layer = Layer.mergeAll(
+    Logger.layer([
+      Logger.make((options) => {
+        if (options.logLevel === "Error")
+          events.push(`error:${String(options.message)}`);
+      }),
+    ]),
     desktopLifecycleLayer,
     Layer.succeed(DesktopObservability, observability),
     Layer.succeed(ElectronApp, app),

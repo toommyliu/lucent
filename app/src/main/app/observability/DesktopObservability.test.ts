@@ -1,12 +1,14 @@
+import * as Cause from "effect/Cause";
 import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
 import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 
-import type { DesktopTraceSpan } from "../../../shared/ipc";
 import { layer as desktopEnvironmentLayer } from "../DesktopEnvironment";
 import {
   DesktopObservability,
@@ -43,22 +45,6 @@ const readRecords = async (path: string): Promise<unknown[]> =>
     .split("\n")
     .map((line) => JSON.parse(line));
 
-const traceSpan = (): DesktopTraceSpan => ({
-  attributes: {},
-  durationMs: 1,
-  endTimeUnixNano: "2",
-  events: [],
-  exit: { _tag: "Success" },
-  kind: "internal",
-  links: [],
-  name: "test-span",
-  sampled: true,
-  source: "effect",
-  spanId: "span-1",
-  startTimeUnixNano: "1",
-  traceId: "trace-1",
-});
-
 const makeLayer = (appDataDir: string, debug: boolean) =>
   desktopObservabilityLayer.pipe(
     Layer.provide(
@@ -84,49 +70,65 @@ afterEach(async () => {
 });
 
 describe("DesktopObservability", () => {
+  it.effect("retains both operation and cleanup failures in the log file", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(makeFixture);
+      const exit = yield* Effect.fail(new Error("Operation failed")).pipe(
+        Effect.ensuring(Effect.die(new Error("Cleanup failed"))),
+        Effect.exit,
+      );
+      if (!Exit.isFailure(exit)) throw new Error("Expected operation failure");
+
+      yield* Effect.logError("Runtime failed", exit.cause).pipe(
+        Effect.provide(makeLayer(root, false)),
+      );
+
+      const records = yield* Effect.promise(() =>
+        fs.readFile(join(root, "logs", "lucent.log"), "utf8"),
+      );
+      expect(records).toContain("Operation failed");
+      expect(records).toContain("Cleanup failed");
+    }),
+  );
+
   it.effect("queues every log level and drains it in order on shutdown", () =>
     Effect.gen(function* () {
       vi.useFakeTimers();
       const root = yield* Effect.promise(makeFixture);
       const logFilePath = join(root, "logs", "lucent.log");
-      const span = traceSpan();
-      const observedSpans: DesktopTraceSpan[] = [];
 
-      const snapshot = yield* Effect.scoped(
+      yield* Effect.scoped(
         Effect.gen(function* () {
           const observability = yield* DesktopObservability;
-          const unsubscribe = observability.subscribeTrace((recordedSpan) => {
-            observedSpans.push(recordedSpan);
-          });
 
-          yield* observability.info("test", "info");
-          yield* observability.warn("test", "warn", { attempt: 1 });
-          yield* observability.debug("test", "debug");
-          yield* observability.error("test", "error", new Error("boom"));
+          yield* Effect.logInfo("info").pipe(
+            Effect.annotateLogs({ component: "test" }),
+          );
+          yield* Effect.logWarning("warn").pipe(
+            Effect.annotateLogs({ component: "test", data: { attempt: 1 } }),
+          );
+          yield* Effect.logDebug("debug").pipe(
+            Effect.annotateLogs({ component: "test" }),
+          );
+          yield* Effect.logError("error", Cause.fail(new Error("boom"))).pipe(
+            Effect.annotateLogs({ component: "test" }),
+          );
           observability.recordUnsafe({
-            component: "trace",
-            event: "span.completed",
-            data: span,
+            component: "renderer",
+            event: "console",
+            data: { message: "hello", rendererId: 1 },
           });
           yield* observability.record({
             component: "test",
             event: "diagnostic",
           });
-          unsubscribe();
 
           expect(yield* Effect.promise(() => fileExists(logFilePath))).toBe(
             false,
           );
-          return observability.traceSnapshot();
         }).pipe(Effect.provide(makeLayer(root, false))),
       );
 
-      expect(snapshot).toEqual({
-        recordingStartedAt: null,
-        spans: [],
-        truncated: false,
-      });
-      expect(observedSpans).toEqual([]);
       expect(
         yield* Effect.promise(() => readRecords(logFilePath)),
       ).toMatchObject([
@@ -140,7 +142,7 @@ describe("DesktopObservability", () => {
         { component: "test", level: "debug", message: "debug" },
         {
           component: "test",
-          error: { message: "boom", name: "Error" },
+          error: [{ message: "boom", name: "Error" }],
           level: "error",
           message: "error",
         },
@@ -148,24 +150,66 @@ describe("DesktopObservability", () => {
     }),
   );
 
-  it.effect("keeps diagnostic recording and tracing debug-only", () =>
+  it.effect(
+    "captures service startup, native callbacks, spans, and shutdown",
+    () =>
+      Effect.gen(function* () {
+        const root = yield* Effect.promise(makeFixture);
+        class Callback extends Context.Service<Callback, () => Promise<void>>()(
+          "test/Callback",
+        ) {}
+        const callbackLayer = Layer.effect(
+          Callback,
+          Effect.gen(function* () {
+            yield* Effect.logInfo("initialized");
+            const context = yield* Effect.context<never>();
+            yield* Effect.addFinalizer(() => Effect.logInfo("released"));
+            return () =>
+              Effect.runPromiseWith(context)(
+                Effect.logWarning("callback").pipe(
+                  Effect.annotateLogs({ requestId: "request-1" }),
+                  Effect.withSpan("callback-span"),
+                ),
+              );
+          }),
+        ).pipe(Layer.provideMerge(makeLayer(root, false)));
+
+        yield* Effect.gen(function* () {
+          const callback = yield* Callback;
+          yield* Effect.promise(callback);
+        }).pipe(Effect.provide(callbackLayer));
+
+        expect(
+          yield* Effect.promise(() =>
+            readRecords(join(root, "logs", "lucent.log")),
+          ),
+        ).toMatchObject([
+          { level: "info", component: "effect", message: "initialized" },
+          {
+            level: "warn",
+            message: "callback",
+            annotations: { requestId: "request-1" },
+            traceId: expect.any(String),
+            spanId: expect.any(String),
+          },
+          { level: "info", message: "released" },
+        ]);
+      }),
+  );
+
+  it.effect("keeps diagnostic recording debug-only", () =>
     Effect.gen(function* () {
       vi.useFakeTimers();
       const root = yield* Effect.promise(makeFixture);
       const logFilePath = join(root, "logs", "lucent.log");
-      const span = traceSpan();
-      const observedSpans: DesktopTraceSpan[] = [];
 
-      const snapshot = yield* Effect.scoped(
+      yield* Effect.scoped(
         Effect.gen(function* () {
           const observability = yield* DesktopObservability;
-          observability.subscribeTrace((recordedSpan) => {
-            observedSpans.push(recordedSpan);
-          });
           observability.recordUnsafe({
-            component: "trace",
-            event: "span.completed",
-            data: span,
+            component: "renderer",
+            event: "console",
+            data: { message: "hello", rendererId: 1 },
           });
           yield* observability.record({
             component: "test",
@@ -175,21 +219,18 @@ describe("DesktopObservability", () => {
           expect(yield* Effect.promise(() => fileExists(logFilePath))).toBe(
             false,
           );
-          return observability.traceSnapshot();
         }).pipe(Effect.provide(makeLayer(root, true))),
       );
 
-      expect(snapshot).toEqual({
-        recordingStartedAt: expect.any(String),
-        spans: [span],
-        truncated: false,
-      });
-      expect(observedSpans).toEqual([span]);
       expect(
         yield* Effect.promise(() => readRecords(logFilePath)),
       ).toMatchObject([
         { event: "recording.started" },
-        { data: span, event: "span.completed" },
+        {
+          component: "renderer",
+          data: { message: "hello", rendererId: 1 },
+          event: "console",
+        },
         { event: "diagnostic" },
         { event: "recording.stopped" },
       ]);

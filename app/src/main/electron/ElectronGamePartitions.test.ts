@@ -9,7 +9,7 @@ import {
   cleanupStaleGamePartitionProfiles,
   defaultGamePartition,
   managedGamePartition,
-  resolveGamePartitionProfilePath,
+  listPersistentGamePartitions,
   retireManagedGamePartitionProfile,
 } from "./ElectronGamePartitions";
 
@@ -32,11 +32,15 @@ describe("Electron game partitions", () => {
   it("retires managed profiles without exposing account names", async () => {
     const appDataDir = await makeTempDir();
     const partition = managedGamePartition("Alice");
-    const profilePath = resolveGamePartitionProfilePath(appDataDir, partition);
+    const profilePath = join(
+      appDataDir,
+      "Partitions",
+      partition.slice("persist:".length),
+    );
     await mkdir(profilePath, { recursive: true });
 
     expect(partition).not.toContain("Alice");
-    expect(retireManagedGamePartitionProfile(appDataDir, "alice")).toBe(true);
+    expect(retireManagedGamePartitionProfile(profilePath)).toBe(true);
     await expect(
       readFile(join(profilePath, ".lucent-retired"), "utf8"),
     ).resolves.toBe("1\n");
@@ -51,16 +55,10 @@ describe("Electron game partitions", () => {
     const appDataDir = await makeTempDir();
     const partitionsPath = join(appDataDir, "Partitions");
     const retiredManaged = basename(
-      resolveGamePartitionProfilePath(
-        appDataDir,
-        managedGamePartition("Retired"),
-      ),
+      managedGamePartition("Retired").slice("persist:".length),
     );
     const activeManaged = basename(
-      resolveGamePartitionProfilePath(
-        appDataDir,
-        managedGamePartition("Active"),
-      ),
+      managedGamePartition("Active").slice("persist:".length),
     );
     const removable = [
       `lucent-game-temporary-10-${"a".repeat(24)}`,
@@ -68,9 +66,7 @@ describe("Electron game partitions", () => {
     ];
     const retained = [
       `lucent-game-temporary-20-${"b".repeat(24)}`,
-      basename(
-        resolveGamePartitionProfilePath(appDataDir, defaultGamePartition),
-      ),
+      basename(defaultGamePartition.slice("persist:".length)),
       activeManaged,
       "unrelated",
     ];
@@ -83,6 +79,12 @@ describe("Electron game partitions", () => {
       join(partitionsPath, retiredManaged, ".lucent-retired"),
       "1\n",
       "utf8",
+    );
+
+    expect(listPersistentGamePartitions(appDataDir).toSorted()).toEqual(
+      [...removable, ...retained.filter((name) => name !== "unrelated")]
+        .map((name) => `persist:${name}`)
+        .toSorted(),
     );
 
     const result = cleanupStaleGamePartitionProfiles(appDataDir, {

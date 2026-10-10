@@ -9,16 +9,33 @@ import {
   AccountSessions,
   layer as sessionsLayer,
 } from "../../internal/accounts/AccountSessions";
-import { DesktopWindows } from "../../window/DesktopWindows";
-import { close, closeCurrent, reopen } from "./gameViews";
+import {
+  DesktopWindowError,
+  DesktopWindows,
+  type GameViewHostChange,
+} from "../../window/DesktopWindows";
+import {
+  close,
+  closeCurrent,
+  reopen,
+  select,
+  reorder,
+  setLayout,
+  setGroupControlsOpen,
+  setTabMenuOpen,
+  setGroupTargets,
+  syncTabBarLayout,
+  dispatchGroupOptionHotkey,
+} from "./gameViews";
+import { DesktopIpc } from "../DesktopIpc";
 
 const hostState: GameViewHostState = {
   capacity: 7,
   groupControlsOpen: false,
   groupTargetIds: [],
   layout: "focused",
-  selectedId: "tab-1",
-  sessions: [{ id: "tab-1", name: "Alice", phase: "ready" }],
+  selectedId: "42",
+  sessions: [{ id: "42", name: "Alice", phase: "ready" }],
 };
 const sender = { kind: "game-host", rendererId: 100 } as const;
 
@@ -38,7 +55,7 @@ describe("game view lifecycle IPC", () => {
         },
       });
       let response = 0;
-      const closed: string[] = [];
+      const closed: number[] = [];
       const parents: (number | undefined)[] = [];
       const dependencies = Layer.mergeAll(
         Layer.mock(ElectronDialog, {
@@ -50,8 +67,15 @@ describe("game view lifecycle IPC", () => {
         }),
         Layer.mock(DesktopWindows, {
           getGameViewHostState: () => Effect.succeed(hostState),
-          getRendererId: () => Effect.succeed(42),
-          getNativeWindowId: () => Effect.succeed(1),
+          describe: (rendererId) =>
+            Effect.succeed({
+              rendererId,
+              kind: rendererId === 100 ? "game-host" : "game",
+              windowId: 1,
+              ownerId: undefined,
+              generation: 1,
+              ready: false,
+            }),
           closeGameView: (_hostId, id) =>
             Effect.sync(() => {
               closed.push(id);
@@ -60,7 +84,7 @@ describe("game view lifecycle IPC", () => {
         }),
       );
       yield* close
-        .handler({ id: "tab-1" }, sender)
+        .handler({ id: "42" }, sender)
         .pipe(Effect.provide(dependencies));
       expect(
         sessions
@@ -71,9 +95,9 @@ describe("game view lifecycle IPC", () => {
       expect(sessions.recentlyClosed(1)).toEqual([]);
       response = 1;
       yield* close
-        .handler({ id: "tab-1" }, sender)
+        .handler({ id: "42" }, sender)
         .pipe(Effect.provide(dependencies));
-      expect(closed).toEqual(["tab-1"]);
+      expect(closed).toEqual([42]);
       expect(parents).toEqual([1, 1]);
       expect(sessions.recentlyClosed(1)).toEqual([
         {
@@ -126,13 +150,20 @@ describe("game view lifecycle IPC", () => {
               Effect.succeed({
                 ...hostState,
                 sessions: Array.from({ length: count }, (_, index) => ({
-                  id: `tab-${index + 1}`,
+                  id: String(index + 42),
                   name: "Tab",
                   phase: "ready" as const,
                 })),
               }),
-            getRendererId: () => Effect.succeed(42),
-            getNativeWindowId: () => Effect.succeed(1),
+            describe: (rendererId) =>
+              Effect.succeed({
+                rendererId,
+                kind: rendererId === 100 ? "game-host" : "game",
+                windowId: 1,
+                ownerId: undefined,
+                generation: 1,
+                ready: false,
+              }),
           }),
           Layer.mock(Accounts, {
             reopenGameWindow: (request) =>
@@ -160,5 +191,102 @@ describe("game view lifecycle IPC", () => {
           },
         ]);
       }),
+  );
+});
+
+describe("game view host command IPC", () => {
+  it.effect(
+    "decodes tab ids and preserves each command's result contract",
+    () =>
+      Effect.gen(function* () {
+        const changes: [number, GameViewHostChange][] = [];
+        const dependencies = Layer.mock(DesktopWindows, {
+          updateGameViewHost: (id, change) =>
+            Effect.sync(() => {
+              changes.push([id, change]);
+              return hostState;
+            }),
+        });
+        const run = <A, E>(effect: Effect.Effect<A, E, DesktopWindows>) =>
+          effect.pipe(Effect.provide(dependencies));
+        expect(
+          yield* run(select.handler({ id: "42", focus: "view" }, sender)),
+        ).toEqual(hostState);
+        expect(yield* run(reorder.handler({ ids: ["42"] }, sender))).toEqual(
+          hostState,
+        );
+        expect(
+          yield* run(setLayout.handler({ layout: "grid" }, sender)),
+        ).toEqual(hostState);
+        expect(
+          yield* run(
+            setGroupControlsOpen.handler(
+              { open: true },
+              { kind: "game-group-controls", rendererId: 101 },
+            ),
+          ),
+        ).toEqual(hostState);
+        expect(
+          yield* run(setGroupTargets.handler({ ids: ["42"] }, sender)),
+        ).toEqual(hostState);
+        expect(yield* run(setTabMenuOpen.handler({ open: true }, sender))).toBe(
+          true,
+        );
+        expect(
+          yield* run(setTabMenuOpen.handler({ open: false }, sender)),
+        ).toBe(false);
+        expect(
+          yield* run(syncTabBarLayout.handler(undefined, sender)),
+        ).toBeUndefined();
+        expect(changes).toEqual([
+          [100, { type: "select", id: 42, focus: "view" }],
+          [100, { type: "reorder", ids: [42] }],
+          [100, { type: "layout", layout: "grid" }],
+          [101, { type: "group-controls", open: true }],
+          [100, { type: "group-targets", ids: [42] }],
+          [100, { type: "tab-menu", open: true }],
+          [100, { type: "tab-menu", open: false }],
+          [100, { type: "tab-bar-layout" }],
+        ]);
+        const error = new DesktopWindowError({
+          id: "100",
+          detail: "Failed to update the tab menu.",
+        });
+        expect(
+          yield* setTabMenuOpen.handler({ open: true }, sender).pipe(
+            Effect.provide(
+              Layer.mock(DesktopWindows, {
+                updateGameViewHost: () => Effect.fail(error),
+              }),
+            ),
+            Effect.flip,
+          ),
+        ).toBe(error);
+      }),
+  );
+
+  it.effect("resolves a group hotkey's host using the requesting tab", () =>
+    Effect.gen(function* () {
+      const queried: number[] = [];
+      const dependencies = Layer.mergeAll(
+        Layer.mock(DesktopWindows, {
+          getGameViewHostState: (id) =>
+            Effect.sync(() => {
+              queried.push(id);
+              return hostState;
+            }),
+        }),
+        Layer.mock(DesktopIpc, {}),
+      );
+      expect(
+        yield* dispatchGroupOptionHotkey
+          .handler(
+            { commandId: "toggleInfiniteRange" },
+            { kind: "game", rendererId: 42 },
+          )
+          .pipe(Effect.provide(dependencies)),
+      ).toEqual({ recipientCount: 0, skippedCount: 0, status: "sent" });
+      expect(queried).toEqual([42]);
+    }),
   );
 });

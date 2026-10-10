@@ -32,7 +32,7 @@ import {
 } from "@lucent/core/hotkeys";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { makeListenerRegistry } from "../app/ListenerRegistry";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../filesystem/JsonFile";
 
 const settingsOperationSchema = Schema.Literals([
@@ -231,7 +231,7 @@ const applyHotkeysPatch = (
 
 const makeDesktopSettings = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+  const jsonFile = makeJsonFile(yield* FileSystem);
   const settingsPath = join(env.appDataDir, "settings.json");
   const settingsRef = yield* SynchronizedRef.make<AppSettings | null>(null);
   const settingsChanges = makeListenerRegistry<AppSettings>();
@@ -240,35 +240,15 @@ const makeDesktopSettings = Effect.gen(function* () {
     const result = yield* jsonFile
       .read(settingsPath)
       .pipe(Effect.mapError(wrapDataError));
-    if (result.status === "missing") {
-      yield* jsonFile
-        .write(settingsPath, serializeAppSettings(DEFAULT_APP_SETTINGS))
-        .pipe(Effect.mapError(wrapDataError));
-      return DEFAULT_APP_SETTINGS;
-    }
-
-    const settings = normalizeAppSettings(result.value);
+    const settings =
+      result.status === "missing"
+        ? DEFAULT_APP_SETTINGS
+        : normalizeAppSettings(result.value);
     yield* jsonFile
       .write(settingsPath, serializeAppSettings(settings))
       .pipe(Effect.mapError(wrapDataError));
     return settings;
   });
-
-  const load: DesktopSettingsShape["load"] = SynchronizedRef.modifyEffect(
-    settingsRef,
-    () =>
-      readSettingsFromFile.pipe(
-        Effect.map((settings) => [settings, settings] as const),
-      ),
-  );
-
-  const get: DesktopSettingsShape["get"] = SynchronizedRef.get(
-    settingsRef,
-  ).pipe(
-    Effect.flatMap((current) =>
-      current === null ? load : Effect.succeed(current),
-    ),
-  );
 
   const writeSettingsFile = (
     settings: AppSettings,
@@ -279,11 +259,21 @@ const makeDesktopSettings = Effect.gen(function* () {
       .pipe(Effect.mapError(wrapDataError), Effect.as(normalized));
   };
 
+  const get = SynchronizedRef.modifyEffect(settingsRef, (current) =>
+    (current === null ? readSettingsFromFile : Effect.succeed(current)).pipe(
+      Effect.map((settings) => [settings, settings] as const),
+    ),
+  );
+  const load = SynchronizedRef.modifyEffect(settingsRef, () =>
+    readSettingsFromFile.pipe(
+      Effect.map((settings) => [settings, settings] as const),
+    ),
+  );
   const update = (
     modify: (
       current: AppSettings,
     ) => Effect.Effect<AppSettings, DesktopSettingsError>,
-  ): Effect.Effect<AppSettings, DesktopSettingsError> =>
+  ) =>
     SynchronizedRef.modifyEffect(settingsRef, (current) =>
       (current === null ? readSettingsFromFile : Effect.succeed(current)).pipe(
         Effect.flatMap(modify),

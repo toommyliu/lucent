@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
+import { mkdirSync, renameSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -7,6 +8,8 @@ import * as Effect from "effect/Effect";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as References from "effect/References";
+import * as Stream from "effect/Stream";
 
 import {
   COMBAT_PROFILE_LIBRARY_VERSION,
@@ -16,8 +19,8 @@ import {
   type CombatProfileLibrary,
 } from "@lucent/core/combatProfiles";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
-import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
+import { FileSystem } from "effect/FileSystem";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   CombatProfiles,
   layer as desktopCombatProfilesLayer,
@@ -39,9 +42,7 @@ afterEach(async () => {
 });
 
 const makeHarness = (
-  wrapFileSystem: (
-    fs: DesktopFileSystem["Service"],
-  ) => DesktopFileSystem["Service"] = (fs) => fs,
+  wrapFileSystem: (fs: FileSystem) => FileSystem = (fs) => fs,
 ) =>
   Effect.gen(function* () {
     const appDataDir = yield* Effect.promise(() =>
@@ -61,10 +62,9 @@ const makeHarness = (
       Layer.provide(
         Layer.mergeAll(
           Layer.succeed(DesktopEnvironment, env),
-          Layer.effect(
-            DesktopFileSystem,
-            Effect.map(DesktopFileSystem, wrapFileSystem),
-          ).pipe(Layer.provide(desktopFileSystemLayer)),
+          Layer.effect(FileSystem, Effect.map(FileSystem, wrapFileSystem)).pipe(
+            Layer.provide(desktopFileSystemLayer),
+          ),
         ),
       ),
     );
@@ -89,6 +89,64 @@ const testProfile: CombatProfile = {
 };
 
 describe("CombatProfiles", () => {
+  it.effect.each(["save", "reload"] as const)(
+    "keeps change events ordered when a %s yields",
+    (operation) =>
+      Effect.gen(function* () {
+        const writeStarted = yield* Deferred.make<void>();
+        let watchWrites = false;
+        const { combatProfiles, path } = yield* makeHarness((fs) => ({
+          ...fs,
+          makeDirectory: (path) =>
+            Effect.sync(() => {
+              mkdirSync(path, { recursive: true });
+            }),
+          writeFile: (path, contents) =>
+            Effect.sync(() => writeFileSync(path, contents)),
+          rename: (from, to) =>
+            Effect.sync(() => renameSync(from, to)).pipe(
+              Effect.tap(() =>
+                watchWrites
+                  ? Deferred.succeed(writeStarted, undefined)
+                  : Effect.void,
+              ),
+            ),
+        }));
+        yield* combatProfiles.load;
+        yield* combatProfiles.saveProfile({ ...testProfile, label: "First" });
+        const labels: string[] = [];
+        yield* combatProfiles.onChanged((library) => {
+          labels.push(library.profiles.at(-1)!.label);
+        });
+
+        watchWrites = true;
+        const first = yield* (
+          operation === "save"
+            ? combatProfiles.saveProfile({ ...testProfile, label: "First" })
+            : combatProfiles.load
+        ).pipe(
+          Effect.provideService(References.MaxOpsBeforeYield, 16),
+          Effect.forkScoped,
+        );
+        yield* Deferred.await(writeStarted);
+        const second = yield* combatProfiles
+          .saveProfile({ ...testProfile, label: "Second" })
+          .pipe(Effect.forkScoped);
+        yield* Fiber.join(first);
+        yield* Fiber.join(second);
+
+        expect(labels).toEqual(["First", "Second"]);
+        expect((yield* combatProfiles.get).profiles.at(-1)?.label).toBe(
+          "Second",
+        );
+        expect(
+          JSON.parse(
+            yield* Effect.promise(() => readFile(path, "utf8")),
+          ).profiles.at(-1)?.label,
+        ).toBe("Second");
+      }),
+  );
+
   it.effect("deletes saved profiles from the library", () =>
     Effect.gen(function* () {
       const { combatProfiles } = yield* makeHarness();
@@ -231,15 +289,18 @@ describe("CombatProfiles", () => {
         let blockRead = false;
         const { combatProfiles, path } = yield* makeHarness((fs) => ({
           ...fs,
-          readFile: (path, options) =>
-            Effect.gen(function* () {
-              const bytes = yield* fs.readFile(path, options);
-              if (blockRead) {
-                yield* Deferred.succeed(readStarted, undefined);
-                yield* Deferred.await(releaseRead);
-              }
-              return bytes;
-            }),
+          stream: (path, options) =>
+            fs.stream(path, options).pipe(
+              Stream.mapEffect((bytes) =>
+                Effect.gen(function* () {
+                  if (blockRead) {
+                    yield* Deferred.succeed(readStarted, undefined);
+                    yield* Deferred.await(releaseRead);
+                  }
+                  return bytes;
+                }),
+              ),
+            ),
         }));
         const initial = yield* combatProfiles.load;
         const changes: CombatProfileLibrary[] = [];

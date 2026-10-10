@@ -12,7 +12,7 @@ import {
   type AccountManagerStorage,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 import { AccountsError } from "./AccountsError";
 
@@ -45,7 +45,7 @@ export const layer = Layer.effect(
   AccountRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const path = join(env.appDataDir, ACCOUNT_MANAGER_STORAGE_FILE);
     const storageRef =
       yield* SynchronizedRef.make<AccountManagerStorage | null>(null);
@@ -54,30 +54,15 @@ export const layer = Layer.effect(
       const result = yield* jsonFile
         .read(path)
         .pipe(Effect.mapError(wrapJsonError));
-      if (result.status === "missing") {
-        const defaults = emptyAccountManagerStorage();
-        yield* jsonFile
-          .write(path, serializeAccountManagerStorage(defaults))
-          .pipe(Effect.mapError(wrapJsonError));
-        return defaults;
-      }
-
-      const storage = normalizeAccountManagerStorage(result.value);
+      const storage =
+        result.status === "missing"
+          ? emptyAccountManagerStorage()
+          : normalizeAccountManagerStorage(result.value);
       yield* jsonFile
         .write(path, serializeAccountManagerStorage(storage))
         .pipe(Effect.mapError(wrapJsonError));
       return storage;
     });
-
-    const load = SynchronizedRef.modifyEffect(storageRef, () =>
-      readStorageFromFile.pipe(Effect.map((storage) => [storage, storage])),
-    );
-
-    const get = SynchronizedRef.get(storageRef).pipe(
-      Effect.flatMap((current) =>
-        current === null ? load : Effect.succeed(current),
-      ),
-    );
 
     const write = (storage: AccountManagerStorage) => {
       const normalized = serializeAccountManagerStorage(storage);
@@ -86,11 +71,17 @@ export const layer = Layer.effect(
         .pipe(Effect.mapError(wrapJsonError), Effect.as(normalized));
     };
 
-    const update = (
-      modify: (
-        storage: AccountManagerStorage,
-      ) => Effect.Effect<AccountManagerStorage, AccountsError>,
-    ) =>
+    const get = SynchronizedRef.modifyEffect(storageRef, (current) =>
+      (current === null ? readStorageFromFile : Effect.succeed(current)).pipe(
+        Effect.map((storage) => [storage, storage] as const),
+      ),
+    );
+    const load = SynchronizedRef.modifyEffect(storageRef, () =>
+      readStorageFromFile.pipe(
+        Effect.map((storage) => [storage, storage] as const),
+      ),
+    );
+    const update: AccountRepositoryShape["update"] = (modify) =>
       SynchronizedRef.modifyEffect(storageRef, (current) =>
         (current === null ? readStorageFromFile : Effect.succeed(current)).pipe(
           Effect.flatMap(modify),

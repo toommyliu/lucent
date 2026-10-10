@@ -8,14 +8,16 @@ import {
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
-import { DiagnosticsIpc } from "../../../shared/ipc";
+import { DiagnosticsIpc, GameConsoleIpc } from "../../../shared/ipc";
 import { DesktopObservability } from "./DesktopObservability";
 
 const decodeRendererRecord = Option.liftThrowable(
   DiagnosticsIpc.rendererRecord.decodePayload,
 );
+const decodeConsoleMessage = Option.liftThrowable(
+  GameConsoleIpc.rendererMessage.decodePayload,
+);
 
-/** Installs debug-only renderer and Electron process failure recording. */
 export const installDesktopRendererObservability = Effect.gen(function* () {
   const observability = yield* DesktopObservability;
   const webContentsCleanups = new Set<() => void>();
@@ -30,27 +32,26 @@ export const installDesktopRendererObservability = Effect.gen(function* () {
     if (Option.isNone(decoded)) {
       return;
     }
-    if (decoded.value.type === "trace.span") {
-      const { span, view } = decoded.value;
-      record({
-        component: "trace",
-        event: "span.completed",
-        data: {
-          ...span,
-          attributes: {
-            ...span.attributes,
-            "renderer.id": event.sender.id,
-            "renderer.view": view,
-          },
-        },
-      });
-      return;
-    }
     const { type, ...data } = decoded.value;
     record({
       component: "renderer",
       event: type,
       data: { rendererId: event.sender.id, ...data },
+    });
+  };
+
+  const handleConsoleMessage = (
+    event: IpcMainEvent,
+    rawPayload: unknown,
+  ): void => {
+    const decoded = decodeConsoleMessage(rawPayload);
+    if (Option.isNone(decoded)) {
+      return;
+    }
+    record({
+      component: "renderer",
+      event: "console",
+      data: { message: decoded.value.message, rendererId: event.sender.id },
     });
   };
 
@@ -140,6 +141,7 @@ export const installDesktopRendererObservability = Effect.gen(function* () {
 
   yield* Effect.sync(() => {
     ipcMain.on(DiagnosticsIpc.rendererRecord.channel, handleRendererRecord);
+    ipcMain.on(GameConsoleIpc.rendererMessage.channel, handleConsoleMessage);
     app.on("child-process-gone", handleChildProcessGone);
     app.on("render-process-gone", handleRenderProcessGone);
     app.on("web-contents-created", handleWebContentsCreated);
@@ -149,6 +151,10 @@ export const installDesktopRendererObservability = Effect.gen(function* () {
       ipcMain.removeListener(
         DiagnosticsIpc.rendererRecord.channel,
         handleRendererRecord,
+      );
+      ipcMain.removeListener(
+        GameConsoleIpc.rendererMessage.channel,
+        handleConsoleMessage,
       );
       app.removeListener("child-process-gone", handleChildProcessGone);
       app.removeListener("render-process-gone", handleRenderProcessGone);
