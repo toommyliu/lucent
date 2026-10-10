@@ -101,6 +101,7 @@ const makeApiServices = Effect.gen(function* () {
       house,
       inventory,
       map,
+      monsterLookup: monsterServices.lookup,
       monsters,
       packet,
       player,
