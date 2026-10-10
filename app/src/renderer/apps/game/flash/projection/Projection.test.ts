@@ -1287,6 +1287,82 @@ describe("Projection", () => {
       }),
   );
 
+  it.effect("publishes active and passive kinds for same-named aura events", () =>
+    Effect.gen(function* () {
+      const { store, pipeline, events } = yield* makeWorldProjection();
+      yield* enterTestArea(pipeline);
+      events.length = 0;
+      yield* pipeline.packet(
+        extension("aura+p", {
+          cmd: "aura+p",
+          tInf: "p:10",
+          auras: [{ nam: "Arcane Flux", cat: "passive", icon: "imr1" }],
+        }),
+      );
+      yield* pipeline.packet(
+        extension("aura+", {
+          cmd: "aura+",
+          tInf: "p:10",
+          aura: { nam: "Arcane Flux", icon: "imr2", t: "s", dur: 6 },
+        }),
+      );
+      expect(events).toEqual([
+        {
+          type: "aura-added",
+          kind: "passive",
+          name: "Arcane Flux",
+          duration: 0,
+          icon: "imr1",
+          stack: 1,
+          targetId: 10,
+          targetType: "player",
+        },
+        {
+          type: "aura-added",
+          kind: "active",
+          name: "Arcane Flux",
+          duration: 6,
+          icon: "imr2",
+          stack: 1,
+          targetId: 10,
+          targetType: "player",
+        },
+      ]);
+      events.length = 0;
+      yield* pipeline.packet(
+        extension("aura-", {
+          cmd: "aura-",
+          tInf: "p:10",
+          aura: { nam: "Arcane Flux" },
+        }),
+      );
+      expect(events).toEqual([
+        {
+          type: "aura-removed",
+          kind: "active",
+          name: "Arcane Flux",
+          duration: 6,
+          icon: "imr2",
+          targetId: 10,
+          targetType: "player",
+        },
+      ]);
+      expect(
+        (yield* store.world.getMe)?.auras.map((aura) => aura.toJSON()),
+      ).toEqual([
+        {
+          name: "Arcane Flux",
+          kind: "passive",
+          category: "passive",
+          icon: "imr1",
+          duration: 0,
+          stack: 1,
+          persistent: false,
+        },
+      ]);
+    }),
+  );
+
   it.effect.each(["aura-", "aura--"])(
     "keeps a same-named passive when %s removes the active aura",
     (command) =>
@@ -1334,6 +1410,7 @@ describe("Projection", () => {
           [
             {
               type: "aura-removed",
+              kind: "active",
               name: "Arcane Flux",
               duration: 6,
               icon: "imr2",
@@ -1544,6 +1621,7 @@ describe("Projection", () => {
         ).toBe(5);
         expect(events.find((event) => event.type === "aura-added")).toEqual({
           type: "aura-added",
+          kind: "active",
           duration: 6,
           icon: "scroll-enrage",
           name: "Focus",
@@ -1569,6 +1647,7 @@ describe("Projection", () => {
         ).toEqual([
           {
             type: "aura-removed",
+            kind: "active",
             duration: 6,
             icon: "scroll-enrage",
             name: "Focus",
@@ -1683,6 +1762,7 @@ describe("Projection", () => {
         expect(events.slice(-2)).toEqual([
           {
             type: "aura-removed",
+            kind: "active",
             duration: 0,
             name: "Skill Locked",
             targetId: 10,
@@ -2136,6 +2216,7 @@ describe("Projection", () => {
         expect(events).toEqual([
           {
             type: "aura-added",
+            kind: "active",
             duration: 0,
             name: "Focus",
             stack: 5,
@@ -2144,6 +2225,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-added",
+            kind: "active",
             duration: 0,
             name: "Inspired",
             stack: 4,
@@ -2196,6 +2278,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-added",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             stack: 5,
@@ -2233,6 +2316,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-updated",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             stack: 5,
@@ -2262,6 +2346,7 @@ describe("Projection", () => {
         expect(events).toEqual([
           {
             type: "aura-updated",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             stack: 1,
@@ -2290,6 +2375,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-removed",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             targetId: 1,
@@ -2341,6 +2427,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-removed",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             targetId: 1,
@@ -2388,6 +2475,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-updated",
+            kind: "active",
             duration: 12,
             name: "Counter Attack",
             stack: 1,
@@ -2429,6 +2517,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-removed",
+            kind: "active",
             duration: 12,
             name: "Counter Attack",
             targetId: 1,
@@ -2453,6 +2542,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-added",
+            kind: "active",
             duration: 0,
             name: "Counter Attack",
             stack: 1,
@@ -2494,6 +2584,7 @@ describe("Projection", () => {
         expect(auraEvents(target, seed)).toEqual([
           {
             type: "aura-added",
+            kind: "active",
             duration: 8,
             icon: "scroll-enrage",
             name: "Counter Attack",
@@ -2517,6 +2608,7 @@ describe("Projection", () => {
           },
           {
             type: "aura-removed",
+            kind: "active",
             duration: 8,
             icon: "scroll-enrage",
             name: "Counter Attack",
@@ -2536,6 +2628,7 @@ describe("Projection", () => {
         expect(auraEvents(target, passive)).toEqual([
           {
             type: "aura-added",
+            kind: "passive",
             duration: 0,
             name: "Counter Attack",
             stack: 1,
@@ -2551,6 +2644,7 @@ describe("Projection", () => {
         expect(auraEvents(target, passiveRemoved)).toEqual([
           {
             type: "aura-removed",
+            kind: "passive",
             duration: 0,
             name: "Counter Attack",
             targetId: 1,
@@ -2577,6 +2671,7 @@ describe("Projection", () => {
         expect(events).toEqual([
           {
             type: "aura-added",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             stack: 1,
@@ -2594,6 +2689,7 @@ describe("Projection", () => {
         expect(events).toEqual([
           {
             type: "aura-removed",
+            kind: "active",
             duration: 6,
             name: "Counter Attack",
             targetId: 10,
