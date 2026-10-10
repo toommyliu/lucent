@@ -1,5 +1,9 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+
+import { normalizeScriptInputValues } from "@lucent/core/scriptInputs";
 
 import {
   ScriptInputsExtractor,
@@ -70,6 +74,33 @@ describe("ScriptInputsExtractor service", () => {
             default: false,
           },
         ],
+      });
+    }),
+  );
+
+  it.effect("discovers inputs for the shipped consumables script", () =>
+    Effect.gen(function* () {
+      const source = yield* Effect.promise(() =>
+        readFile(
+          new URL(
+            "../../../../../script-packages/lucent-consumables/scripts/get-consumables.js",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      const definition = yield* extractInputs(source);
+
+      expect(definition?.id).toBe("lucent-consumables");
+      if (definition === null) return;
+      expect(normalizeScriptInputValues(definition)).toEqual({
+        potions: [],
+        scrolls: ["Scroll of Enrage"],
+        quantity: 100,
+        potionMethod: "Buy",
+        mode: "Farm",
+        maxCrafts: 100,
+        maxGold: 1000000,
       });
     }),
   );
