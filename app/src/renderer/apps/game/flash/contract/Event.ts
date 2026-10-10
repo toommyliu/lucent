@@ -69,6 +69,7 @@ export type ProjectionEvent =
       readonly type: "players-changed";
     }
   | {
+      /** An aura first appears on a player or monster. */
       readonly type: "aura-added";
       /** The aura duration in seconds, when available. */
       readonly duration?: number;
@@ -83,6 +84,7 @@ export type ProjectionEvent =
       readonly targetType: "monster" | "player";
     }
   | {
+      /** An existing aura changes stack, timer, or metadata. */
       readonly type: "aura-updated";
       /** The aura duration in seconds, when available. */
       readonly duration?: number;
