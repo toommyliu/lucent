@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+# [0.0.3](https://github.com/toommyliu/lucent/compare/v0.0.2...v0.0.3) - (2026-10-10)
+
+## Bug Fixes
+
+- **scripting:** Close the client on exit without a confirmation (#278) ([3d20f4d](https://github.com/toommyliu/lucent/commit/3d20f4dca06333f09cd2a3a819bdbf9ee3d03e65))
+
+- Correct item storage and capacity checks (#319) ([5a73cfa](https://github.com/toommyliu/lucent/commit/5a73cfa552b430972146d0436fa05c54d6254bcb))
+
+- Exit combat before joining another map (#276) ([47e38ff](https://github.com/toommyliu/lucent/commit/47e38ff969801e8e97e239a2bffb50742d5e4e0d))
+
+- Restore packet capture (#318) ([e8e9d6c](https://github.com/toommyliu/lucent/commit/e8e9d6ce9049d5d14f38b67a67f3ddb339d15d7b))
+
+- **scripting:** Set the spawn point when starting a kill action (#300) ([4fa926e](https://github.com/toommyliu/lucent/commit/4fa926e1f0bdd4a20fd868b96ce1fafa22747e82))
+
+
+## Features
+
+- **scripting:** Expose which monsters are aggressive (#275) ([7247a6e](https://github.com/toommyliu/lucent/commit/7247a6e4e18db0641e9e8ce895a2aa5fabf0d59a))
+
+- Support aura= stack synchronization (#320) ([ba91915](https://github.com/toommyliu/lucent/commit/ba919151c4f98c8be03e89898dc26d033cecb7f4))
+
+- Support prereleases (#277) ([bee92c9](https://github.com/toommyliu/lucent/commit/bee92c93187d07dce3e62aba4b25e43c1080abdc))
+
+
+## Documentation
+
+- Build changelog from committed release notes (#236) ([312d822](https://github.com/toommyliu/lucent/commit/312d8223289ea479d204f9dc961dc4ad07df2e2d))
+
+
 # [0.0.2](https://github.com/toommyliu/lucent/compare/v0.0.1...v0.0.2) - (2026-09-26)
 
 ## Bug Fixes
