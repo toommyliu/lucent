@@ -1906,6 +1906,7 @@ describe("Projection", () => {
         const { store, pipeline, events, diagnostics } =
           yield* makeItemProjection();
         yield* enterTestArea(pipeline);
+        events.length = 0;
         yield* pipeline.packet(
           extension("cb", {
             a: [
@@ -1931,8 +1932,16 @@ describe("Projection", () => {
                 auras: null,
                 aura: { nam: "Inspired", stk: 4 },
               },
-              { cmd: "aura+", tInf: "p:10,m:1", aura: { nam: "Compound" } },
-              { cmd: "aura+", tInf: "p:10>m:1", aura: { nam: "Directed" } },
+              {
+                cmd: "aura+",
+                tInf: "p:10,m:1",
+                aura: { nam: "Counter Attack", msgOn: "Compound" },
+              },
+              {
+                cmd: "aura+",
+                tInf: "p:10>m:1",
+                aura: { nam: "Counter Attack", msgOn: "Directed" },
+              },
               { cmd: "aura+", tInf: "m:99", aura: { nam: "Unknown" } },
             ],
           }),
@@ -1950,11 +1959,23 @@ describe("Projection", () => {
           ]),
         ).toEqual([["Inspired", 4]]);
         expect(yield* store.world.getMonster(99)).toBeNull();
-        expect(
-          events.filter((event) => event.type.startsWith("aura-")),
-        ).toMatchObject([
-          { type: "aura-added", name: "Focus" },
-          { type: "aura-added", name: "Inspired" },
+        expect(events).toEqual([
+          {
+            type: "aura-added",
+            duration: 0,
+            name: "Focus",
+            stack: 5,
+            targetId: 10,
+            targetType: "player",
+          },
+          {
+            type: "aura-added",
+            duration: 0,
+            name: "Inspired",
+            stack: 4,
+            targetId: 1,
+            targetType: "monster",
+          },
         ]);
         expect(diagnostics.length).toBeGreaterThan(0);
       }),

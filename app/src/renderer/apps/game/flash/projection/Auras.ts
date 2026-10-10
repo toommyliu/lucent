@@ -242,94 +242,83 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
       }
     }
     const source = parseCombatEntityReferences(change.cInf ?? "")[0];
-    const targets = parseCombatEntityReferences(change.tInf);
-    const target = /^[mp]:\d+$/u.test(change.tInf) ? targets[0] : undefined;
+    const target = /^[mp]:\d+$/u.test(change.tInf)
+      ? parseCombatEntityReferences(change.tInf)[0]
+      : undefined;
+    if (target === undefined) continue;
     if (change.cmd === "aura+p") {
-      if (target !== undefined) {
-        const changes = yield* store.world.projectAuras(
-          target,
-          {
-            type: "passives",
-            mode: origin === "standalone" ? "replace" : "merge",
-            entries: payloads.map((payload) => ({
-              name: payload.nam,
-              duration: payload.dur ?? 0,
-              ...(payload.icon == null ? {} : { icon: payload.icon }),
-              ...(payload.cat == null ? {} : { category: payload.cat }),
-              ...(payload.val == null ? {} : { value: payload.val }),
-            })),
-          },
-          nowMs,
-        );
-        events.push(...auraEvents(target, changes, source));
-      }
+      const changes = yield* store.world.projectAuras(
+        target,
+        {
+          type: "passives",
+          mode: origin === "standalone" ? "replace" : "merge",
+          entries: payloads.map((payload) => ({
+            name: payload.nam,
+            duration: payload.dur ?? 0,
+            ...(payload.icon == null ? {} : { icon: payload.icon }),
+            ...(payload.cat == null ? {} : { category: payload.cat }),
+            ...(payload.val == null ? {} : { value: payload.val }),
+          })),
+        },
+        nowMs,
+      );
+      events.push(...auraEvents(target, changes, source));
       continue;
     }
     const passive = change.cmd === "aura-p";
     const adding = change.cmd === "aura+" || change.cmd === "aura++";
-    for (const legacyTarget of targets) {
-      for (const payload of payloads) {
-        const changes =
-          target === legacyTarget
-            ? yield* store.world.projectAuras(
-                target,
-                auraMutation(change.cmd, payload),
-                nowMs,
-              )
-            : [];
-        if (
-          change.cmd !== "aura=" &&
-          !passive &&
-          legacyTarget.type === "monster"
-        ) {
-          const match = matchAntiCounterAura(payload.nam);
-          if (match !== undefined) {
-            const details = {
-              monsterMapId: legacyTarget.id,
-              source: "aura" as const,
-              triggerId: match.triggerId,
-              triggerText: match.triggerText,
-            };
-            const durationMs = antiCounterDurationMsFromAura(
-              payload.dur ?? undefined,
-            );
-            events.push(
-              adding
-                ? {
-                    type: "counter-attack-start",
-                    ...details,
-                    ...(durationMs === undefined ? {} : { durationMs }),
-                  }
-                : { type: "counter-attack-end", ...details },
-            );
-          }
+    for (const payload of payloads) {
+      const changes = yield* store.world.projectAuras(
+        target,
+        auraMutation(change.cmd, payload),
+        nowMs,
+      );
+      if (change.cmd !== "aura=" && !passive && target.type === "monster") {
+        const match = matchAntiCounterAura(payload.nam);
+        if (match !== undefined) {
+          const details = {
+            monsterMapId: target.id,
+            source: "aura" as const,
+            triggerId: match.triggerId,
+            triggerText: match.triggerText,
+          };
+          const durationMs = antiCounterDurationMsFromAura(
+            payload.dur ?? undefined,
+          );
+          events.push(
+            adding
+              ? {
+                  type: "counter-attack-start",
+                  ...details,
+                  ...(durationMs === undefined ? {} : { durationMs }),
+                }
+              : { type: "counter-attack-end", ...details },
+          );
         }
-        events.push(...auraEvents(legacyTarget, changes, source));
-        if (passive || change.cmd === "aura=") continue;
-        const rawMessage = adding ? payload.msgOn : payload.msgOff;
-        const message =
-          typeof rawMessage === "string"
-            ? rawMessage.trim()
-            : rawMessage?.join(" ").trim();
-        if (!message) continue;
-        const isSelfOnly = message.startsWith("@");
-        const self = isSelfOnly ? yield* store.world.getMe : null;
-        if (
-          isSelfOnly &&
-          (legacyTarget.type !== "player" || self?.entityId !== legacyTarget.id)
-        )
-          continue;
-        const normalized = isSelfOnly ? message.slice(1).trim() : message;
-        if (normalized !== "")
-          events.push({
-            type: "update-message",
-            message: normalized,
-            source: "aura",
-            ...(legacyTarget.type === "monster"
-              ? { monsterMapId: legacyTarget.id }
-              : {}),
-          });
       }
+      events.push(...auraEvents(target, changes, source));
+      if (passive || change.cmd === "aura=") continue;
+      const rawMessage = adding ? payload.msgOn : payload.msgOff;
+      const message =
+        typeof rawMessage === "string"
+          ? rawMessage.trim()
+          : rawMessage?.join(" ").trim();
+      if (!message) continue;
+      const isSelfOnly = message.startsWith("@");
+      const self = isSelfOnly ? yield* store.world.getMe : null;
+      if (
+        isSelfOnly &&
+        (target.type !== "player" || self?.entityId !== target.id)
+      )
+        continue;
+      const normalized = isSelfOnly ? message.slice(1).trim() : message;
+      if (normalized !== "")
+        events.push({
+          type: "update-message",
+          message: normalized,
+          source: "aura",
+          ...(target.type === "monster" ? { monsterMapId: target.id } : {}),
+        });
     }
   }
   return events;
