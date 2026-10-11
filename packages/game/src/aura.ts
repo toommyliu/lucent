@@ -134,7 +134,7 @@ export type AuraMutation =
       readonly mode: "replace" | "merge";
       readonly entries: readonly PassiveAuraInput[];
     }
-  | { readonly type: "clear-local" };
+  | { readonly type: "clear"; readonly keepPersistent: boolean };
 
 /** @internal */
 export type AuraDelta =

@@ -1,4 +1,4 @@
-import * as DateTime from "effect/DateTime";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -22,7 +22,7 @@ import {
   type EntityPatchPayload as EntityPatch,
 } from "../contract/payload/World";
 import type { Store } from "../state/Store";
-import { auraEvents, decodeAuraSeed } from "./Auras";
+import { auraEvents, seedAuras } from "./Auras";
 
 const MoveArea = Schema.Struct({
   areaId: Schema.optionalKey(PositiveWireInt),
@@ -333,8 +333,7 @@ const projectMoveArea = (
         invalidMonsterEntries.push(value);
       } else {
         const monster = toMonster(decodedMonster.value);
-        const seed = decodeAuraSeed(branch["au"]);
-        monster.projectAuras({ type: "seed", entries: seed.entries }, nowMs);
+        const seed = seedAuras(monster, decodedMonster.value.au, nowMs);
         invalidAuraEntries.push(...seed.rejected);
         monsters.push(monster);
       }
@@ -358,8 +357,7 @@ const projectMoveArea = (
         invalidPlayerEntries.push(value);
       } else {
         const entity = toPlayer(player.value);
-        const seed = decodeAuraSeed(player.value.au);
-        entity.projectAuras({ type: "seed", entries: seed.entries }, nowMs);
+        const seed = seedAuras(entity, player.value.au, nowMs);
         invalidAuraEntries.push(...seed.rejected);
         players.push(entity);
       }
@@ -509,10 +507,11 @@ export const projectExtensionWorld = (
   bridge?: BridgeService,
 ): Effect.Effect<readonly Event[]> =>
   Effect.gen(function* () {
-    const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
     switch (packet.command) {
-      case "moveToArea":
+      case "moveToArea": {
+        const nowMs = yield* Clock.currentTimeMillis;
         return yield* projectMoveArea(store, packet, diagnose, bridge, nowMs);
+      }
       case "initUserData":
       case "initUserDatas": {
         const data = packet.data;
@@ -782,9 +781,10 @@ export const projectExtensionWorld = (
         const current = yield* store.world.getMe;
         if (current === null) return [];
         const target = { type: "player", id: current.entityId } as const;
+        const nowMs = yield* Clock.currentTimeMillis;
         const changes = yield* store.world.projectAuras(
           target,
-          { type: "clear-local" },
+          { type: "clear", keepPersistent: true },
           nowMs,
         );
         return auraEvents(target, changes);

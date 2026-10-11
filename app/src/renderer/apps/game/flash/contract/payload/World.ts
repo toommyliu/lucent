@@ -123,9 +123,8 @@ export const toMonster = (payload: MonsterPayload): LiveMonster => {
     race: payload.sRace ?? "",
     state: toEntityState(payload.intState),
   });
-  if (payload.intState !== undefined) {
-    monster.writeAuraMonsterState(toEntityState(payload.intState));
-  }
+  const state = entityState(payload.intState);
+  if (state !== undefined) monster.writeAuraMonsterState(state);
   return monster;
 };
 

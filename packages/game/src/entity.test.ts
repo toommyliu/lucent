@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 
 import type { AuraApplication } from "./aura";
+import { EntityState } from "./entity";
 import { LiveMonster } from "./monster";
 
 const monster = () =>
@@ -16,7 +17,7 @@ const monster = () =>
     mp: 0,
     name: "Monster",
     race: "None",
-    state: 2,
+    state: EntityState.InCombat,
   });
 const focus: AuraApplication = {
   name: "Focus",
@@ -206,7 +207,7 @@ describe("entity aura ownership", () => {
       1_000_000,
     );
     expect(
-      entity.projectAuras({ type: "clear-local" }, 1_001_000),
+      entity.projectAuras({ type: "clear", keepPersistent: true }, 1_001_000),
     ).toMatchObject([
       { type: "removed", before: { name: "Focus", kind: "active" } },
     ]);
@@ -215,7 +216,9 @@ describe("entity aura ownership", () => {
       "Focus",
       "Brand of Chaos",
     ]);
-    expect(entity.projectAuras({ type: "clear-local" }, 1_001_000)).toEqual([]);
+    expect(
+      entity.projectAuras({ type: "clear", keepPersistent: true }, 1_001_000),
+    ).toEqual([]);
     const held = entity.getAura("Focus");
     entity.projectAuras(
       {

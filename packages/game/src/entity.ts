@@ -143,35 +143,14 @@ export abstract class LiveEntity<State extends EntityData>
   /** @internal */
   projectAuras(mutation: AuraMutation, nowMs: number): readonly AuraDelta[] {
     const changes: AuraDelta[] = [];
-    const commit = (
-      kind: AuraKind,
-      name: string,
-      after: AuraSnapshot | undefined,
-    ) => {
-      const key = `${kind}:${name}`;
-      const current = this.#auras.get(key);
-      const before = current?.toJSON();
-      if (after === undefined) {
-        if (before !== undefined) {
-          this.#auras.delete(key);
-          changes.push({ type: "removed", before });
-        }
-      } else if (current === undefined || before === undefined) {
-        this.#auras.set(key, new LiveAura({ ...after }));
-        changes.push({ type: "added", after: { ...after } });
-      } else if (
-        before.stack !== after.stack ||
-        before.duration !== after.duration ||
-        before.expiresAt !== after.expiresAt ||
-        before.icon !== after.icon ||
-        before.category !== after.category ||
-        before.value !== after.value ||
-        before.persistent !== after.persistent
-      ) {
-        current.replaceFrom(new LiveAura({ ...after }));
-        changes.push({ type: "updated", before, after: { ...after } });
-      }
-    };
+    if (
+      !this.#acceptsActiveSync &&
+      (mutation.type === "apply" ||
+        mutation.type === "withdraw" ||
+        mutation.type === "set-stack")
+    ) {
+      return changes;
+    }
     switch (mutation.type) {
       case "seed": {
         const entries = new Map(
@@ -179,62 +158,49 @@ export abstract class LiveEntity<State extends EntityData>
         );
         for (const aura of this.#auras.values()) {
           if (aura.kind === "active" && !entries.has(aura.name)) {
-            commit("active", aura.name, undefined);
+            this.commit("active", aura.name, () => undefined, changes);
           }
         }
         for (const entry of entries.values()) {
-          commit(
+          this.commit(
             "active",
             entry.name,
-            reduceActiveAura(
-              this.#auras.get(`active:${entry.name}`)?.toJSON(),
-              { type: "seed", entry },
-              nowMs,
-            ),
+            (before) =>
+              reduceActiveAura(before, { type: "seed", entry }, nowMs),
+            changes,
           );
         }
         break;
       }
       case "apply":
-        if (!this.#acceptsActiveSync) break;
         for (const entry of mutation.entries) {
-          commit(
+          this.commit(
             "active",
             entry.name,
-            reduceActiveAura(
-              this.#auras.get(`active:${entry.name}`)?.toJSON(),
-              { type: "apply", entry },
-              nowMs,
-            ),
+            (before) =>
+              reduceActiveAura(before, { type: "apply", entry }, nowMs),
+            changes,
           );
         }
         break;
       case "withdraw":
         for (const entry of mutation.entries) {
-          if (this.#acceptsActiveSync) {
-            commit(
-              "active",
-              entry.name,
-              reduceActiveAura(
-                this.#auras.get(`active:${entry.name}`)?.toJSON(),
-                entry,
-                nowMs,
-              ),
-            );
-          }
+          this.commit(
+            "active",
+            entry.name,
+            (before) => reduceActiveAura(before, entry, nowMs),
+            changes,
+          );
         }
         break;
       case "set-stack":
-        if (!this.#acceptsActiveSync) break;
         for (const entry of mutation.entries) {
-          commit(
+          this.commit(
             "active",
             entry.name,
-            reduceActiveAura(
-              this.#auras.get(`active:${entry.name}`)?.toJSON(),
-              { type: "set-stack", ...entry },
-              nowMs,
-            ),
+            (before) =>
+              reduceActiveAura(before, { type: "set-stack", ...entry }, nowMs),
+            changes,
           );
         }
         break;
@@ -245,24 +211,27 @@ export abstract class LiveEntity<State extends EntityData>
         if (mutation.mode === "replace") {
           for (const aura of this.#auras.values()) {
             if (aura.kind === "passive" && !entries.has(aura.name)) {
-              commit("passive", aura.name, undefined);
+              this.commit("passive", aura.name, () => undefined, changes);
             }
           }
         }
         for (const entry of entries.values()) {
-          commit("passive", entry.name, {
-            ...entry,
-            kind: "passive",
-            stack: 1,
-            persistent: false,
-          });
+          this.commit(
+            "passive",
+            entry.name,
+            () => ({ ...entry, kind: "passive", stack: 1, persistent: false }),
+            changes,
+          );
         }
         break;
       }
-      case "clear-local":
+      case "clear":
         for (const aura of this.#auras.values()) {
-          if (aura.kind === "active" && !aura.persistent) {
-            commit("active", aura.name, undefined);
+          if (
+            aura.kind === "active" &&
+            (!mutation.keepPersistent || !aura.persistent)
+          ) {
+            this.commit("active", aura.name, () => undefined, changes);
           }
         }
         break;
@@ -273,16 +242,47 @@ export abstract class LiveEntity<State extends EntityData>
   /** @internal */
   writeAuraMonsterState(state: EntityState): readonly AuraDelta[] {
     this.#acceptsActiveSync = state !== EntityState.Dead;
-    const changes: AuraDelta[] = [];
-    if (state !== EntityState.InCombat) {
-      for (const [key, aura] of this.#auras) {
-        if (aura.kind === "active") {
-          changes.push({ type: "removed", before: aura.toJSON() });
-          this.#auras.delete(key);
-        }
+    return state === EntityState.InCombat
+      ? []
+      : this.projectAuras({ type: "clear", keepPersistent: false }, 0);
+  }
+
+  private auraKey(kind: AuraKind, name: string): string {
+    return `${kind}:${name}`;
+  }
+
+  private commit(
+    kind: AuraKind,
+    name: string,
+    edit: (before: AuraSnapshot | undefined) => AuraSnapshot | undefined,
+    changes: AuraDelta[],
+  ): void {
+    const key = this.auraKey(kind, name);
+    const current = this.#auras.get(key);
+    if (current === undefined) {
+      const after = edit(undefined);
+      if (after !== undefined) {
+        this.#auras.set(key, new LiveAura({ ...after }));
+        changes.push({ type: "added", after: { ...after } });
       }
+      return;
     }
-    return changes;
+    const before = current.toJSON();
+    const after = edit(before);
+    if (after === undefined) {
+      this.#auras.delete(key);
+      changes.push({ type: "removed", before });
+    } else if (
+      !Object.entries(before).every(
+        ([key, value]) => Reflect.get(after, key) === value,
+      ) ||
+      !Object.entries(after).every(
+        ([key, value]) => Reflect.get(before, key) === value,
+      )
+    ) {
+      current.replaceFrom(new LiveAura({ ...after }));
+      changes.push({ type: "updated", before, after: { ...after } });
+    }
   }
 
   isInCell(cell: string): boolean {

@@ -1,11 +1,17 @@
-import type { AuraDelta, AuraMutation, AuraSeed } from "@lucent/game";
-import * as DateTime from "effect/DateTime";
+import type {
+  AuraDelta,
+  AuraMutation,
+  AuraSeed,
+  LiveMonster,
+  LivePlayer,
+} from "@lucent/game";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
-import { WireNumber } from "../contract/Coercion";
+import { UnknownArray, WireNumber } from "../contract/Coercion";
 import type { DiagnosticReporter } from "../contract/Diagnostic";
 import type { Event } from "../contract/Event";
 import type { ExtensionPacket } from "../contract/Packet";
@@ -19,11 +25,12 @@ const Scalar = Schema.Union([
   Schema.Boolean,
   Schema.Null,
 ]);
+const as3Int = (value: unknown): number => Number(value) | 0;
 const AuraInt = Scalar.pipe(
   Schema.decodeTo(
     Schema.Int,
-    SchemaTransformation.transform({
-      decode: (value) => Number(value) | 0,
+    SchemaTransformation.transform<number, typeof Scalar.Type>({
+      decode: as3Int,
       encode: (value) => value,
     }),
   ),
@@ -64,7 +71,7 @@ const AuraChange = Schema.Struct({
 });
 const decodeChange = Schema.decodeUnknownOption(AuraChange);
 const decodePayload = Schema.decodeUnknownOption(AuraPayload);
-const decodeArray = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown));
+const decodeArray = Schema.decodeUnknownOption(UnknownArray);
 const decodeSeedSlots = Schema.decodeUnknownOption(Schema.Array(Scalar));
 const decodeSnapshot = Schema.decodeUnknownOption(
   Schema.Struct({
@@ -105,8 +112,8 @@ export function decodeAuraSeed(value: unknown): {
     entries.push({
       name: String(name),
       icon: String(icon),
-      stack: Number(stack) | 0,
-      persistent: (Number(persistent) | 0) === 1,
+      stack: as3Int(stack),
+      persistent: as3Int(persistent) === 1,
       timer:
         remainingSeconds > 0 && Number.isFinite(remainingSeconds)
           ? {
@@ -123,6 +130,39 @@ export function decodeAuraSeed(value: unknown): {
   return { entries, rejected };
 }
 
+export function seedAuras(
+  entity: LiveMonster | LivePlayer,
+  rawAu: unknown,
+  nowMs: number,
+): {
+  readonly changes: readonly AuraDelta[];
+  readonly rejected: readonly unknown[];
+} {
+  const seed = decodeAuraSeed(rawAu);
+  return {
+    changes: entity.projectAuras(
+      { type: "seed", entries: seed.entries },
+      nowMs,
+    ),
+    rejected: seed.rejected,
+  };
+}
+
+export const messageText = (
+  value: string | readonly string[] | null | undefined,
+): string | undefined => {
+  if (value == null) return undefined;
+  const message =
+    typeof value === "string" ? value.trim() : value.join(" ").trim();
+  return message === "" ? undefined : message;
+};
+
+const auraMetadata = (payload: AuraPayload) => ({
+  ...(payload.icon == null ? {} : { icon: payload.icon }),
+  ...(payload.cat == null ? {} : { category: payload.cat }),
+  ...(payload.val == null ? {} : { value: payload.val }),
+});
+
 export function auraEvents(
   target: AuraTarget,
   changes: readonly AuraDelta[],
@@ -135,18 +175,18 @@ export function auraEvents(
     if (target.type === "monster" && aura.kind === "active") {
       const match = matchAntiCounterAura(aura.name);
       if (match !== undefined) {
-        const details = {
+        const counter = {
           monsterMapId: target.id,
           source: "aura" as const,
           triggerId: match.triggerId,
           triggerText: match.triggerText,
         };
         if (change.type === "removed") {
-          events.push({ type: "counter-attack-end", ...details });
+          events.push({ type: "counter-attack-end", ...counter });
         } else if (appliedAtMs !== undefined) {
           events.push({
             type: "counter-attack-start",
-            ...details,
+            ...counter,
             ...(aura.expiresAt === undefined
               ? {}
               : { durationMs: aura.expiresAt - appliedAtMs }),
@@ -196,9 +236,7 @@ function auraMutation(
                 : { type: "untimed" },
             persistent: Number(payload.persist) === 1,
             restartDuration: Boolean(payload.isNew),
-            ...(payload.icon == null ? {} : { icon: payload.icon }),
-            ...(payload.cat == null ? {} : { category: payload.cat }),
-            ...(payload.val == null ? {} : { value: payload.val }),
+            ...auraMetadata(payload),
           },
         ],
       };
@@ -231,7 +269,7 @@ function auraMutation(
 export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
   store: Store,
   values: readonly unknown[],
-  origin: "combat" | "standalone",
+  passiveMode: "replace" | "merge",
   nowMs: number,
   diagnose: DiagnosticReporter,
 ): Effect.fn.Return<readonly Event[]> {
@@ -272,13 +310,11 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
         target,
         {
           type: "passives",
-          mode: origin === "standalone" ? "replace" : "merge",
+          mode: passiveMode,
           entries: payloads.map((payload) => ({
             name: payload.nam,
             duration: payload.dur ?? 0,
-            ...(payload.icon == null ? {} : { icon: payload.icon }),
-            ...(payload.cat == null ? {} : { category: payload.cat }),
-            ...(payload.val == null ? {} : { value: payload.val }),
+            ...auraMetadata(payload),
           })),
         },
         nowMs,
@@ -299,11 +335,7 @@ export const projectAuraEvents = Effect.fn("projectAuraEvents")(function* (
         ),
       );
       if (change.cmd === "aura=") continue;
-      const rawMessage = adding ? payload.msgOn : payload.msgOff;
-      const message =
-        typeof rawMessage === "string"
-          ? rawMessage.trim()
-          : rawMessage?.join(" ").trim();
+      const message = messageText(adding ? payload.msgOn : payload.msgOff);
       if (!message) continue;
       const isSelfOnly = message.startsWith("@");
       const self = isSelfOnly ? yield* store.world.getMe : null;
@@ -331,20 +363,22 @@ export const projectStandaloneAuras = Effect.fn("projectStandaloneAuras")(
     packet: ExtensionPacket,
     diagnose: DiagnosticReporter,
   ): Effect.fn.Return<readonly Event[]> {
-    const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
-    if (packet.command !== "auSnap")
+    if (packet.command !== "auSnap") {
+      const nowMs = yield* Clock.currentTimeMillis;
       return yield* projectAuraEvents(
         store,
         [packet.data],
-        "standalone",
+        "replace",
         nowMs,
         diagnose,
       );
+    }
     const snapshot = decodeSnapshot(packet.data);
     if (Option.isNone(snapshot)) return [];
     const player = yield* store.world.getPlayer(snapshot.value.unm);
     if (player === null) return [];
-    const seed = decodeAuraSeed(snapshot.value.au);
+    const nowMs = yield* Clock.currentTimeMillis;
+    const seed = seedAuras(player, snapshot.value.au, nowMs);
     if (seed.rejected.length > 0)
       yield* diagnose(
         "aura:malformed-seed",
@@ -352,11 +386,6 @@ export const projectStandaloneAuras = Effect.fn("projectStandaloneAuras")(
         seed.rejected,
       );
     const target: AuraTarget = { type: "player", id: player.entityId };
-    const changes = yield* store.world.projectAuras(
-      target,
-      { type: "seed", entries: seed.entries },
-      nowMs,
-    );
-    return auraEvents(target, changes);
+    return auraEvents(target, seed.changes);
   },
 );

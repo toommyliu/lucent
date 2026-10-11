@@ -824,12 +824,15 @@ export const makeArmyLoopTauntRuntime = (
                         ) {
                           return;
                         }
-                        const monster = yield* api.monsters.get(event.targetId);
-                        const active =
-                          monster?.auras.some(isFocusAura) ?? false;
                         const assignmentIds = yield* assignmentIdsForMonster(
                           event.targetId,
                         );
+                        if (assignmentIds.length === 0) return;
+                        const monster = yield* api.monsterLookup.get(
+                          event.targetId,
+                        );
+                        const active =
+                          monster?.auras.some(isFocusAura) ?? false;
                         yield* Effect.forEach(
                           assignmentIds,
                           (assignmentId) =>

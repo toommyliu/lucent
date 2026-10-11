@@ -1,4 +1,4 @@
-import * as DateTime from "effect/DateTime";
+import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -18,7 +18,7 @@ import {
   type EntityPatchPayload as EntityPatch,
 } from "../contract/payload/World";
 import type { Store } from "../state/Store";
-import { auraEvents, projectAuraEvents } from "./Auras";
+import { auraEvents, messageText, projectAuraEvents } from "./Auras";
 
 const Animation = Schema.Struct({
   animStr: Schema.optionalKey(Schema.String),
@@ -51,16 +51,6 @@ const decodeCombat = Schema.decodeUnknownOption(CombatPayload);
 const decodeAnimation = Schema.decodeUnknownOption(Animation);
 const decodeCounterAction = Schema.decodeUnknownOption(CounterAction);
 const decodeEntityPatch = Schema.decodeUnknownOption(EntityPatchPayload);
-
-const messageText = (
-  value: string | readonly string[] | undefined,
-): string | undefined => {
-  if (value === undefined) return undefined;
-
-  const message =
-    typeof value === "string" ? value.trim() : value.join(" ").trim();
-  return message === "" ? undefined : message;
-};
 
 const entityPatch = (patch: EntityPatch) => {
   const state = entityState(patch.intState);
@@ -115,7 +105,6 @@ export const projectCombat = (
       return [];
     }
     const events: Event[] = [];
-    const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
 
     for (const [username, value] of Object.entries(decoded.value.p ?? {})) {
       const patch = decodeEntityPatch(value);
@@ -241,15 +230,18 @@ export const projectCombat = (
       });
     }
 
-    events.push(
-      ...(yield* projectAuraEvents(
-        store,
-        decoded.value.a ?? [],
-        "combat",
-        nowMs,
-        diagnose,
-      )),
-    );
+    if (decoded.value.a != null && decoded.value.a.length > 0) {
+      const nowMs = yield* Clock.currentTimeMillis;
+      events.push(
+        ...(yield* projectAuraEvents(
+          store,
+          decoded.value.a,
+          "merge",
+          nowMs,
+          diagnose,
+        )),
+      );
+    }
 
     return events;
   });

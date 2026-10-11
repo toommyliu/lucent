@@ -2,7 +2,6 @@ import * as Effect from "effect/Effect";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 import type {
-  AuraDelta,
   AuraMutation,
   AuraQueryOptions,
   ItemQuery,
@@ -18,6 +17,8 @@ import type {
   PlayerData,
   ShopItemQuery,
 } from "@lucent/game";
+
+import type { CombatEntityReference } from "../contract/payload/Combat";
 
 import { makeAuthState } from "./Auth";
 import {
@@ -50,16 +51,7 @@ import {
   type ProjectionKey,
 } from "./Projection";
 
-export interface AuraTarget {
-  readonly type: "monster" | "player";
-  readonly id: number;
-}
-
-export interface MonsterWriteResult {
-  readonly monster: LiveMonster;
-  readonly becameDead: boolean;
-  readonly auraChanges: readonly AuraDelta[];
-}
+export type AuraTarget = CombatEntityReference;
 
 const entityForAura = (
   state: ReturnType<typeof makeWorldState>,
@@ -258,6 +250,26 @@ export const makeStore = Effect.gen(function* () {
       }),
   };
 
+  const updateMonster = (
+    id: number,
+    patch: Partial<MonsterData>,
+    writeAuraState: boolean,
+  ) =>
+    SynchronizedRef.modify(worldRef, (state) => {
+      const current = state.monsters.get(id);
+      if (current === undefined) return [null, state];
+      const wasAlive = current.alive;
+      current.update(patch);
+      const auraChanges =
+        writeAuraState && patch.state !== undefined
+          ? current.writeAuraMonsterState(patch.state)
+          : [];
+      return [
+        { auraChanges, becameDead: wasAlive && current.dead, monster: current },
+        state,
+      ];
+    });
+
   const world = {
     projectAuras: (target: AuraTarget, mutation: AuraMutation, nowMs: number) =>
       SynchronizedRef.modify(worldRef, (state) => [
@@ -350,40 +362,9 @@ export const makeStore = Effect.gen(function* () {
         state,
       ]),
     writeMonster: (id: number, patch: Partial<MonsterData>) =>
-      SynchronizedRef.modify(
-        worldRef,
-        (
-          state,
-        ): [MonsterWriteResult | null, ReturnType<typeof makeWorldState>] => {
-          const current = state.monsters.get(id);
-          if (current === undefined) return [null, state];
-          const wasAlive = current.alive;
-          current.update(patch);
-          const auraChanges =
-            patch.state === undefined
-              ? []
-              : current.writeAuraMonsterState(patch.state);
-          return [
-            {
-              auraChanges,
-              becameDead: wasAlive && current.dead,
-              monster: current,
-            },
-            state,
-          ];
-        },
-      ),
+      updateMonster(id, patch, true),
     patchMonster: (id: number, patch: Partial<MonsterData>) =>
-      SynchronizedRef.modify(worldRef, (state) => {
-        const current = state.monsters.get(id);
-        if (current === undefined) return [null, state];
-        const wasAlive = current.alive;
-        current.update(patch);
-        return [
-          { becameDead: wasAlive && current.dead, monster: current },
-          state,
-        ];
-      }),
+      updateMonster(id, patch, false),
     patchPlayer: (username: string, patch: Partial<PlayerData>) =>
       SynchronizedRef.modify(worldRef, (state) => {
         const current = state.players.get(normalizeUsername(username));

@@ -8,6 +8,7 @@ import {
   type AuraMutation,
   type AuraSnapshot,
 } from "./aura";
+import { EntityState } from "./entity";
 import { LiveMonster } from "./monster";
 
 const application: AuraApplication = {
@@ -45,7 +46,7 @@ const monster = () =>
     mp: 0,
     name: "Monster",
     race: "None",
-    state: 2,
+    state: EntityState.InCombat,
   });
 
 describe("active aura reduction", () => {
@@ -384,7 +385,7 @@ describe("active aura reduction", () => {
           { name: "Focus", duration: 2 },
         ],
       },
-      { type: "clear-local" },
+      { type: "clear", keepPersistent: true },
       { type: "withdraw", entries: [{ type: "remove", name: "Focus" }] },
       { type: "passives", mode: "replace", entries: [] },
       { type: "apply", entries: [application] },

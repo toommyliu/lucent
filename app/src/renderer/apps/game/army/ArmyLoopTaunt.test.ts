@@ -157,6 +157,9 @@ const makeHarness = Effect.fn("ArmyLoopTaunt.test.makeHarness")(function* (
       getName: () => Effect.succeed("ultra"),
       getRoomNumber: () => Effect.succeed(1_234),
     },
+    monsterLookup: {
+      get: (query: number) => Effect.sync(() => monster(query)),
+    },
     monsters: {
       get: (query: number) => Effect.sync(() => monster(query)),
     },
