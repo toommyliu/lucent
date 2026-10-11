@@ -2,6 +2,7 @@ import type {
   AuraQueryOptions,
   BoostType,
   EntityState,
+  InventoryPool,
   ItemQuery,
   LiveAura,
   LiveFaction,
@@ -58,7 +59,7 @@ import type {
   SkillSlot,
   SkillUseOptions,
 } from "../flash/api/Combat";
-import type { EquipOptions, InventoryPool } from "../flash/api/Inventory";
+import type { EquipOptions } from "../flash/api/Inventory";
 import type { CellPositionOptions } from "../flash/api/Map";
 import type {
   ClientPacketEncoding,

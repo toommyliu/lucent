@@ -19,4 +19,4 @@ already in the inventory never takes a new misc slot.
 type InventoryPool = "bag" | "misc"
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/api/Inventory.ts#L64" aria-label="Open source: app/src/renderer/apps/game/flash/api/Inventory.ts:64" title="app/src/renderer/apps/game/flash/api/Inventory.ts:64" target="_blank" rel="noreferrer"><code class="source-reference__path">Inventory.ts:64</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/packages/game/src/item.ts#L20" aria-label="Open source: packages/game/src/item.ts:20" title="packages/game/src/item.ts:20" target="_blank" rel="noreferrer"><code class="source-reference__path">item.ts:20</code></a></p>

@@ -3,7 +3,7 @@ import {
   normalizeItemQuantity,
   resolveEnhancementStrategy,
 } from "@lucent/game";
-import type { ItemQuery, LiveItem } from "@lucent/game";
+import type { InventoryPool, ItemQuery, LiveItem } from "@lucent/game";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
@@ -54,15 +54,6 @@ export interface EquipOptions {
   readonly wear?: boolean;
 }
 
-/**
- * `"bag"` counts equipment and equippable consumables such as potions.
- * `"misc"` counts resources, quest items, notes, and other non-consumable items
- * of type Item.
- * Classes, house items, and Guild items count against neither. A misc item
- * already in the inventory never takes a new misc slot.
- */
-export type InventoryPool = "bag" | "misc";
-
 /** Whether AQW consumes the usable item directly instead of assigning slot 6. */
 export const isDirectInventoryConsumable = (link: string): boolean => {
   const normalized = link.trim().toLowerCase();
@@ -72,17 +63,6 @@ export const isDirectInventoryConsumable = (link: string): boolean => {
 const isDirectInventoryUseItem = (category: string, link: string): boolean =>
   category.trim().toLowerCase() === "serveruse" ||
   isDirectInventoryConsumable(link);
-
-const miscCategories = new Set(["Item", "Note", "Quest Item", "Resource"]);
-
-const poolOf = (item: LiveItem) => {
-  if (item.category === "Class") return "class";
-  if (item.houseItem || item.category === "Guild") return "house";
-  return miscCategories.has(item.category) &&
-    !(item.category === "Item" && /^\s*\d+\s*$/.test(item.meta))
-    ? "misc"
-    : "bag";
-};
 
 const slotMethods = {
   bag: "inventory.getSlots",
@@ -128,20 +108,18 @@ export const makeInventory = (
 
   const getUsedSlots = (pool: InventoryPool = "bag") =>
     getAll().pipe(
-      Effect.map(
-        (items) => items.filter((item) => poolOf(item) === pool).length,
-      ),
+      Effect.map((items) => items.filter((item) => item.pool === pool).length),
     );
 
   const canAccept = Effect.fn("Inventory.canAccept")(function* (
     item: LiveItem,
     replacing?: LiveItem,
   ) {
-    const pool = poolOf(item);
+    const pool = item.pool;
     if (pool === "class") return true;
     if (
       replacing !== undefined &&
-      (pool === "house" || poolOf(replacing) === pool)
+      (pool === "house" || replacing.pool === pool)
     ) {
       return true;
     }
