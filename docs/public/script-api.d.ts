@@ -800,7 +800,7 @@ interface ScriptBankApi {
     getAvailableSlots(): Effect<number, never>;
     getSlots(): Effect<number, never>;
     getUsedSlots(): Effect<number, never>;
-    isOpen(view?: BankView): Effect<boolean, never>;
+    isOpen(): Effect<boolean, never>;
   /** @param force Whether to reload an already loaded bank. */
     load(/** @defaultValue false */ force?: boolean): Effect<boolean, never>;
     open(/** @defaultValue {} */ options?: BankOpenOptions): Effect<boolean, never>;
@@ -1245,17 +1245,11 @@ interface AutoZoneState {
 type AutoZoneSupportedMap = 'ledgermayne' | 'moreskulls' | 'ultradage' | 'darkcarnax' | 'astralshrine' | 'queeniona' | 'magnumopus';
 interface BankOpenOptions {
   /**
-   * Whether to reload bank items before opening the view.
+   * Whether to reload bank items before opening the bank.
    * @defaultValue false
    */
   readonly force?: boolean;
-  /**
-   * The bank view to open.
-   * @defaultValue "regular"
-   */
-  readonly view?: BankView;
 }
-type BankView = "house" | "regular";
 type BoostType = "classPoints" | "exp" | "gold" | "rep";
 interface CellPositionOptions {
   /** Destination cell. */
