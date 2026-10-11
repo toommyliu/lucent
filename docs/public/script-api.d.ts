@@ -1470,6 +1470,7 @@ interface LiveItem extends LiveModel<ItemData> {
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
+  readonly pool: ItemPool;
   readonly quantity: number;
   readonly requirements: readonly ItemRequirement[];
   readonly shopItemId: number | undefined;
@@ -2030,6 +2031,11 @@ interface Enhancement {
   /** Special label, such as `Dauntless` or `Ether`. */
   readonly special?: string | undefined;
 }
+/**
+ * The pool an item counts against in the inventory. `"class"` has no limit,
+ * and `"house"` uses house slots.
+ */
+type ItemPool = InventoryPool | "class" | "house";
 interface ItemRequirement {
   readonly itemId: number;
   readonly name: string;
@@ -2056,6 +2062,7 @@ type ItemSnapshot = Readonly<ItemData> & {
   readonly classRank: number | null;
   readonly helm: boolean;
   readonly pet: boolean;
+  readonly pool: ItemPool;
   readonly weapon: boolean;
   readonly wearable: boolean;
   readonly worn: boolean;
@@ -2209,6 +2216,7 @@ interface Item {
   readonly meta: string;
   readonly name: string;
   readonly pet: boolean;
+  readonly pool: ItemPool;
   readonly quantity: number;
   /** Items consumed per merge for this shop offer. */
   readonly requirements: readonly ItemRequirement[];
