@@ -53,6 +53,15 @@ export interface EquipOptions {
   readonly wear?: boolean;
 }
 
+/**
+ * `"bag"` counts equipment and equippable consumables such as potions.
+ * `"misc"` counts resources, quest items, notes, and other non-consumable items
+ * of type Item.
+ * Classes, house items, and Guild items count against neither. A misc item
+ * already in the inventory never takes a new misc slot.
+ */
+export type InventoryPool = "bag" | "misc";
+
 /** Whether AQW consumes the usable item directly instead of assigning slot 6. */
 export const isDirectInventoryConsumable = (link: string): boolean => {
   const normalized = link.trim().toLowerCase();
@@ -65,7 +74,7 @@ const isDirectInventoryUseItem = (category: string, link: string): boolean =>
 
 const miscCategories = new Set(["Item", "Note", "Quest Item", "Resource"]);
 
-const inventoryPool = (item: LiveItem) => {
+const poolOf = (item: LiveItem) => {
   if (item.category === "Class") return "class";
   if (item.houseItem || item.category === "Guild") return "house";
   return miscCategories.has(item.category) &&
@@ -73,6 +82,11 @@ const inventoryPool = (item: LiveItem) => {
     ? "misc"
     : "bag";
 };
+
+const slotMethods = {
+  bag: "inventory.getSlots",
+  misc: "inventory.getMiscSlots",
+} as const satisfies Record<InventoryPool, keyof Window["swf"]>;
 
 export const makeInventory = (
   bridge: BridgeService,
@@ -101,15 +115,19 @@ export const makeInventory = (
     },
   );
 
-  const getSlots = () =>
-    bridge
-      .invoke("inventory.getSlots", undefined, WireInt)
+  const getSlots = Effect.fn("Inventory.getSlots")(function* (
+    pool: InventoryPool = "bag",
+  ) {
+    if (!(yield* store.items.isHydrated("inventory"))) return 0;
+    return yield* bridge
+      .invoke(slotMethods[pool], undefined, WireInt)
       .pipe(Effect.map(Option.getOrElse(() => 0)));
+  });
 
-  const getUsedSlots = () =>
+  const getUsedSlots = (pool: InventoryPool = "bag") =>
     getAll().pipe(
       Effect.map(
-        (items) => items.filter((item) => inventoryPool(item) === "bag").length,
+        (items) => items.filter((item) => poolOf(item) === pool).length,
       ),
     );
 
@@ -117,11 +135,11 @@ export const makeInventory = (
     item: LiveItem,
     replacing?: LiveItem,
   ) {
-    const pool = inventoryPool(item);
+    const pool = poolOf(item);
     if (pool === "class") return true;
     if (
       replacing !== undefined &&
-      (pool === "house" || inventoryPool(replacing) === pool)
+      (pool === "house" || poolOf(replacing) === pool)
     ) {
       return true;
     }
@@ -142,17 +160,7 @@ export const makeInventory = (
     }
     if (pool === "misc" && current !== null) return true;
 
-    const slots =
-      pool === "bag"
-        ? yield* getSlots()
-        : yield* bridge
-            .invoke("inventory.getMiscSlots", undefined, WireInt)
-            .pipe(Effect.map(Option.getOrElse(() => 0)));
-    const items = yield* getAll();
-    const used = items.filter(
-      (candidate) => inventoryPool(candidate) === pool,
-    ).length;
-    return used < slots;
+    return (yield* getAvailableSlots(pool)) > 0;
   });
 
   const contains = (selector: ItemQuery, quantity?: number) =>
@@ -406,8 +414,8 @@ export const makeInventory = (
     options?: EquipOptions,
   ) => equipByEnhancementEffect(selector, options);
 
-  const getAvailableSlots = () =>
-    Effect.zipWith(getSlots(), getUsedSlots(), (slots, used) =>
+  const getAvailableSlots = (pool: InventoryPool = "bag") =>
+    Effect.zipWith(getSlots(pool), getUsedSlots(pool), (slots, used) =>
       Math.max(0, slots - used),
     );
 
