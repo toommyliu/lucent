@@ -81,7 +81,6 @@ import type {
   WaitOptions,
 } from "../flash/contract/Packet";
 import type { TriggeredWaitOptions } from "../flash/protocol/Wait";
-import type { BankView } from "../Types";
 import type { ScriptCallbackResult, ScriptGenerator } from "./api/Callbacks";
 import type {
   ScriptExecutionError,
@@ -209,7 +208,7 @@ export interface ScriptBankApi {
   readonly getAvailableSlots: () => Effect.Effect<number>;
   readonly getSlots: () => Effect.Effect<number>;
   readonly getUsedSlots: () => Effect.Effect<number>;
-  readonly isOpen: (view?: BankView) => Effect.Effect<boolean>;
+  readonly isOpen: () => Effect.Effect<boolean>;
   /** @param force Whether to reload an already loaded bank. */
   readonly load: (
     /** @defaultValue false */

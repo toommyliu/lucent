@@ -38,7 +38,6 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/auto-zone-state/"><code>AutoZoneState</code></a> | interface |  |
 | <a href="/reference/scripting/types/auto-zone-supported-map/"><code>AutoZoneSupportedMap</code></a> | type alias |  |
 | <a href="/reference/scripting/types/bank-open-options/"><code>BankOpenOptions</code></a> | interface |  |
-| <a href="/reference/scripting/types/bank-view/"><code>BankView</code></a> | type alias |  |
 | <a href="/reference/scripting/types/boost-type/"><code>BoostType</code></a> | type alias |  |
 | <a href="/reference/scripting/types/cell-position-options/"><code>CellPositionOptions</code></a> | interface |  |
 | <a href="/reference/scripting/types/client-packet/"><code>ClientPacket</code></a> | type alias |  |
