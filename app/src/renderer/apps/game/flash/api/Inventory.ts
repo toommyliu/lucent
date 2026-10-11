@@ -18,6 +18,7 @@ import type { BridgeService } from "../bridge/Bridge";
 import { PositiveWireInt, WireBoolean, WireInt } from "../contract/Coercion";
 import { packetData } from "../contract/Packet";
 import type { Store } from "../state/Store";
+import type { House } from "./House";
 import type { Wait } from "./Wait";
 
 const WearResponse = Schema.Struct({
@@ -71,6 +72,7 @@ const slotMethods = {
 export const makeInventory = (
   bridge: BridgeService,
   store: Store,
+  house: House,
   wait: Wait,
 ) => {
   // Consumable equips and unequips mutate the same client action slot.
@@ -121,12 +123,7 @@ export const makeInventory = (
     ) {
       return true;
     }
-    if (pool === "house") {
-      const slots = yield* bridge
-        .invoke("house.getSlots", undefined, WireInt)
-        .pipe(Effect.map(Option.getOrElse(() => 0)));
-      return (yield* store.items.getAll("house")).length < slots;
-    }
+    if (pool === "house") return (yield* house.getAvailableSlots()) > 0;
 
     const current = yield* get(item.itemId);
     if (
