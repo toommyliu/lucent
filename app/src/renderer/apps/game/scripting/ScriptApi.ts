@@ -58,7 +58,7 @@ import type {
   SkillSlot,
   SkillUseOptions,
 } from "../flash/api/Combat";
-import type { EquipOptions } from "../flash/api/Inventory";
+import type { EquipOptions, InventoryPool } from "../flash/api/Inventory";
 import type { CellPositionOptions } from "../flash/api/Map";
 import type {
   ClientPacketEncoding,
@@ -544,9 +544,18 @@ export interface ScriptInventoryApi {
   ) => Effect.Effect<boolean>;
   readonly get: (query: ItemQuery) => Effect.Effect<LiveItem | null>;
   readonly getAll: () => Effect.Effect<readonly LiveItem[]>;
-  readonly getAvailableSlots: () => Effect.Effect<number>;
-  readonly getSlots: () => Effect.Effect<number>;
-  readonly getUsedSlots: () => Effect.Effect<number>;
+  readonly getAvailableSlots: (
+    /** @defaultValue "bag" */
+    pool?: InventoryPool,
+  ) => Effect.Effect<number>;
+  readonly getSlots: (
+    /** @defaultValue "bag" */
+    pool?: InventoryPool,
+  ) => Effect.Effect<number>;
+  readonly getUsedSlots: (
+    /** @defaultValue "bag" */
+    pool?: InventoryPool,
+  ) => Effect.Effect<number>;
   readonly unequipConsumable: (query: ItemQuery) => Effect.Effect<boolean>;
   /** Uses an eligible item directly from inventory, such as a Tonic, Elixir, or boost. */
   readonly use: (query: ItemQuery) => Effect.Effect<boolean>;
