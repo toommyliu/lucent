@@ -43,6 +43,7 @@ type ScriptEventSelector = {
 } | {
     readonly duration?: number;
     readonly icon?: string;
+    readonly kind?: "active" | "passive";
     readonly name?: string;
     readonly sourceId?: number;
     readonly sourceType?: "monster" | "player";

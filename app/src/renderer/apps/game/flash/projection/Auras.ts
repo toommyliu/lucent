@@ -195,6 +195,7 @@ export function auraEvents(
       }
     }
     const details = {
+      kind: aura.kind,
       name: aura.name,
       targetId: target.id,
       targetType: target.type,

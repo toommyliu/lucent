@@ -46,6 +46,7 @@ An aura first appears on a player or monster.
   /** The aura duration in seconds, when available. */
   readonly duration?: number;
   readonly icon?: string;
+  readonly kind: "active" | "passive";
   readonly name: string;
   readonly stack: number;
   /** The applying entity's map-scoped ID, when known. */
@@ -69,6 +70,7 @@ An aura is removed from a player or monster.
   /** The aura duration in seconds, when available. */
   readonly duration?: number;
   readonly icon?: string;
+  readonly kind: "active" | "passive";
   readonly name: string;
   /** The applying entity's map-scoped ID, when known. */
   readonly sourceId?: number;
@@ -91,6 +93,7 @@ An existing aura changes stack, timer, or metadata.
   /** The aura duration in seconds, when available. */
   readonly duration?: number;
   readonly icon?: string;
+  readonly kind: "active" | "passive";
   readonly name: string;
   readonly stack: number;
   /** The applying entity's map-scoped ID, when known. */

@@ -49,6 +49,7 @@ type ProjectionEventSelector = {
 } | {
     readonly duration?: number;
     readonly icon?: string;
+    readonly kind?: "active" | "passive";
     readonly name?: string;
     readonly sourceId?: number;
     readonly sourceType?: "monster" | "player";
@@ -81,4 +82,4 @@ type ProjectionEventSelector = {
 }
 ```
 
-<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L206" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:206" title="app/src/renderer/apps/game/flash/contract/Event.ts:206" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:206</code></a></p>
+<p class="source-reference">Defined in <a class="source-reference__link" href="https://github.com/toommyliu/lucent/blob/main/app/src/renderer/apps/game/flash/contract/Event.ts#L209" aria-label="Open source: app/src/renderer/apps/game/flash/contract/Event.ts:209" title="app/src/renderer/apps/game/flash/contract/Event.ts:209" target="_blank" rel="noreferrer"><code class="source-reference__path">Event.ts:209</code></a></p>
