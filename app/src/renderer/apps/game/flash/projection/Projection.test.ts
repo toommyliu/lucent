@@ -1287,80 +1287,82 @@ describe("Projection", () => {
       }),
   );
 
-  it.effect("publishes active and passive kinds for same-named aura events", () =>
-    Effect.gen(function* () {
-      const { store, pipeline, events } = yield* makeWorldProjection();
-      yield* enterTestArea(pipeline);
-      events.length = 0;
-      yield* pipeline.packet(
-        extension("aura+p", {
-          cmd: "aura+p",
-          tInf: "p:10",
-          auras: [{ nam: "Arcane Flux", cat: "passive", icon: "imr1" }],
-        }),
-      );
-      yield* pipeline.packet(
-        extension("aura+", {
-          cmd: "aura+",
-          tInf: "p:10",
-          aura: { nam: "Arcane Flux", icon: "imr2", t: "s", dur: 6 },
-        }),
-      );
-      expect(events).toEqual([
-        {
-          type: "aura-added",
-          kind: "passive",
-          name: "Arcane Flux",
-          duration: 0,
-          icon: "imr1",
-          stack: 1,
-          targetId: 10,
-          targetType: "player",
-        },
-        {
-          type: "aura-added",
-          kind: "active",
-          name: "Arcane Flux",
-          duration: 6,
-          icon: "imr2",
-          stack: 1,
-          targetId: 10,
-          targetType: "player",
-        },
-      ]);
-      events.length = 0;
-      yield* pipeline.packet(
-        extension("aura-", {
-          cmd: "aura-",
-          tInf: "p:10",
-          aura: { nam: "Arcane Flux" },
-        }),
-      );
-      expect(events).toEqual([
-        {
-          type: "aura-removed",
-          kind: "active",
-          name: "Arcane Flux",
-          duration: 6,
-          icon: "imr2",
-          targetId: 10,
-          targetType: "player",
-        },
-      ]);
-      expect(
-        (yield* store.world.getMe)?.auras.map((aura) => aura.toJSON()),
-      ).toEqual([
-        {
-          name: "Arcane Flux",
-          kind: "passive",
-          category: "passive",
-          icon: "imr1",
-          duration: 0,
-          stack: 1,
-          persistent: false,
-        },
-      ]);
-    }),
+  it.effect(
+    "publishes active and passive kinds for same-named aura events",
+    () =>
+      Effect.gen(function* () {
+        const { store, pipeline, events } = yield* makeWorldProjection();
+        yield* enterTestArea(pipeline);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("aura+p", {
+            cmd: "aura+p",
+            tInf: "p:10",
+            auras: [{ nam: "Arcane Flux", cat: "passive", icon: "imr1" }],
+          }),
+        );
+        yield* pipeline.packet(
+          extension("aura+", {
+            cmd: "aura+",
+            tInf: "p:10",
+            aura: { nam: "Arcane Flux", icon: "imr2", t: "s", dur: 6 },
+          }),
+        );
+        expect(events).toEqual([
+          {
+            type: "aura-added",
+            kind: "passive",
+            name: "Arcane Flux",
+            duration: 0,
+            icon: "imr1",
+            stack: 1,
+            targetId: 10,
+            targetType: "player",
+          },
+          {
+            type: "aura-added",
+            kind: "active",
+            name: "Arcane Flux",
+            duration: 6,
+            icon: "imr2",
+            stack: 1,
+            targetId: 10,
+            targetType: "player",
+          },
+        ]);
+        events.length = 0;
+        yield* pipeline.packet(
+          extension("aura-", {
+            cmd: "aura-",
+            tInf: "p:10",
+            aura: { nam: "Arcane Flux" },
+          }),
+        );
+        expect(events).toEqual([
+          {
+            type: "aura-removed",
+            kind: "active",
+            name: "Arcane Flux",
+            duration: 6,
+            icon: "imr2",
+            targetId: 10,
+            targetType: "player",
+          },
+        ]);
+        expect(
+          (yield* store.world.getMe)?.auras.map((aura) => aura.toJSON()),
+        ).toEqual([
+          {
+            name: "Arcane Flux",
+            kind: "passive",
+            category: "passive",
+            icon: "imr1",
+            duration: 0,
+            stack: 1,
+            persistent: false,
+          },
+        ]);
+      }),
   );
 
   it.effect.each(["aura-", "aura--"])(
