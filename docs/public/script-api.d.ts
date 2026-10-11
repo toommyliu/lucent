@@ -982,9 +982,9 @@ interface ScriptInventoryApi {
     equipByEnhancement(query: ScriptEquipEnhancementSelector, options?: EquipOptions): Effect<boolean, never>;
     get(query: ItemQuery): Effect<LiveItem | null, never>;
     getAll(): Effect<readonly LiveItem[], never>;
-    getAvailableSlots(): Effect<number, never>;
-    getSlots(): Effect<number, never>;
-    getUsedSlots(): Effect<number, never>;
+    getAvailableSlots(/** @defaultValue "bag" */ pool?: InventoryPool): Effect<number, never>;
+    getSlots(/** @defaultValue "bag" */ pool?: InventoryPool): Effect<number, never>;
+    getUsedSlots(/** @defaultValue "bag" */ pool?: InventoryPool): Effect<number, never>;
     unequipConsumable(query: ItemQuery): Effect<boolean, never>;
   /** Uses an eligible item directly from inventory, such as a Tonic, Elixir, or boost. */
     use(query: ItemQuery): Effect<boolean, never>;
@@ -1417,6 +1417,14 @@ interface HuntOptions {
    */
   readonly preferMostMatches?: boolean;
 }
+/**
+ * `"bag"` counts equipment and equippable consumables such as potions.
+ * `"misc"` counts resources, quest items, notes, and other non-consumable items
+ * of type Item.
+ * Classes, house items, and Guild items count against neither. A misc item
+ * already in the inventory never takes a new misc slot.
+ */
+type InventoryPool = "bag" | "misc";
 type ItemQuery = ItemSelector | number | string;
 interface LiveAura extends LiveModel<AuraData> {
   readonly category: string | undefined;
