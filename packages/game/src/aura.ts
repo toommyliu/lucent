@@ -37,9 +37,11 @@ export class LiveAura extends LiveModel<AuraData> implements Aura {
   get category(): string | undefined {
     return this.modelData.category;
   }
+  /** Full duration in seconds, or `0` when the aura has no timer. */
   get duration(): number {
     return this.modelData.duration;
   }
+  /** Expiry time in epoch milliseconds, or `undefined` when the aura has no timer. The aura stays until the server removes it, even after this time. */
   get expiresAt(): number | undefined {
     return this.modelData.expiresAt;
   }
