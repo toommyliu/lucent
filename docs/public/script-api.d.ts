@@ -1602,6 +1602,7 @@ type ProjectionEventSelector =
   | {
       readonly duration?: number;
       readonly icon?: string;
+      readonly kind?: "active" | "passive";
       readonly name?: string;
       readonly sourceId?: number;
       readonly sourceType?: "monster" | "player";
@@ -2329,6 +2330,7 @@ type ProjectionEvent =
       /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
+      readonly kind: "active" | "passive";
       readonly name: string;
       readonly stack: number;
       /** The applying entity's map-scoped ID, when known. */
@@ -2344,6 +2346,7 @@ type ProjectionEvent =
       /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
+      readonly kind: "active" | "passive";
       readonly name: string;
       readonly stack: number;
       /** The applying entity's map-scoped ID, when known. */
@@ -2359,6 +2362,7 @@ type ProjectionEvent =
       /** The aura duration in seconds, when available. */
       readonly duration?: number;
       readonly icon?: string;
+      readonly kind: "active" | "passive";
       readonly name: string;
       /** The applying entity's map-scoped ID, when known. */
       readonly sourceId?: number;
