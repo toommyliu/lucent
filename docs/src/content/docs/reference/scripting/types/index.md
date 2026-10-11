@@ -83,6 +83,7 @@ Referenced types are generated from the types directly linked by the documented 
 | <a href="/reference/scripting/types/item/"><code>Item</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-context/"><code>ItemContext</code></a> | type alias |  |
 | <a href="/reference/scripting/types/item-data/"><code>ItemData</code></a> | interface |  |
+| <a href="/reference/scripting/types/item-pool/"><code>ItemPool</code></a> | type alias | The pool an item counts against in the inventory. `"class"` has no limit,<br>and `"house"` uses house slots. |
 | <a href="/reference/scripting/types/item-query/"><code>ItemQuery</code></a> | type alias |  |
 | <a href="/reference/scripting/types/item-requirement/"><code>ItemRequirement</code></a> | interface |  |
 | <a href="/reference/scripting/types/item-selector/"><code>ItemSelector</code></a> | type alias |  |
