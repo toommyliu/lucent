@@ -10,13 +10,13 @@ import * as Option from "effect/Option";
 import * as Pool from "effect/Pool";
 import * as Semaphore from "effect/Semaphore";
 import type * as Scope from "effect/Scope";
-import { RpcClient } from "effect/unstable/rpc";
-import { RpcClientError } from "effect/unstable/rpc/RpcClientError";
-import type { FromServerEncoded } from "effect/unstable/rpc/RpcMessage";
+import { RpcClient } from "effect/rpc";
+import { RpcClientError } from "effect/rpc/RpcClientError";
+import type { FromServerEncoded } from "effect/rpc/RpcMessage";
 import {
   WorkerReceiveError,
   WorkerSendError,
-} from "effect/unstable/workers/WorkerError";
+} from "effect/workers/WorkerError";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
