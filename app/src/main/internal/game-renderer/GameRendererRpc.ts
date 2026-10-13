@@ -1,4 +1,5 @@
 import { MessageChannelMain, type MessagePortMain } from "electron";
+import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -223,6 +224,13 @@ export const makeGameRendererRpc = Effect.fn("makeGameRendererRpc")(function* (
         ),
       Effect.fail,
     ).pipe(
+      Effect.catchCauseIf(Cause.hasInterruptsOnly, () =>
+        Effect.fail(
+          new GameRendererUnavailableError({
+            detail: "The connection was unavailable.",
+          }),
+        ),
+      ),
       Effect.timeoutOrElse({
         duration: options.timeout,
         orElse: () =>
