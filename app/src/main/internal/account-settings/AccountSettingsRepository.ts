@@ -1,6 +1,7 @@
 import { join } from "path";
 
 import * as Context from "effect/Context";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
@@ -15,7 +16,7 @@ import {
   type AccountSettingsPatch,
 } from "@lucent/core/accountSettings";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 const ACCOUNT_SETTINGS_DIRECTORY = "account-settings";
@@ -90,7 +91,7 @@ export const layer = Layer.effect(
   AccountSettingsRepository,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const writes = yield* Semaphore.make(1);
 
     const pathFor = Effect.fn("AccountSettingsRepository.pathFor")(function* (
@@ -110,12 +111,16 @@ export const layer = Layer.effect(
       const result = yield* jsonFile.read(path).pipe(
         Effect.catch((error: JsonFileError) =>
           error.operation === "parse"
-            ? Effect.logWarning({
-                message:
-                  "Account settings JSON is malformed; using defaults until the next edit.",
-                path,
-                cause: error,
-              }).pipe(Effect.as({ status: "malformed" as const }))
+            ? Effect.logWarning(
+                "Account settings JSON is malformed; using defaults until the next edit.",
+                Cause.fail(error),
+              ).pipe(
+                Effect.annotateLogs({
+                  component: "account-settings",
+                  data: { path },
+                }),
+                Effect.as({ status: "malformed" as const }),
+              )
             : Effect.fail(wrapJsonError(error)),
         ),
       );

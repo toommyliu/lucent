@@ -4,6 +4,9 @@ import { defineInvoke } from "./core";
 
 const namespace = "desktop:game-renderer";
 
+export const GAME_RENDERER_RPC_PORT_CHANNEL = `${namespace}:rpc-port`;
+export const GAME_RENDERER_RPC_PORT_MESSAGE = "lucent:game-renderer-rpc-port";
+
 export const GameRendererIpc = {
   beginScriptExecution: defineInvoke({
     channel: `${namespace}:begin-script-execution`,
@@ -26,7 +29,7 @@ export const GameRendererIpc = {
   ready: defineInvoke({
     channel: `${namespace}:ready`,
     name: "gameRenderer.ready",
-    payload: Schema.Struct({ generation: Schema.Int }),
+    payload: Schema.Void,
     result: Schema.Void,
   }),
 } as const;

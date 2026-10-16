@@ -118,12 +118,6 @@ export const GameViewsIpc = {
     payload: Schema.Void,
     result: GameViewPresentationSchema,
   }),
-  activate: defineInvoke({
-    channel: `${namespace}:activate`,
-    name: "gameViews.activate",
-    payload: Schema.Void,
-    result: GameViewPresentationSchema,
-  }),
   changed: defineEvent({
     channel: `${namespace}:changed`,
     name: "gameViews.changed",

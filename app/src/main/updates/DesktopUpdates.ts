@@ -1,11 +1,14 @@
 import { join } from "path";
 
+import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
 import { gt, prerelease, valid } from "semver";
 
 import {
@@ -14,8 +17,7 @@ import {
   type UpdateReleaseCache,
 } from "../../shared/updates";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { makeListenerRegistry } from "../app/ListenerRegistry";
-import { DesktopObservability } from "../app/observability/DesktopObservability";
+import { makeListenerRegistry, type Listener } from "../app/ListenerRegistry";
 import { ElectronApp } from "../electron/ElectronApp";
 import { ElectronShell } from "../electron/ElectronShell";
 import {
@@ -23,7 +25,7 @@ import {
   type GitHubApiClientShape,
 } from "../github/GitHubApiClient";
 import { firstHttpHeader } from "../http/DesktopHttpClient";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 import { DesktopSettings } from "../settings/DesktopSettings";
 import { parseAllowedUpdateReleaseUrl } from "./UpdateReleaseOpenPolicy";
@@ -62,7 +64,7 @@ export interface DesktopUpdatesShape {
   }) => Effect.Effect<UpdateCheckState>;
   readonly getState: Effect.Effect<UpdateCheckState>;
   readonly onStateChanged: (
-    listener: (state: UpdateCheckState) => void,
+    listener: Listener<UpdateCheckState>,
   ) => Effect.Effect<() => void>;
   readonly openReleasePage: Effect.Effect<boolean>;
   readonly shouldPromptForAvailableRelease: (
@@ -296,12 +298,12 @@ interface DesktopUpdatesOptions {
 
 const makeDesktopUpdates = (
   options: DesktopUpdatesOptions,
-): Effect.Effect<DesktopUpdatesShape> =>
+): Effect.Effect<DesktopUpdatesShape, never, Scope.Scope> =>
   Effect.gen(function* () {
     const currentVersion = normalizeVersion(options.currentVersion);
     const now = options.now ?? (() => new Date());
     const context = yield* Effect.context<never>();
-    const runPromise = Effect.runPromiseWith(context);
+    const runFork = Effect.runForkWith(context);
     const disabledState = (): UpdateCheckState => ({
       status: "disabled",
       currentVersion,
@@ -321,7 +323,10 @@ const makeDesktopUpdates = (
     const cacheRef = yield* Ref.make<UpdateReleaseCache | null>(null);
     const cacheLoadedRef = yield* Ref.make(false);
     const stateChanges = makeListenerRegistry<UpdateCheckState>();
-    let inFlight: Promise<UpdateCheckState> | null = null;
+    let inFlight: Fiber.Fiber<UpdateCheckState> | null = null;
+    yield* Effect.addFinalizer(() =>
+      inFlight === null ? Effect.void : Fiber.interrupt(inFlight),
+    );
 
     const setState = (state: UpdateCheckState): Effect.Effect<void> =>
       Ref.set(stateRef, state).pipe(
@@ -486,22 +491,21 @@ const makeDesktopUpdates = (
         Effect.orElseSucceed(() => false),
       );
 
-    const checkNow: DesktopUpdatesShape["checkNow"] = (checkOptions) => {
-      if (inFlight !== null) {
-        const active = inFlight;
-        return Effect.promise(() => active);
-      }
-
-      const promise = runPromise(runCheck(checkOptions?.force === true));
-      inFlight = promise;
-      return Effect.promise(() =>
-        promise.finally(() => {
-          if (inFlight === promise) {
-            inFlight = null;
-          }
-        }),
-      );
+    const startCheck = (force: boolean): Fiber.Fiber<UpdateCheckState> => {
+      const fiber = runFork(runCheck(force));
+      inFlight = fiber;
+      fiber.addObserver(() => {
+        if (inFlight === fiber) {
+          inFlight = null;
+        }
+      });
+      return fiber;
     };
+
+    const checkNow: DesktopUpdatesShape["checkNow"] = (checkOptions) =>
+      Effect.suspend(() =>
+        Fiber.join(inFlight ?? startCheck(checkOptions?.force === true)),
+      ).pipe(Effect.catchCauseIf(Cause.hasInterruptsOnly, () => getState));
 
     return {
       checkNow,
@@ -518,8 +522,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const app = yield* ElectronApp;
     const env = yield* DesktopEnvironment;
-    const jsonFile = makeJsonFile(yield* DesktopFileSystem);
-    const observability = yield* DesktopObservability;
+    const jsonFile = makeJsonFile(yield* FileSystem);
     const shell = yield* ElectronShell;
     const settings = yield* DesktopSettings;
     const api = yield* GitHubApiClient;
@@ -545,8 +548,8 @@ export const layer = Layer.effect(
             : null,
         ),
         Effect.catch((cause) =>
-          observability
-            .warn("updates", "Failed to load release cache", { cause })
+          Effect.logWarning("Failed to load release cache", Cause.fail(cause))
+            .pipe(Effect.annotateLogs({ component: "updates" }))
             .pipe(Effect.as(null)),
         ),
       );
@@ -554,9 +557,14 @@ export const layer = Layer.effect(
     const saveCache: DesktopUpdatesOptions["saveCache"] = (cache) =>
       jsonFile.write(releaseCachePath, serializeUpdateReleaseCache(cache)).pipe(
         Effect.catch((cause) =>
-          observability.warn("updates", "Failed to save release cache", {
-            cause,
-          }),
+          Effect.logWarning(
+            "Failed to save release cache",
+            Cause.fail(cause),
+          ).pipe(
+            Effect.annotateLogs({
+              component: "updates",
+            }),
+          ),
         ),
       );
 

@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { promises as fs, type Stats } from "fs";
 import { join } from "path";
 
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
@@ -11,7 +12,7 @@ import {
 } from "@lucent/core/scriptPackages";
 import appPackage from "../../../package.json";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
-import { DesktopFileSystem } from "../filesystem/DesktopFileSystem";
+import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
 import { acquireBundledScriptPackageLock } from "./BundledScriptPackageLock";
 import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
@@ -78,7 +79,7 @@ class BundledScriptPackageSetupError extends Schema.TaggedError<BundledScriptPac
 /** Installs bundled copies once, preserving user removals and unfinished setup. */
 export const initializeBundledScriptPackages = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const jsonFile = makeJsonFile(yield* DesktopFileSystem);
+  const jsonFile = makeJsonFile(yield* FileSystem);
   const state = yield* ScriptPackageState;
   const catalog = yield* ScriptPackageCatalog;
   const sourceRoot = join(env.assetsDir, "..", "script-packages");
@@ -143,14 +144,15 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
         const cleanup = (directory: string) =>
           Effect.tryPromise(async () => {
             const path = join(env.workspaceDir, directory);
-            if (await pathExists(path))
-              await fs.rmdir(path, { recursive: true });
+            if (await pathExists(path)) await fs.rm(path, { recursive: true });
           }).pipe(
             Effect.catch((cause) =>
-              Effect.logWarning({
-                message: "Failed to clean bundled package staging.",
-                cause,
-              }),
+              Effect.logWarning(
+                "Failed to clean bundled package staging.",
+                Cause.fail(cause),
+              ).pipe(
+                Effect.annotateLogs({ component: "bundled-script-packages" }),
+              ),
             ),
           );
 
@@ -232,11 +234,15 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
         for (const pending of history.pending) {
           yield* recover(pending).pipe(
             Effect.catch((cause) =>
-              Effect.logWarning({
-                message: "Failed to finish bundled package setup.",
-                packageName: pending.managed.name,
-                cause,
-              }),
+              Effect.logWarning(
+                "Failed to finish bundled package setup.",
+                Cause.fail(cause),
+              ).pipe(
+                Effect.annotateLogs({
+                  component: "bundled-script-packages",
+                  data: { packageName: pending.managed.name },
+                }),
+              ),
             ),
           );
         }
@@ -344,12 +350,15 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
             if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
             yield* install(entry.name).pipe(
               Effect.catch((cause) =>
-                Effect.logWarning({
-                  message:
-                    "Failed to install a bundled script package; setup will retry on the next launch.",
-                  directory: entry.name,
-                  cause,
-                }),
+                Effect.logWarning(
+                  "Failed to install a bundled script package; setup will retry on the next launch.",
+                  Cause.fail(cause),
+                ).pipe(
+                  Effect.annotateLogs({
+                    component: "bundled-script-packages",
+                    data: { directory: entry.name },
+                  }),
+                ),
               ),
             );
           }
@@ -361,19 +370,20 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
         ? Effect.void
         : Effect.tryPromise(release).pipe(
             Effect.catch((cause) =>
-              Effect.logWarning({
-                message: "Failed to release bundled package setup lock.",
-                cause,
-              }),
+              Effect.logWarning(
+                "Failed to release bundled package setup lock.",
+                Cause.fail(cause),
+              ).pipe(
+                Effect.annotateLogs({ component: "bundled-script-packages" }),
+              ),
             ),
           ),
   );
 }).pipe(
   Effect.catch((cause) =>
-    Effect.logWarning({
-      message:
-        "Bundled package setup could not finish. Existing packages have been left alone.",
-      cause,
-    }),
+    Effect.logWarning(
+      "Bundled package setup could not finish. Existing packages have been left alone.",
+      Cause.fail(cause),
+    ).pipe(Effect.annotateLogs({ component: "bundled-script-packages" })),
   ),
 );

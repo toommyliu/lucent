@@ -1,17 +1,45 @@
-import { createIdleFollowerState } from "@lucent/core/follower";
+import {
+  createIdleFollowerState,
+  normalizeFollowerConfig,
+  type FollowerConfig,
+} from "@lucent/core/follower";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Ref from "effect/Ref";
 import { TestClock } from "effect/testing";
 
-import {
-  FollowerIpc,
-  type FollowerCommand,
-} from "../../../shared/ipc/follower";
+import { FollowerIpc } from "../../../shared/ipc/follower";
 import { DesktopIpc } from "../../ipc/DesktopIpc";
 import { DesktopWindows } from "../../window/DesktopWindows";
-import { makeGameFollowers } from "./GameFollowers";
+import { GameRendererRpc } from "../game-renderer/GameRendererRpc";
+import {
+  makeTestGameRenderer,
+  TEST_GAME_RENDERER_ID,
+  type GameRendererRpcHandlerMap,
+} from "../game-renderer/GameRendererRpcTesting";
+import { GameFollowerRequestError, makeGameFollowers } from "./GameFollowers";
+
+const idleIpc = DesktopIpc.of({
+  handle: () => Effect.void,
+  sendToAll: () => Effect.void,
+  sendToRendererIds: () => Effect.void,
+});
+
+const makeFollowers = Effect.fn(function* (
+  options: {
+    readonly handlers?: Partial<GameRendererRpcHandlerMap>;
+    readonly ipc?: DesktopIpc["Service"];
+  } = {},
+) {
+  const game = yield* makeTestGameRenderer(options.handlers);
+  const followers = yield* makeGameFollowers.pipe(
+    Effect.provideService(DesktopIpc, options.ipc ?? idleIpc),
+    Effect.provideService(DesktopWindows, game.windows),
+    Effect.provideService(GameRendererRpc, game.rpc),
+  );
+  return { followers, game };
+});
 
 describe("GameFollowers", () => {
   it.effect("isolates, deduplicates, and clears cached player rosters", () =>
@@ -30,20 +58,8 @@ describe("GameFollowers", () => {
             ? Ref.update(sent, (messages) => [...messages, { ids, payload }])
             : Effect.void,
       });
-      const windows = {
-        getOwnedRendererIds: (rendererId: number) =>
-          Effect.succeed([rendererId + 100]),
-        isRendererReady: () => Effect.succeed(true),
-        onClosed: () => Effect.succeed(() => undefined),
-        onRendererDestroyed: () => Effect.succeed(() => undefined),
-        onRendererReady: () => Effect.succeed(() => undefined),
-        onRendererReloaded: () => Effect.succeed(() => undefined),
-        onRendererUnavailable: () => Effect.succeed(() => undefined),
-      } as unknown as DesktopWindows["Service"];
-      const followers = yield* makeGameFollowers.pipe(
-        Effect.provideService(DesktopIpc, ipc),
-        Effect.provideService(DesktopWindows, windows),
-      );
+      const { followers, game } = yield* makeFollowers({ ipc });
+      yield* game.ready;
 
       expect(yield* followers.getPlayers(42)).toEqual([]);
       expect((yield* followers.setPlayers(42, ["Alice", "Bob"])).changed).toBe(
@@ -61,78 +77,75 @@ describe("GameFollowers", () => {
     }),
   );
 
-  it.effect("correlates a game response with its pending command", () =>
+  it.effect(
+    "remembers a configuration sent while the game reloads and applies it once ready",
+    () =>
+      Effect.gen(function* () {
+        const config = normalizeFollowerConfig({ targetName: "target" });
+        const configured = {
+          ...createIdleFollowerState(),
+          enabled: true,
+          targetName: "target",
+        };
+        const received: FollowerConfig[] = [];
+        const changed: unknown[] = [];
+        const { followers, game } = yield* makeFollowers({
+          handlers: {
+            FollowerConfigure: (next) =>
+              Effect.sync(() => {
+                received.push(next);
+                return configured;
+              }),
+          },
+          ipc: DesktopIpc.of({
+            handle: () => Effect.void,
+            sendToAll: () => Effect.void,
+            sendToRendererIds: (ids, descriptor, payload) =>
+              Effect.sync(() => {
+                if (descriptor.channel === FollowerIpc.changed.channel) {
+                  changed.push({ ids, payload });
+                }
+              }),
+          }),
+        });
+
+        const error = yield* followers
+          .configure(TEST_GAME_RENDERER_ID, config)
+          .pipe(Effect.flip);
+        expect(error).toEqual(
+          new GameFollowerRequestError({
+            detail: "The game is still loading. Try again in a moment.",
+          }),
+        );
+        expect(yield* followers.getConfig(TEST_GAME_RENDERER_ID)).toEqual(
+          config,
+        );
+
+        yield* game.ready;
+
+        expect(received).toEqual([config]);
+        expect(changed).toEqual([{ ids: [142], payload: configured }]);
+        expect(yield* followers.get(TEST_GAME_RENDERER_ID)).toEqual(configured);
+      }),
+  );
+
+  it.effect("reports a follower that does not answer", () =>
     Effect.gen(function* () {
-      const sent = yield* Ref.make<FollowerCommand | undefined>(undefined);
-      const ipc = DesktopIpc.of({
-        handle: () => Effect.void,
-        sendToAll: () => Effect.void,
-        sendToRendererIds: (_ids, _descriptor, payload) =>
-          Ref.set(sent, payload as FollowerCommand),
+      const { followers, game } = yield* makeFollowers({
+        handlers: { FollowerGetState: () => Effect.never },
       });
-      const windows = {
-        isRendererReady: () => Effect.succeed(true),
-        onClosed: () => Effect.succeed(() => undefined),
-        onRendererDestroyed: () => Effect.succeed(() => undefined),
-        onRendererReady: () => Effect.succeed(() => undefined),
-        onRendererReloaded: () => Effect.succeed(() => undefined),
-        onRendererUnavailable: () => Effect.succeed(() => undefined),
-      } as unknown as DesktopWindows["Service"];
-      const followers = yield* makeGameFollowers.pipe(
-        Effect.provideService(DesktopIpc, ipc),
-        Effect.provideService(DesktopWindows, windows),
-      );
+      yield* game.ready;
 
-      const pending = yield* Effect.forkScoped(
-        followers.request(42, { kind: "get-state" }),
-      );
-      yield* Effect.yieldNow;
-      const command = yield* Ref.get(sent);
-      expect(command?.kind).toBe("get-state");
-
-      const state = {
-        ...createIdleFollowerState(),
-        enabled: true,
-        phase: "following" as const,
-        running: true,
-        targetName: "target",
-      };
-      yield* followers.respond(7, {
-        ok: true,
-        outcome: { kind: "get-state", state },
-        requestId: command!.requestId,
-      });
-      yield* Effect.yieldNow;
-      expect(pending.pollUnsafe()).toBeUndefined();
-
-      yield* followers.respond(42, {
-        ok: true,
-        outcome: { kind: "get-state", state },
-        requestId: command!.requestId,
-      });
-
-      expect(yield* Fiber.join(pending)).toEqual({
-        kind: "get-state",
-        state,
-      });
-      const mismatched = yield* followers
-        .request(42, { kind: "get-state" })
+      const request = yield* followers
+        .fetchState(TEST_GAME_RENDERER_ID)
         .pipe(Effect.flip, Effect.forkScoped);
-      yield* Effect.yieldNow;
-      const next = yield* Ref.get(sent);
-      yield* followers.respond(42, {
-        ok: true,
-        outcome: { kind: "me", username: "wrong-operation" },
-        requestId: next!.requestId,
-      });
-      expect((yield* Fiber.join(mismatched)).message).toMatch(/returned/);
-      const timedOut = yield* followers
-        .request(42, { kind: "get-state" })
-        .pipe(Effect.flip, Effect.forkScoped);
-      yield* TestClock.adjust("4999 millis");
-      expect(timedOut.pollUnsafe()).toBeUndefined();
-      yield* TestClock.adjust("1 millis");
-      expect((yield* Fiber.join(timedOut)).message).toMatch(/did not respond/i);
+      yield* TestClock.adjust("5 seconds");
+
+      expect(yield* Fiber.join(request)).toEqual(
+        new GameFollowerRequestError({
+          detail: "The game did not respond in time. Try again.",
+        }),
+      );
     }),
   );
 });

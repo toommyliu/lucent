@@ -22,11 +22,16 @@ import {
   isAtomicFileTemporaryName,
   makeAtomicFile,
 } from "../filesystem/AtomicFile";
+import { FileSystem } from "effect/FileSystem";
+import type { PlatformError } from "effect/PlatformError";
+import type { Stats } from "node:fs";
 import {
-  DesktopFileSystem,
-  type DesktopFileInfo,
-  type DesktopFileSystemError,
-} from "../filesystem/DesktopFileSystem";
+  FileSystemLimitError,
+  lstat,
+  readDirectoryBounded,
+  readFileBounded,
+  removeScriptPath,
+} from "../filesystem/BoundedFileSystem";
 import { DesktopWindows } from "../window/DesktopWindows";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
@@ -120,37 +125,54 @@ const makeError = (
     ...(path === undefined ? {} : { path }),
   });
 
-const mapDesktopReason = (
-  error: DesktopFileSystemError,
+const mapFileSystemReason = (
+  error: PlatformError | FileSystemLimitError,
 ): FileSystemErrorReason => {
-  switch (error.reason) {
+  if (error._tag === "FileSystemLimitError") return "too-large";
+  const cause = error.reason.cause;
+  const code =
+    cause instanceof Error && "code" in cause ? cause.code : undefined;
+  switch (code) {
+    case "EMFILE":
+    case "ENFILE":
+    case "EBUSY":
+      return "busy";
+    case "ENOTEMPTY":
+      return "directory-not-empty";
+    case "ELOOP":
+    case "ENAMETOOLONG":
+    case "EINVAL":
+      return "invalid-path";
+    case "EISDIR":
+      return "not-file";
+    case "ENOTDIR":
+      return "not-directory";
+    case "EPERM":
+    case "EROFS":
+      return "permission-denied";
+    case "EFBIG":
+      return "too-large";
+  }
+  switch (error.reason._tag) {
     case "Busy":
       return "busy";
-    case "DirectoryNotEmpty":
-      return "directory-not-empty";
-    case "InvalidInput":
+    case "BadArgument":
     case "BadResource":
       return "invalid-path";
-    case "IsDirectory":
-      return "not-file";
-    case "NotDirectory":
-      return "not-directory";
     case "NotFound":
       return "not-found";
     case "PermissionDenied":
       return "permission-denied";
-    case "TooLarge":
-      return "too-large";
     default:
       return "unavailable";
   }
 };
 
-const mapDesktopError = (
+const mapFileSystemError = (
   operation: FileSystemOperation,
   path: string | undefined,
-  error: DesktopFileSystemError,
-): FileSystemError => makeError(operation, mapDesktopReason(error), path);
+  error: PlatformError | FileSystemLimitError,
+): FileSystemError => makeError(operation, mapFileSystemReason(error), path);
 
 const safePathSegments = (path: string): readonly string[] | null => {
   const segments = parseScriptPathSegments(path);
@@ -176,7 +198,7 @@ const safePathSegments = (path: string): readonly string[] | null => {
 
 export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
   function* (
-    fileSystem: DesktopFileSystem["Service"],
+    fileSystem: FileSystem,
     dataDir: string,
   ): Effect.fn.Return<ScriptFileSystem["Service"]> {
     const atomicFile = makeAtomicFile(fileSystem);
@@ -204,14 +226,14 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
     const requireDirectory = (
       operation: FileSystemOperation,
       path: string | undefined,
-      info: DesktopFileInfo,
+      info: Stats,
     ): Effect.Effect<void, FileSystemError> =>
-      info.kind === "directory"
+      info.isDirectory()
         ? Effect.void
         : Effect.fail(
             makeError(
               operation,
-              info.kind === "symbolic-link" ? "invalid-path" : "not-directory",
+              info.isSymbolicLink() ? "invalid-path" : "not-directory",
               path,
             ),
           );
@@ -220,16 +242,14 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
       operation: FileSystemOperation,
       publicPath: string | undefined,
       absolutePath: string,
-    ): Effect.Effect<DesktopFileInfo | undefined, FileSystemError> =>
-      fileSystem
-        .lstat(absolutePath)
-        .pipe(
-          Effect.catch((error) =>
-            error.reason === "NotFound"
-              ? Effect.succeed(undefined)
-              : Effect.fail(mapDesktopError(operation, publicPath, error)),
-          ),
-        );
+    ): Effect.Effect<Stats | undefined, FileSystemError> =>
+      lstat(absolutePath).pipe(
+        Effect.catch((error) =>
+          error._tag === "PlatformError" && error.reason._tag === "NotFound"
+            ? Effect.succeed(undefined)
+            : Effect.fail(mapFileSystemError(operation, publicPath, error)),
+        ),
+      );
 
     const ensureRoot = (
       operation: FileSystemOperation,
@@ -240,17 +260,16 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
           yield* fileSystem
             .makeDirectory(dataDir, { mode: 0o700, recursive: true })
             .pipe(
+              Effect.uninterruptible,
               Effect.mapError((error) =>
-                mapDesktopError(operation, undefined, error),
+                mapFileSystemError(operation, undefined, error),
               ),
             );
-          info = yield* fileSystem
-            .lstat(dataDir)
-            .pipe(
-              Effect.mapError((error) =>
-                mapDesktopError(operation, undefined, error),
-              ),
-            );
+          info = yield* lstat(dataDir).pipe(
+            Effect.mapError((error) =>
+              mapFileSystemError(operation, undefined, error),
+            ),
+          );
         }
         yield* requireDirectory(operation, undefined, info);
       });
@@ -270,21 +289,20 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
             yield* fileSystem
               .makeDirectory(current, { mode: 0o700, recursive: false })
               .pipe(
+                Effect.uninterruptible,
                 Effect.catch((error) =>
-                  error.reason === "AlreadyExists"
+                  error.reason._tag === "AlreadyExists"
                     ? Effect.void
                     : Effect.fail(
-                        mapDesktopError(operation, parsed.path, error),
+                        mapFileSystemError(operation, parsed.path, error),
                       ),
                 ),
               );
-            info = yield* fileSystem
-              .lstat(current)
-              .pipe(
-                Effect.mapError((error) =>
-                  mapDesktopError(operation, parsed.path, error),
-                ),
-              );
+            info = yield* lstat(current).pipe(
+              Effect.mapError((error) =>
+                mapFileSystemError(operation, parsed.path, error),
+              ),
+            );
           }
           if (info === undefined) return undefined;
           yield* requireDirectory(operation, parsed.path, info);
@@ -295,7 +313,7 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
     const requireReadableFile = (
       operation: "read-json" | "read-text",
       parsed: ParsedPath,
-    ): Effect.Effect<DesktopFileInfo | undefined, FileSystemError> =>
+    ): Effect.Effect<Stats | undefined, FileSystemError> =>
       Effect.gen(function* () {
         const parent = yield* resolveParent(operation, parsed, "lookup");
         if (parent === undefined) return undefined;
@@ -305,10 +323,10 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
           parsed.absolute,
         );
         if (info === undefined) return undefined;
-        if (info.kind !== "file") {
+        if (!info.isFile()) {
           return yield* makeError(
             operation,
-            info.kind === "symbolic-link" ? "invalid-path" : "not-file",
+            info.isSymbolicLink() ? "invalid-path" : "not-file",
             parsed.path,
           );
         }
@@ -326,10 +344,10 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
           parsed.path,
           parsed.absolute,
         );
-        if (info !== undefined && info.kind !== "file") {
+        if (info !== undefined && !info.isFile()) {
           return yield* makeError(
             operation,
-            info.kind === "symbolic-link" ? "invalid-path" : "not-file",
+            info.isSymbolicLink() ? "invalid-path" : "not-file",
             parsed.path,
           );
         }
@@ -500,38 +518,32 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
             yield* requireDirectory("list", path, info);
           }
 
-          return yield* fileSystem
-            .readDirectory(absolute, {
-              filter: (entry) => !isAtomicFileTemporaryName(entry.name),
-              maxEntries: SCRIPT_FILE_SYSTEM_MAX_ENTRIES,
-            })
-            .pipe(
-              Effect.map((entries) =>
-                entries
-                  .map(
-                    (entry): FileSystemEntry => ({
-                      kind: entry.kindHint,
-                      name: entry.name,
-                    }),
-                  )
-                  .sort((left, right) =>
-                    left.name < right.name
-                      ? -1
-                      : left.name > right.name
-                        ? 1
-                        : 0,
-                  ),
-              ),
-              Effect.mapError((error) =>
-                makeError(
-                  "list",
-                  error.reason === "TooLarge"
-                    ? "too-many-entries"
-                    : mapDesktopReason(error),
-                  path,
+          return yield* readDirectoryBounded(absolute, {
+            include: (name) => !isAtomicFileTemporaryName(name),
+            maxEntries: SCRIPT_FILE_SYSTEM_MAX_ENTRIES,
+          }).pipe(
+            Effect.map((entries) =>
+              entries
+                .map(
+                  (entry): FileSystemEntry => ({
+                    kind: entry.kind,
+                    name: entry.name,
+                  }),
+                )
+                .sort((left, right) =>
+                  left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
                 ),
+            ),
+            Effect.mapError((error) =>
+              makeError(
+                "list",
+                error._tag === "FileSystemLimitError"
+                  ? "too-many-entries"
+                  : mapFileSystemReason(error),
+                path,
               ),
-            );
+            ),
+          );
         }),
       );
 
@@ -543,15 +555,17 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
         const parsed = yield* parsePath(operation, path);
         const info = yield* requireReadableFile(operation, parsed);
         if (info === undefined) return undefined;
-        const bytes = yield* fileSystem
-          .readFile(parsed.absolute, { maxBytes: SCRIPT_FILE_SYSTEM_MAX_BYTES })
-          .pipe(
-            Effect.catch((error) =>
-              error.reason === "NotFound"
-                ? Effect.succeed(undefined)
-                : Effect.fail(mapDesktopError(operation, path, error)),
-            ),
-          );
+        const bytes = yield* readFileBounded(
+          fileSystem,
+          parsed.absolute,
+          SCRIPT_FILE_SYSTEM_MAX_BYTES,
+        ).pipe(
+          Effect.catch((error) =>
+            error._tag === "PlatformError" && error.reason._tag === "NotFound"
+              ? Effect.succeed(undefined)
+              : Effect.fail(mapFileSystemError(operation, path, error)),
+          ),
+        );
         if (bytes === undefined) return undefined;
         return yield* Effect.try({
           try: () => utf8Decoder.decode(bytes),
@@ -612,7 +626,9 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
         yield* atomicFile
           .writeToExistingParent(parsed.absolute, bytes, { mode: 0o600 })
           .pipe(
-            Effect.mapError((error) => mapDesktopError(operation, path, error)),
+            Effect.mapError((error) =>
+              mapFileSystemError(operation, path, error),
+            ),
           );
       });
 
@@ -672,27 +688,12 @@ export const makeScriptFileSystem = Effect.fn("ScriptFileSystem.make")(
           const info = yield* lstatOptional("remove", path, parsed.absolute);
           if (info === undefined) return;
 
-          if (info.kind === "directory") {
-            yield* fileSystem
-              .removeDirectory(parsed.absolute, {
-                ifMissing: "ignore",
-                recursive: false,
-              })
-              .pipe(
-                Effect.mapError((error) =>
-                  mapDesktopError("remove", path, error),
-                ),
-              );
-            return;
-          }
-          if (info.kind === "file" || info.kind === "symbolic-link") {
-            yield* fileSystem
-              .removeFile(parsed.absolute, { ifMissing: "ignore" })
-              .pipe(
-                Effect.mapError((error) =>
-                  mapDesktopError("remove", path, error),
-                ),
-              );
+          if (info.isDirectory() || info.isFile() || info.isSymbolicLink()) {
+            yield* removeScriptPath(parsed.absolute, info.isDirectory()).pipe(
+              Effect.mapError((error) =>
+                mapFileSystemError("remove", path, error),
+              ),
+            );
             return;
           }
           return yield* makeError("remove", "unavailable", path);
@@ -718,30 +719,17 @@ export const layer = Layer.effect(
   ScriptFileSystem,
   Effect.gen(function* () {
     const env = yield* DesktopEnvironment;
-    const fileSystem = yield* DesktopFileSystem;
+    const fileSystem = yield* FileSystem;
     const windows = yield* DesktopWindows;
     const { dataDir } = resolveScriptWorkspacePaths(env.workspaceDir);
     const service = yield* makeScriptFileSystem(fileSystem, dataDir);
 
-    yield* Effect.acquireRelease(
-      windows.onRendererDestroyed((event) =>
-        service.closeRenderer(event.rendererId),
-      ),
-      (unsubscribe) => Effect.sync(unsubscribe),
-    );
-    yield* Effect.acquireRelease(
-      windows.onRendererUnavailable((event) =>
-        event.failure.type === "render-process-gone"
-          ? service.closeRenderer(event.rendererId)
-          : Effect.void,
-      ),
-      (unsubscribe) => Effect.sync(unsubscribe),
-    );
-    yield* Effect.acquireRelease(
-      windows.onRendererReloaded((event) =>
-        service.closeRenderer(event.rendererId),
-      ),
-      (unsubscribe) => Effect.sync(unsubscribe),
+    yield* windows.observe({}, (event) =>
+      event.type === "closed" ||
+      event.type === "reloaded" ||
+      event.type === "crashed"
+        ? service.closeRenderer(event.rendererId)
+        : Effect.void,
     );
     return service;
   }),

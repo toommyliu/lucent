@@ -162,7 +162,6 @@ import {
   topNavOptionCommandIds,
   windowCommandIds,
 } from "./TopNav";
-import { createRandomId } from "../../../shared/randomId";
 import { createHotkeyStatus, HotkeyStatus } from "./HotkeyStatus";
 import { ScriptDialogHost } from "./ScriptDialogHost";
 import {
@@ -1204,10 +1203,11 @@ export function App(props: {
     createSignal<GameViewPresentation>({
       active: true,
       layout: desktop.gameView.initialLayout ?? "focused",
+      tiled: desktop.gameView.initialLayout === "grid",
       windowActive: true,
     });
   const effectiveTopNavVisible = createMemo(
-    () => topNavVisible() && gameViewPresentation().layout === "focused",
+    () => topNavVisible() && !gameViewPresentation().tiled,
   );
   const hotkeyStatus = createHotkeyStatus();
   const [flashSettings, setFlashSettings] = createSignal<FlashSettingsSnapshot>(
@@ -1414,21 +1414,11 @@ export function App(props: {
     );
     resolveGameLoaded?.();
   };
-  const markGameViewActive = () => {
-    if (gameViewPresentation().active) return;
-    void desktop.gameView.activate().catch((cause: unknown) => {
-      console.error("[game:view] activation failed", cause);
-    });
-  };
 
   window.onLoaded = markLoaded;
-  window.onGameInteraction = markGameViewActive;
   window.onProgress = setLoadProgress;
   onCleanup(() => {
     if (window.onLoaded === markLoaded) delete window.onLoaded;
-    if (window.onGameInteraction === markGameViewActive) {
-      delete window.onGameInteraction;
-    }
     if (window.onProgress === setLoadProgress) delete window.onProgress;
   });
 
@@ -2588,6 +2578,10 @@ export function App(props: {
     }
   };
 
+  const reportScriptLoadFailure = (error: unknown) => {
+    console.error("[game:script]", "load failed", error);
+  };
+
   const chooseScriptFile = async (replaceRunning = false): Promise<void> => {
     if (scriptBusy()) {
       return;
@@ -2603,9 +2597,6 @@ export function App(props: {
         replaceRunning,
         start: false,
       });
-    } catch (error) {
-      console.error("[game:script]", "load failed", error);
-      throw error;
     } finally {
       setScriptBusy(false);
     }
@@ -2636,7 +2627,6 @@ export function App(props: {
       completeScriptTiming(timing, "completed");
     } catch (error) {
       completeScriptTiming(timing, "failed", error);
-      console.error("[game:script]", "catalog selection failed", error);
       throw error;
     } finally {
       setScriptBusy(false);
@@ -2659,7 +2649,7 @@ export function App(props: {
       return;
     }
 
-    void chooseScriptFile(false);
+    void chooseScriptFile(false).catch(reportScriptLoadFailure);
   };
 
   const toggleScriptsDialog = (): void => {
@@ -2885,7 +2875,7 @@ export function App(props: {
 
   scriptQueue = makeScriptQueue({
     confirmStandaloneReplacement: confirmQueueStandaloneReplacement,
-    createId: createRandomId,
+    createId: (prefix) => `${prefix}-${crypto.randomUUID()}`,
     isRunnerActive: () =>
       runtime.runPromise(
         Effect.gen(function* () {
@@ -4789,7 +4779,9 @@ export function App(props: {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => void chooseScriptFile(true)}
+              onClick={() =>
+                void chooseScriptFile(true).catch(reportScriptLoadFailure)
+              }
               variant="destructive"
             >
               Choose replacement

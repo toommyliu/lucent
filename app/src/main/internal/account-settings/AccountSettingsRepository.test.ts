@@ -15,7 +15,7 @@ import * as Layer from "effect/Layer";
 
 import { DEFAULT_ACCOUNT_SETTINGS } from "@lucent/core/accountSettings";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
-import { layer as desktopFileSystemLayer } from "../../filesystem/DesktopFileSystemNode";
+import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   AccountSettingsRepository,
   layer as accountSettingsRepositoryLayer,

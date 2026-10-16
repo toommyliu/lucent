@@ -56,6 +56,8 @@ const baseOptions = {
   sourcesContent: false,
 };
 
+const wsOptionalNativeAddons = ["bufferutil", "utf-8-validate"];
+
 const mainOptions = {
   ...baseOptions,
   define: {
@@ -64,9 +66,9 @@ const mainOptions = {
   entryNames: "[name]",
   entryPoints: {
     index: "src/main/index.ts",
-    "script-file-worker": "src/main/internal/scripting/ScriptFileWorker.ts",
+    "script-file-worker": "src/main/scripting/ScriptFileWorker.ts",
   },
-  external: ["electron"],
+  external: ["electron", ...wsOptionalNativeAddons],
   format: "cjs",
   outdir: "dist/main",
   platform: "node",
@@ -133,16 +135,26 @@ const rendererViews = [
   createRendererView("game-host", "Lucent"),
   createRendererView("game", "Lucent", {
     contentSecurityPolicy: {
-      "default-src": ["'self'", "https://game.aq.com"],
-      "script-src": [...rendererScriptSources, "'unsafe-eval'"],
-      "plugin-types": ["application/x-shockwave-flash"],
+      "default-src": [
+        "'self'",
+        "lucent-asset:",
+        "https://*.aq.com",
+        "https://*.aqworlds.com",
+        "https://*.artix.com",
+        "ws://127.0.0.1:*",
+        "data:",
+        "blob:",
+      ],
+      "script-src": [
+        ...rendererScriptSources,
+        "'unsafe-eval'",
+        "lucent-asset:",
+        "blob:",
+      ],
     },
     bodyHtml: [
-      "    <embed",
-      '      id="swf"',
-      '      src="../../../../assets/loader.swf"',
-      '      type="application/x-shockwave-flash"',
-      "    />",
+      '    <div id="swf"></div>',
+      '    <script src="lucent-asset://assets/ruffle/ruffle.js"></script>',
     ].join("\n"),
   }),
   createRendererView("settings", "Settings", { startsPending: true }),
@@ -277,29 +289,6 @@ const notifyBuild = (label, options = {}) => {
 const rendererStaticFilePaths = () =>
   rendererViews.map((view) => `${view.sourceDir}/style.css`);
 
-const copyDirectory = (source, target) => {
-  if (!existsSync(source)) {
-    throw new Error(
-      `Missing ${source}; build the observability viewer before compiling Lucent`,
-    );
-  }
-
-  mkdirSync(target, { recursive: true });
-  for (const entry of readdirSync(source)) {
-    const sourcePath = join(source, entry);
-    const targetPath = join(target, entry);
-    if (lstatSync(sourcePath).isDirectory()) {
-      copyDirectory(sourcePath, targetPath);
-    } else {
-      copyFileSync(sourcePath, targetPath);
-    }
-  }
-};
-
-const copyObservabilityViewer = () => {
-  copyDirectory(join("..", "observability", "dist"), "dist/observability");
-};
-
 const fileChanged = (current, previous) =>
   current.mtimeMs !== previous.mtimeMs ||
   current.ctimeMs !== previous.ctimeMs ||
@@ -362,9 +351,6 @@ const buildOnce = async () => {
     build(preloadOptions),
   ]);
   copyRendererFiles();
-  if (isProduction) {
-    copyObservabilityViewer();
-  }
 };
 
 const notifyPlugin = (name, label, initialBuildKey) => ({

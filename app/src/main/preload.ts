@@ -1,4 +1,4 @@
-import "../shared/generated/polyfills.renderer";
+import "../shared/immediate";
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 
@@ -12,7 +12,6 @@ import {
   readDebugModeArgument,
   readGameConsoleObservabilityArgument,
   readGameViewLayoutArgument,
-  readTraceProjectionsArgument,
 } from "../shared/rendererBootstrapArguments";
 import type {
   AppPlatform,
@@ -26,11 +25,11 @@ import type {
   DesktopGameAccountsBridge,
   DesktopGameConsoleObservabilityBridge,
   DesktopGameFollowerBridge,
-  DesktopGameLoaderGrabberBridge,
   DesktopGamePacketsBridge,
   DesktopGameViewBridge,
   DesktopGameViewHostBridge,
   DesktopLoaderGrabberWindowBridge,
+  DesktopLogBridge,
   DesktopPacketsWindowBridge,
   DesktopScriptingBridge,
   DesktopSettingsBridge,
@@ -44,10 +43,12 @@ import {
   AccountsIpc,
   ArmyIpc,
   CombatProfilesIpc,
-  DiagnosticsIpc,
+  RendererLogIpc,
   EnvironmentIpc,
   FollowerIpc,
   FileSystemIpc,
+  GAME_RENDERER_RPC_PORT_CHANNEL,
+  GAME_RENDERER_RPC_PORT_MESSAGE,
   HttpIpc,
   GameRendererIpc,
   GameViewsIpc,
@@ -55,18 +56,33 @@ import {
   SettingsIpc,
   UpdatesIpc,
   WindowsIpc,
-  GameConsoleIpc,
   LoaderGrabberIpc,
   PacketsIpc,
-  type RendererDiagnosticError,
-  type RendererDiagnosticPayload,
+  type RendererLogRecord,
 } from "../shared/ipc";
 import {
-  createInvoke,
-  createObservedInvoke,
-  createSubscribe,
-  type IpcInvokeObservation,
-} from "./preloadIpcClient";
+  desktopLogErrorDetails,
+  desktopLogJsonSafe,
+} from "../shared/logRecord";
+import { createInvoke, createSubscribe } from "./preloadIpcClient";
+
+// Cancel cross-document navigations before Chromium emits the loading events
+// that reset renderer state; reopening routes the URL through the main
+// process window-open policy.
+navigation.addEventListener("navigate", (event) => {
+  const { sameDocument, url } = event.destination;
+  if (
+    !event.cancelable ||
+    sameDocument ||
+    event.downloadRequest !== null ||
+    url === location.href
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  window.open(url, "_blank");
+});
 
 const applyBootstrapAppearance = (): void => {
   try {
@@ -100,7 +116,6 @@ const debug = readDebugModeArgument(process.argv);
 const gameConsoleObservabilityEnabled = readGameConsoleObservabilityArgument(
   process.argv,
 );
-const traceProjections = readTraceProjectionsArgument(process.argv);
 
 const platform: AppPlatform =
   process.platform === "darwin"
@@ -109,102 +124,70 @@ const platform: AppPlatform =
       ? "windows"
       : "linux";
 
-const diagnosticError = (cause: unknown): RendererDiagnosticError => {
-  if (cause instanceof Error) {
-    return {
-      message: cause.message,
-      name: cause.name,
-      ...(cause.stack === undefined ? {} : { stack: cause.stack }),
-    };
-  }
-
-  let message: string;
+const writeRendererLog = (record: RendererLogRecord): void => {
   try {
-    message = typeof cause === "string" ? cause : String(cause);
-  } catch {
-    message = "[Unprintable error]";
-  }
-  return { message, name: "Error" };
-};
-
-const sendRendererDiagnostic = (payload: RendererDiagnosticPayload): void => {
-  try {
-    ipcRenderer.send(DiagnosticsIpc.rendererRecord.channel, payload);
+    ipcRenderer.send(RendererLogIpc.record.channel, desktopLogJsonSafe(record));
   } catch {}
 };
 
-const invokeTransport = (channel: string, payload: unknown) =>
-  ipcRenderer.invoke(channel, payload);
-
-const reportInvoke = (observation: IpcInvokeObservation): void => {
-  const {
-    cause,
-    channel,
-    durationMs,
-    endTimeUnixNano,
-    name,
-    outcome,
-    stage,
-    startTimeUnixNano,
-    trace,
-  } = observation;
-  const error = cause === undefined ? undefined : diagnosticError(cause);
-  sendRendererDiagnostic({
-    type: "trace.span",
-    span: {
-      attributes: {
-        "ipc.channel": channel,
-        "ipc.name": name,
-        "ipc.outcome": outcome,
-        ...(stage === undefined ? {} : { "ipc.failure_stage": stage }),
-        "renderer.view": bridgeView,
-      },
-      durationMs,
-      endTimeUnixNano,
-      events: [],
-      exit:
-        error === undefined
-          ? { _tag: "Success" }
-          : {
-              _tag: "Failure",
-              cause: error.stack ?? `${error.name}: ${error.message}`,
-            },
-      kind: "client",
-      links: [],
-      name: `ipc.roundtrip ${name}`,
-      sampled: trace.sampled,
-      source: "renderer",
-      spanId: trace.spanId,
-      startTimeUnixNano,
-      traceId: trace.traceId,
-    },
-    view: bridgeView,
-  });
+const logRenderer = (
+  level: RendererLogRecord["level"],
+  message: string,
+  data: Record<string, unknown>,
+  error?: unknown,
+): void => {
+  try {
+    writeRendererLog({
+      level,
+      message,
+      component: "renderer",
+      data,
+      ...(error === undefined
+        ? {}
+        : { error: [desktopLogErrorDetails(error)] }),
+    });
+  } catch {}
 };
 
-const invoke = debug
-  ? createObservedInvoke(invokeTransport, reportInvoke)
-  : createInvoke(invokeTransport);
+const logAtLevel =
+  (level: RendererLogRecord["level"]) =>
+  (message: string, error?: unknown): void =>
+    logRenderer(level, message, { view: bridgeView }, error);
+
+const logBridge: DesktopLogBridge = {
+  error: logAtLevel("error"),
+  warn: logAtLevel("warn"),
+  info: logAtLevel("info"),
+  debug: logAtLevel("debug"),
+  write: writeRendererLog,
+};
+
+const invoke = createInvoke((channel, payload) =>
+  ipcRenderer.invoke(channel, payload),
+);
 
 if (debug) {
   window.addEventListener("error", (event) => {
-    sendRendererDiagnostic({
-      type: "renderer.error",
-      ...(event.colno === 0 ? {} : { columnNumber: event.colno }),
-      error: diagnosticError(event.error ?? event.message),
-      ...(event.lineno === 0 ? {} : { lineNumber: event.lineno }),
-      observedAt: new Date().toISOString(),
-      ...(event.filename === "" ? {} : { source: event.filename }),
-      view: bridgeView,
-    });
+    logRenderer(
+      "error",
+      "Renderer error",
+      {
+        ...(event.colno === 0 ? {} : { columnNumber: event.colno }),
+        ...(event.lineno === 0 ? {} : { lineNumber: event.lineno }),
+        observedAt: new Date().toISOString(),
+        ...(event.filename === "" ? {} : { source: event.filename }),
+        view: bridgeView,
+      },
+      event.error ?? event.message,
+    );
   });
   window.addEventListener("unhandledrejection", (event) => {
-    sendRendererDiagnostic({
-      type: "renderer.unhandled-rejection",
-      error: diagnosticError(event.reason),
-      observedAt: new Date().toISOString(),
-      view: bridgeView,
-    });
+    logRenderer(
+      "error",
+      "Renderer unhandled rejection",
+      { observedAt: new Date().toISOString(), view: bridgeView },
+      event.reason,
+    );
   });
 }
 const eventWrappers = new WeakMap<
@@ -294,9 +277,11 @@ const scriptingBridge: DesktopScriptingBridge = {
   getCatalogPage: (request) => invoke(ScriptingIpc.getCatalogPage, request),
   getInputValues: (definition) =>
     invoke(ScriptingIpc.getInputValues, definition),
-  loadReference: (reference) => invoke(ScriptingIpc.loadReference, reference),
   installPackage: (input) => invoke(ScriptingIpc.installPackage, input),
   listCredentials: () => invoke(ScriptingIpc.listCredentials, undefined),
+  listPackageLeftovers: () =>
+    invoke(ScriptingIpc.listPackageLeftovers, undefined),
+  loadReference: (reference) => invoke(ScriptingIpc.loadReference, reference),
   onCatalogChanged: (listener) =>
     subscribe(ScriptingIpc.catalogChanged, listener),
   openFile: () => invoke(ScriptingIpc.openFile, undefined),
@@ -306,6 +291,7 @@ const scriptingBridge: DesktopScriptingBridge = {
   readFile: (path) => invoke(ScriptingIpc.readFile, { path }),
   readReference: (reference) => invoke(ScriptingIpc.readReference, reference),
   refreshCatalog: () => invoke(ScriptingIpc.refreshCatalog, undefined),
+  restorePackage: (input) => invoke(ScriptingIpc.restorePackage, input),
   removePackage: (input) => invoke(ScriptingIpc.removePackage, input),
   resolveFile: (path) => invoke(ScriptingIpc.resolveFile, { path }),
   resolveReference: (reference) =>
@@ -318,9 +304,8 @@ const scriptingBridge: DesktopScriptingBridge = {
 };
 
 const gameConsoleObservabilityBridge: DesktopGameConsoleObservabilityBridge = {
-  message: (message) => {
-    ipcRenderer.send(GameConsoleIpc.rendererMessage.channel, { message });
-  },
+  message: (method, message) =>
+    logRenderer("debug", "Renderer console message", { method, message }),
 };
 
 const fileSystemBridge: DesktopFileSystemBridge = {
@@ -379,7 +364,6 @@ const gameViewHostBridge: DesktopGameViewHostBridge = {
 };
 
 const gameViewBridge: DesktopGameViewBridge = {
-  activate: () => invoke(GameViewsIpc.activate, undefined),
   close: () => {
     void invoke(GameViewsIpc.closeCurrent, undefined).catch((cause) => {
       console.error("Failed to close the current game client.", cause);
@@ -394,11 +378,6 @@ const gameViewBridge: DesktopGameViewBridge = {
     subscribe(GameViewsIpc.presentationChanged, listener),
 };
 
-const gameLoaderGrabberBridge: DesktopGameLoaderGrabberBridge = {
-  onRequest: (listener) => subscribe(LoaderGrabberIpc.request, listener),
-  respond: (response) => invoke(LoaderGrabberIpc.respond, response),
-};
-
 const packetsWindowBridge: DesktopPacketsWindowBridge = {
   getStatus: () => invoke(PacketsIpc.getStatus, undefined),
   onCaptured: (listener) => subscribe(PacketsIpc.captured, listener),
@@ -411,10 +390,8 @@ const packetsWindowBridge: DesktopPacketsWindowBridge = {
 };
 
 const gamePacketsBridge: DesktopGamePacketsBridge = {
-  onRequest: (listener) => subscribe(PacketsIpc.request, listener),
   publishCaptured: (payload) => invoke(PacketsIpc.publishCaptured, payload),
   publishStatus: (payload) => invoke(PacketsIpc.publishStatus, payload),
-  respond: (response) => invoke(PacketsIpc.respond, response),
 };
 
 const followerBridge: DesktopFollowerBridge = {
@@ -430,38 +407,7 @@ const followerBridge: DesktopFollowerBridge = {
   stop: () => invoke(FollowerIpc.stop, undefined),
 };
 
-const followerErrorMessage = (cause: unknown): string =>
-  cause instanceof Error && cause.message !== ""
-    ? cause.message
-    : "Follower request failed";
-
 const gameFollowerBridge: DesktopGameFollowerBridge = {
-  onCommand: (listener) =>
-    subscribe(FollowerIpc.command, (command) => {
-      void Promise.resolve()
-        .then(() => listener(command))
-        .then((outcome) => {
-          if (outcome.kind !== command.kind) {
-            throw new Error(
-              `Follower returned ${outcome.kind} for ${command.kind}`,
-            );
-          }
-          return {
-            ok: true as const,
-            outcome,
-            requestId: command.requestId,
-          };
-        })
-        .catch((cause: unknown) => ({
-          error: followerErrorMessage(cause),
-          ok: false as const,
-          requestId: command.requestId,
-        }))
-        .then((response) => invoke(FollowerIpc.respond, response))
-        .catch((cause: unknown) => {
-          console.error("Failed to respond to follower command:", cause);
-        });
-    }),
   publishPlayers: (players) => invoke(FollowerIpc.publishPlayers, players),
   publishState: (state) => invoke(FollowerIpc.publishState, state),
 };
@@ -486,35 +432,6 @@ const environmentBridge: DesktopEnvironmentBridge = {
   fetchBoosts: () => invoke(EnvironmentIpc.fetchBoosts, undefined),
   getState: () => invoke(EnvironmentIpc.getState, undefined),
   onChanged: (listener) => subscribe(EnvironmentIpc.changed, listener),
-  onFetchBoostsRequest: (listener) =>
-    subscribe(EnvironmentIpc.fetchBoostsRequest, ({ requestId }) => {
-      void Promise.resolve()
-        .then(listener)
-        .catch(() => ({ bank: [], bankLoaded: false, inventory: [] }))
-        .then((discovery) =>
-          invoke(EnvironmentIpc.fetchBoostsResponse, {
-            discovery,
-            requestId,
-          }),
-        )
-        .catch(() => undefined);
-    }),
-  onWithdrawBoostsRequest: (listener) =>
-    subscribe(
-      EnvironmentIpc.withdrawBoostsRequest,
-      ({ itemIds, requestId }) => {
-        void Promise.resolve()
-          .then(() => listener(itemIds))
-          .catch(() => [])
-          .then((withdrawnItemIds) =>
-            invoke(EnvironmentIpc.withdrawBoostsResponse, {
-              itemIds: withdrawnItemIds,
-              requestId,
-            }),
-          )
-          .catch(() => undefined);
-      },
-    ),
   removeBoost: (name) => invoke(EnvironmentIpc.removeBoost, { name }),
   removeItem: (name) => invoke(EnvironmentIpc.removeItem, { name }),
   removeQuest: (questId) => invoke(EnvironmentIpc.removeQuest, { questId }),
@@ -541,11 +458,11 @@ const updatesBridge: DesktopUpdatesBridge = {
 
 const commonBridge = {
   debug,
+  log: logBridge,
   platform: {
     os: platform,
   },
   settings: settingsBridge,
-  traceProjections,
 };
 
 const bridges = {
@@ -587,7 +504,7 @@ const bridges = {
     accountSettings: accountSettingsBridge,
     army: {
       fail: (payload) => invoke(ArmyIpc.fail, payload),
-      leave: (payload) => invoke(ArmyIpc.leave, payload),
+      leave: () => invoke(ArmyIpc.leave, undefined),
       loadConfig: (configName) => invoke(ArmyIpc.loadConfig, { configName }),
       loopTauntAwait: (payload) => invoke(ArmyIpc.loopTauntAwait, payload),
       loopTauntLeave: (payload) => invoke(ArmyIpc.loopTauntLeave, payload),
@@ -620,10 +537,9 @@ const bridges = {
       finishScriptExecution: (token) =>
         invoke(GameRendererIpc.finishScriptExecution, { token }),
       getGeneration: () => invoke(GameRendererIpc.getGeneration, undefined),
-      ready: (generation) => invoke(GameRendererIpc.ready, { generation }),
+      ready: () => invoke(GameRendererIpc.ready, undefined),
     },
     gameView: gameViewBridge,
-    loaderGrabber: gameLoaderGrabberBridge,
     packets: gamePacketsBridge,
     scripting: scriptingBridge,
     view: "game",
@@ -661,5 +577,11 @@ const bridges = {
 } satisfies DesktopBridgeByView;
 
 const bridge = bridges[bridgeView];
+
+if (bridgeView === "game") {
+  ipcRenderer.on(GAME_RENDERER_RPC_PORT_CHANNEL, (event) => {
+    window.postMessage(GAME_RENDERER_RPC_PORT_MESSAGE, "*", event.ports);
+  });
+}
 
 contextBridge.exposeInMainWorld("desktop", bridge);

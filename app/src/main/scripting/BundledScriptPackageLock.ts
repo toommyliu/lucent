@@ -91,7 +91,7 @@ export const acquireBundledScriptPackageLock = async (
           try {
             if ((await readOwner(path))?.token !== token) return;
             await fs.rename(path, candidate);
-            await fs.rmdir(candidate, { recursive: true });
+            await fs.rm(candidate, { recursive: true });
           } finally {
             await close();
           }
@@ -121,6 +121,6 @@ export const acquireBundledScriptPackageLock = async (
     return undefined;
   } finally {
     if (!claimed) await close();
-    await fs.rmdir(candidate, { recursive: true }).catch(() => undefined);
+    await fs.rm(candidate, { recursive: true }).catch(() => undefined);
   }
 };

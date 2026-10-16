@@ -9,70 +9,6 @@ import { defineEvent, defineInvoke } from "./core";
 
 const namespace = "desktop:follower";
 
-export const FollowerCommandSchema = Schema.Union([
-  Schema.Struct({
-    config: FollowerConfigSchema,
-    kind: Schema.Literal("configure"),
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("get-state"),
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("me"),
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    config: FollowerConfigSchema,
-    kind: Schema.Literal("start"),
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("stop"),
-    requestId: Schema.String,
-  }),
-]);
-export type FollowerCommand = typeof FollowerCommandSchema.Type;
-
-export const FollowerCommandOutcomeSchema = Schema.Union([
-  Schema.Struct({
-    kind: Schema.Literal("configure"),
-    state: FollowerStateSchema,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("get-state"),
-    state: FollowerStateSchema,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("me"),
-    username: Schema.String,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("start"),
-    state: FollowerStateSchema,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("stop"),
-    state: FollowerStateSchema,
-  }),
-]);
-export type FollowerCommandOutcome = typeof FollowerCommandOutcomeSchema.Type;
-
-export const FollowerCommandResponseSchema = Schema.Union([
-  Schema.Struct({
-    ok: Schema.Literal(true),
-    outcome: FollowerCommandOutcomeSchema,
-    requestId: Schema.String,
-  }),
-  Schema.Struct({
-    error: Schema.String,
-    ok: Schema.Literal(false),
-    requestId: Schema.String,
-  }),
-]);
-export type FollowerCommandResponse = typeof FollowerCommandResponseSchema.Type;
-
 export const FollowerPlayersSchema = Schema.Array(Schema.String);
 export type FollowerPlayers = typeof FollowerPlayersSchema.Type;
 
@@ -128,17 +64,6 @@ export const FollowerIpc = {
     channel: `${namespace}:players-changed`,
     name: "follower.playersChanged",
     payload: FollowerPlayersSchema,
-  }),
-  command: defineEvent({
-    channel: `${namespace}:command`,
-    name: "follower.command",
-    payload: FollowerCommandSchema,
-  }),
-  respond: defineInvoke({
-    channel: `${namespace}:respond`,
-    name: "follower.respond",
-    payload: FollowerCommandResponseSchema,
-    result: Schema.Void,
   }),
   publishState: defineInvoke({
     channel: `${namespace}:publish-state`,

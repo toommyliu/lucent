@@ -1,4 +1,6 @@
-import { createConnection } from "net";
+import { Socket } from "node:net";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import type { AccountGameServerPing } from "@lucent/core/accounts";
@@ -22,165 +24,65 @@ export const AccountServerDataSchema = Schema.Struct({
 
 export type AccountServerData = typeof AccountServerDataSchema.Type;
 
-interface AccountServerPingTarget {
-  readonly serverName: string;
-  readonly host: string;
-  readonly port: number;
-  readonly online: boolean;
-}
+class AccountServerConnectError extends Schema.TaggedError<AccountServerConnectError>()(
+  "AccountServerConnectError",
+  { cause: Schema.Defect() },
+) {}
 
-interface AccountServerConnectLatencyOptions {
-  readonly now: () => number;
-  readonly timeoutMs: number;
-}
-
-type AccountServerConnectLatency = (
-  target: AccountServerPingTarget,
-  options: AccountServerConnectLatencyOptions,
-) => Promise<number>;
-
-class AccountServerPingTimeoutError extends Error {
-  public constructor(serverName: string, timeoutMs: number) {
-    super(`Timed out while pinging ${serverName} after ${timeoutMs}ms`);
-    this.name = "AccountServerPingTimeoutError";
-  }
-}
-
-export const accountServerPingCacheKey = (
-  servers: readonly AccountServerData[],
-): string =>
-  servers
-    .map(
-      (server) =>
-        `${server.sName}\0${server.bOnline}\0${server.sIP}\0${server.iPort}`,
-    )
-    .join("\n");
-
-const toPingTarget = (server: AccountServerData): AccountServerPingTarget => ({
-  serverName: server.sName,
-  host: server.sIP,
-  port: server.iPort,
-  online: server.bOnline === 1,
-});
-
-const measureTcpConnectLatency: AccountServerConnectLatency = (
-  target,
-  options,
-) =>
-  new Promise((resolve, reject) => {
-    const startedAt = options.now();
-    let settled = false;
-    let socket: ReturnType<typeof createConnection> | undefined;
-
-    const settle = (complete: () => void): void => {
-      if (settled) {
-        return;
+const measureTcpConnectLatency = Effect.fn("measureTcpConnectLatency")(
+  function* (server: AccountServerData) {
+    const socket = yield* Effect.acquireRelease(
+      Effect.sync(() => new Socket()),
+      (socket) =>
+        Effect.sync(() => {
+          socket.destroy();
+          socket.removeAllListeners();
+        }),
+    );
+    yield* Effect.callback<void, AccountServerConnectError>((resume) => {
+      socket.once("connect", () => resume(Effect.void));
+      const onError = (cause: unknown) =>
+        resume(Effect.fail(new AccountServerConnectError({ cause })));
+      socket.once("error", onError);
+      try {
+        socket.connect({ host: server.sIP, port: server.iPort });
+        socket.unref();
+      } catch (cause) {
+        onError(cause);
       }
-
-      settled = true;
-      if (socket !== undefined) {
-        socket.setTimeout(0);
-        socket.removeListener("connect", handleConnect);
-        socket.removeListener("error", handleError);
-        socket.removeListener("timeout", handleTimeout);
-        socket.destroy();
-      }
-      complete();
-    };
-
-    const handleConnect = (): void => {
-      const latencyMs = Math.max(0, Math.round(options.now() - startedAt));
-      settle(() => resolve(latencyMs));
-    };
-
-    const handleError = (error: Error): void => {
-      settle(() => reject(error));
-    };
-
-    const handleTimeout = (): void => {
-      settle(() =>
-        reject(
-          new AccountServerPingTimeoutError(
-            target.serverName,
-            options.timeoutMs,
-          ),
-        ),
-      );
-    };
-
-    try {
-      socket = createConnection({
-        host: target.host,
-        port: target.port,
-      });
-      socket.unref();
-      socket.once("connect", handleConnect);
-      socket.once("error", handleError);
-      socket.once("timeout", handleTimeout);
-      socket.setTimeout(options.timeoutMs);
-    } catch (error) {
-      settle(() => reject(error));
-    }
-  });
-
-const pingAccountServer = async (
-  target: AccountServerPingTarget,
-): Promise<AccountGameServerPing> => {
-  if (!target.online) {
-    return {
-      serverName: target.serverName,
-      status: "offline",
-    };
-  }
-
-  try {
-    const latencyMs = await measureTcpConnectLatency(target, {
-      now: Date.now,
-      timeoutMs: ACCOUNT_SERVER_PING_TIMEOUT_MS,
     });
-    return {
-      latencyMs,
-      serverName: target.serverName,
-      status: "ok",
-    };
-  } catch (error) {
-    return {
-      serverName: target.serverName,
-      status:
-        error instanceof AccountServerPingTimeoutError
-          ? "timeout"
-          : "unreachable",
-    };
+  },
+  Effect.scoped,
+  Effect.timed,
+  Effect.map(([duration]) =>
+    Math.max(0, Math.round(Duration.toMillis(duration))),
+  ),
+  Effect.timeout(ACCOUNT_SERVER_PING_TIMEOUT_MS),
+);
+
+const pingAccountServer = Effect.fn("pingAccountServer")(function* (
+  server: AccountServerData,
+): Effect.fn.Return<AccountGameServerPing> {
+  const serverName = server.sName;
+  if (server.bOnline !== 1) {
+    return { serverName, status: "offline" };
   }
-};
-
-export const pingAccountServers = async (
-  servers: readonly AccountServerData[],
-): Promise<readonly AccountGameServerPing[]> => {
-  const targets = servers.map(toPingTarget);
-  const pings: AccountGameServerPing[] = [];
-  let nextIndex = 0;
-
-  const worker = async (): Promise<void> => {
-    for (;;) {
-      const index = nextIndex;
-      nextIndex += 1;
-
-      if (index >= targets.length) {
-        return;
-      }
-
-      const target = targets[index]!;
-      pings[index] = await pingAccountServer(target);
-    }
-  };
-
-  const workerCount = Math.min(ACCOUNT_SERVER_PING_CONCURRENCY, targets.length);
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      await worker();
+  return yield* measureTcpConnectLatency(server).pipe(
+    Effect.match({
+      onSuccess: (latencyMs): AccountGameServerPing => ({
+        latencyMs,
+        serverName,
+        status: "ok",
+      }),
+      onFailure: (error): AccountGameServerPing => ({
+        serverName,
+        status: error._tag === "TimeoutError" ? "timeout" : "unreachable",
+      }),
     }),
   );
+});
 
-  return pings;
-};
+export const pingAccountServers = (servers: readonly AccountServerData[]) =>
+  Effect.forEach(servers, pingAccountServer, {
+    concurrency: ACCOUNT_SERVER_PING_CONCURRENCY,
+  });
