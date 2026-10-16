@@ -1,0 +1,154 @@
+@layer ui.components {
+  .root {
+    --control-height: var(--control-height-md);
+    --swatch-size: calc(var(--spacing) * 4.5);
+
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+    box-sizing: border-box;
+    width: fit-content;
+    height: var(--control-height);
+    padding: 0 calc(var(--spacing) * 3.5) 0 calc(var(--spacing) * 2);
+    border: 1px solid oklch(0 0 0 / 0.28);
+    border-radius: 9999px;
+    color: oklch(0 0 0);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    font-weight: 700;
+
+    &[data-fill="dark"] {
+      border-color: oklch(1 0 0 / 0.42);
+      color: oklch(1 0 0);
+    }
+
+    &:has(.input:focus-visible) {
+      outline: var(--focus-ring-width) solid var(--color-focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &[data-disabled] {
+      opacity: 0.5;
+    }
+
+    &[data-size="sm"] {
+      --control-height: var(--control-height-sm);
+      --swatch-size: calc(var(--spacing) * 4);
+
+      padding: 0 calc(var(--spacing) * 3) 0 calc(var(--spacing) * 1.5);
+    }
+
+    &[data-size="lg"] {
+      --control-height: var(--control-height-lg);
+      --swatch-size: calc(var(--spacing) * 5);
+
+      padding: 0 calc(var(--spacing) * 4) 0 calc(var(--spacing) * 2.5);
+    }
+  }
+
+  .swatch {
+    flex-shrink: 0;
+    box-sizing: border-box;
+    width: var(--swatch-size);
+    height: var(--swatch-size);
+    margin: 0;
+    padding: 0;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background-color: transparent;
+    color: inherit;
+    cursor: var(--cursor-interactive);
+
+    &:focus-visible {
+      outline: var(--focus-ring-width) solid currentColor;
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: default;
+    }
+  }
+
+  .input {
+    width: 7ch;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    outline: 0;
+    text-transform: uppercase;
+  }
+
+  .popup {
+    padding: calc(var(--spacing) * 2);
+  }
+}
+
+/* react-colorful injects unlayered CSS at runtime, which beats every layered rule. */
+.picker:global(.react-colorful) {
+  width: calc(var(--spacing) * 44);
+  height: calc(var(--spacing) * 46);
+  gap: calc(var(--spacing) * 2);
+}
+
+.picker :global(.react-colorful__saturation) {
+  border-bottom: 0;
+  border-radius: calc(var(--radius-popup) - var(--spacing) * 2);
+}
+
+.picker :global(.react-colorful__hue) {
+  --thumb-inset: calc(var(--spacing) * 3);
+  --travel: calc(100% - 2 * var(--thumb-inset));
+
+  flex-shrink: 0;
+  height: calc(var(--spacing) * 6);
+  border-radius: calc(var(--radius-popup) - var(--spacing) * 2);
+  background: linear-gradient(
+    90deg,
+    #f00 var(--thumb-inset),
+    #ff0 calc(var(--thumb-inset) + var(--travel) / 6),
+    #0f0 calc(var(--thumb-inset) + var(--travel) / 3),
+    #0ff calc(var(--thumb-inset) + var(--travel) / 2),
+    #00f calc(var(--thumb-inset) + var(--travel) * 2 / 3),
+    #f0f calc(var(--thumb-inset) + var(--travel) * 5 / 6),
+    #f00 calc(100% - var(--thumb-inset))
+  );
+}
+
+.picker :global(.react-colorful__hue .react-colorful__interactive) {
+  inset: 0 var(--thumb-inset);
+
+  &::before {
+    position: absolute;
+    inset: 0 calc(var(--thumb-inset) * -1);
+    content: "";
+  }
+}
+
+.picker :global(.react-colorful__pointer) {
+  width: calc(var(--spacing) * 4);
+  height: calc(var(--spacing) * 4);
+  box-shadow:
+    0 0 0 1px oklch(0 0 0 / 0.12),
+    0 1px 3px oklch(0 0 0 / 0.24);
+}
+
+.picker :global(.react-colorful__hue-pointer) {
+  width: calc(var(--spacing) * 6);
+  height: calc(var(--spacing) * 6);
+}
+
+.picker
+  :global(.react-colorful__interactive:focus)
+  :global(.react-colorful__pointer) {
+  transform: translate(-50%, -50%);
+}
+
+.picker
+  :global(.react-colorful__interactive:focus-visible)
+  :global(.react-colorful__pointer) {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: 1px;
+}

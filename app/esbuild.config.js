@@ -119,9 +119,14 @@ const formatRendererContentSecurityPolicy = (overrides = {}) =>
 const createRendererView = (
   id,
   title,
-  { sourceDir = `src/renderer/apps/${id}`, ...options } = {},
+  {
+    framework = "solid",
+    sourceDir = `src/renderer/apps/${id}`,
+    ...options
+  } = {},
 ) => ({
   entryPoint: `${sourceDir}/index.tsx`,
+  framework,
   id,
   sourceDir,
   title,
@@ -157,15 +162,24 @@ const rendererViews = [
       '    <script src="lucent-asset://assets/ruffle/ruffle.js"></script>',
     ].join("\n"),
   }),
-  createRendererView("settings", "Settings", { startsPending: true }),
-  createRendererView("about", "About", { startsPending: true }),
+  createRendererView("settings", "Settings", {
+    framework: "react",
+    startsPending: true,
+  }),
+  createRendererView("about", "About", {
+    framework: "react",
+    startsPending: true,
+  }),
   createRendererView("account-manager", "Account Manager", {
     startsPending: true,
   }),
   createRendererView("combat-profiles", "Combat Profiles", {
     startsPending: true,
   }),
-  createRendererView("environment", "Environment", { startsPending: true }),
+  createRendererView("environment", "Environment", {
+    framework: "react",
+    startsPending: true,
+  }),
   createRendererView("follower", "Follower", { startsPending: true }),
   createRendererView("loader-grabber", "Loader Grabber", {
     startsPending: true,
@@ -173,19 +187,35 @@ const rendererViews = [
   createRendererView("packets", "Packets", { startsPending: true }),
 ];
 
-const rendererOptions = {
+const rendererEntryPoints = (framework) =>
+  Object.fromEntries(
+    rendererViews
+      .filter((view) => view.framework === framework)
+      .map((view) => [view.id, view.entryPoint]),
+  );
+
+const rendererBaseOptions = {
   ...baseOptions,
   chunkNames: "chunks/[name]-[hash]",
   entryNames: "[name]/index",
-  entryPoints: Object.fromEntries(
-    rendererViews.map((view) => [view.id, view.entryPoint]),
-  ),
   format: "esm",
   outdir: "dist/renderer",
   platform: "browser",
   splitting: true,
-  plugins: [solidPlugin()],
   target: `chrome${runtimeTargets.chrome}`,
+};
+
+const rendererOptions = {
+  ...rendererBaseOptions,
+  entryPoints: rendererEntryPoints("solid"),
+  plugins: [solidPlugin()],
+};
+
+const reactRendererOptions = {
+  ...rendererBaseOptions,
+  entryPoints: rendererEntryPoints("react"),
+  jsx: "automatic",
+  jsxImportSource: "react",
 };
 
 const rendererIndexHtml = (view) => {
@@ -196,6 +226,8 @@ const rendererIndexHtml = (view) => {
   const contentSecurityPolicy = formatRendererContentSecurityPolicy(
     view.contentSecurityPolicy,
   );
+  const sharedStylesheet =
+    view.framework === "react" ? "./index.css" : "../styles.css";
 
   return `<!doctype html>
 <html lang="en"${startsPendingAttribute}>
@@ -208,7 +240,7 @@ const rendererIndexHtml = (view) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${view.title}</title>
     <script>${rendererThemeBootstrapScript}</script>
-    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="${sharedStylesheet}" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
@@ -347,6 +379,7 @@ const buildOnce = async () => {
   await Promise.all([
     build(mainOptions),
     build(rendererOptions),
+    build(reactRendererOptions),
     build(sharedCssOptions),
     build(preloadOptions),
   ]);
@@ -403,23 +436,28 @@ const watch = async () => {
       ...mainOptions,
       plugins: [notifyPlugin("lucent-main-watch-notify", "main", "main")],
     }),
-    context({
-      ...rendererOptions,
-      plugins: [
-        ...(rendererOptions.plugins ?? []),
-        {
-          name: "lucent-renderer-watch-copy",
-          setup(pluginBuild) {
-            pluginBuild.onEnd((result) => {
-              if (result.errors.length === 0) {
-                copyRendererFiles();
-                notifyBuild("renderer", { initialBuildKey: "renderer" });
-              }
-            });
+    ...[
+      { initialBuildKey: "renderer", options: rendererOptions },
+      { initialBuildKey: "react-renderer", options: reactRendererOptions },
+    ].map(({ initialBuildKey, options }) =>
+      context({
+        ...options,
+        plugins: [
+          ...(options.plugins ?? []),
+          {
+            name: `lucent-${initialBuildKey}-watch-copy`,
+            setup(pluginBuild) {
+              pluginBuild.onEnd((result) => {
+                if (result.errors.length === 0) {
+                  copyRendererFiles();
+                  notifyBuild("renderer", { initialBuildKey });
+                }
+              });
+            },
           },
-        },
-      ],
-    }),
+        ],
+      }),
+    ),
     context({
       ...preloadOptions,
       plugins: [

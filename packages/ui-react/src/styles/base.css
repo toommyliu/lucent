@@ -1,0 +1,13 @@
+@layer ui.base {
+  ::selection {
+    background-color: var(--color-selection);
+  }
+
+  :root {
+    scrollbar-color: var(--color-scrollbar-thumb) transparent;
+  }
+
+  * {
+    scrollbar-width: thin;
+  }
+}

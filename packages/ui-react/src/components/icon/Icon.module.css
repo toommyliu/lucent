@@ -1,0 +1,6 @@
+@layer ui.components {
+  :where(.root) {
+    width: calc(var(--spacing) * var(--icon-units));
+    height: calc(var(--spacing) * var(--icon-units));
+  }
+}

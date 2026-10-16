@@ -1,0 +1,23 @@
+@layer ui.components {
+  .popup {
+    max-width: min(var(--spacing) * 80, var(--available-width));
+  }
+
+  .radioDot {
+    width: calc(var(--spacing) * 1.5);
+    height: calc(var(--spacing) * 1.5);
+    border-radius: 50%;
+    background-color: currentColor;
+  }
+
+  .submenuTrigger {
+    &[data-popup-open] {
+      background-color: var(--color-fill-hover);
+    }
+  }
+
+  .submenuChevron {
+    margin-inline-start: auto;
+    margin-inline-end: calc(var(--spacing) * -0.5);
+  }
+}
