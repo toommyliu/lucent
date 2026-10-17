@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
-    name: Verify
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -25,17 +25,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: 24.x
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Check formatting
         run: pnpm format
@@ -43,11 +34,8 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Typecheck
-        run: pnpm typecheck
-
-  test:
-    name: Test
+  typecheck:
+    name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -57,17 +45,73 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Setup
+        uses: ./.github/actions/setup
 
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - name: Typecheck
+        run: pnpm typecheck
+
+  test-suite:
+    name: Test (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: packages
+            command: pnpm test:scripts && pnpm -r --filter '!@lucent/electron' --if-present test
+          - name: app 1/2
+            command: pnpm --filter @lucent/electron test --shard=1/2
+          - name: app 2/2
+            command: pnpm --filter @lucent/electron test --shard=2/2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          node-version: 24.x
-          cache: pnpm
+          persist-credentials: false
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Test
-        run: pnpm test
+        run: ${{ matrix.command }}
+
+  verify:
+    name: Verify
+    needs: [lint, typecheck]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::A required job finished with result: $result"
+              exit 1
+            fi
+          done
+
+  test:
+    name: Test
+    needs: [test-suite]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::A required job finished with result: $result"
+              exit 1
+            fi
+          done
