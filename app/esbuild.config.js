@@ -1,3 +1,5 @@
+const { transformSync } = require("@babel/core");
+const { default: reactCompiler } = require("babel-plugin-react-compiler");
 const { build, context } = require("esbuild");
 const { solidPlugin } = require("esbuild-plugin-solid");
 const { execFileSync } = require("node:child_process");
@@ -7,6 +9,7 @@ const {
   existsSync,
   lstatSync,
   mkdirSync,
+  readFileSync,
   readdirSync,
   rmdirSync,
   unlinkSync,
@@ -15,7 +18,7 @@ const {
   writeFileSync,
   appendFileSync,
 } = require("node:fs");
-const { dirname, join } = require("node:path");
+const { dirname, join, relative, sep } = require("node:path");
 const runtimeTargets = require("./runtime-targets.json");
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -195,6 +198,66 @@ const rendererEntryPoints = (framework) =>
       .map((view) => [view.id, view.entryPoint]),
   );
 
+const rendererSourceRoot = join(__dirname, "src", "renderer") + sep;
+
+const reactCompilerPlugin = () => ({
+  name: "lucent-react-compiler",
+  setup(pluginBuild) {
+    const compiled = new Map();
+
+    pluginBuild.onLoad({ filter: /\.tsx?$/ }, (args) => {
+      if (!args.path.startsWith(rendererSourceRoot)) {
+        return undefined;
+      }
+
+      const source = readFileSync(args.path, "utf8");
+      const loader = args.path.endsWith(".tsx") ? "tsx" : "ts";
+      const cached = compiled.get(args.path);
+      if (cached?.source === source) {
+        return { contents: cached.code, loader };
+      }
+
+      const file = relative(__dirname, args.path);
+      const lines = source.split("\n");
+      const skippedFunctions = new Set();
+      const warnings = [];
+      const logEvent = (_filename, event) => {
+        if (event.kind !== "CompileError") {
+          return;
+        }
+        const fnStart = event.fnLoc?.start.index;
+        if (skippedFunctions.has(fnStart)) {
+          return;
+        }
+        skippedFunctions.add(fnStart);
+        const loc = event.detail.primaryLocation() ?? event.fnLoc;
+        warnings.push({
+          text: `React Compiler skipped this component or hook: ${event.detail.reason}`,
+          location: loc && {
+            file,
+            line: loc.start.line,
+            column: loc.start.column,
+            lineText: lines[loc.start.line - 1],
+          },
+        });
+      };
+      const { code } = transformSync(source, {
+        babelrc: false,
+        configFile: false,
+        filename: args.path,
+        parserOpts: {
+          plugins: loader === "tsx" ? ["typescript", "jsx"] : ["typescript"],
+        },
+        plugins: [[reactCompiler, { logger: { logEvent } }]],
+        sourceMaps: pluginBuild.initialOptions.sourcemap ? "inline" : false,
+      });
+
+      compiled.set(args.path, { source, code });
+      return { contents: code, loader, warnings };
+    });
+  },
+});
+
 const rendererBaseOptions = {
   ...baseOptions,
   chunkNames: "chunks/[name]-[hash]",
@@ -217,6 +280,7 @@ const reactRendererOptions = {
   entryPoints: rendererEntryPoints("react"),
   jsx: "automatic",
   jsxImportSource: "react",
+  plugins: [reactCompilerPlugin()],
 };
 
 const rendererIndexHtml = (view) => {

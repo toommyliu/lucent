@@ -41,5 +41,14 @@ export default defineConfig({
     },
     transformer: "lightningcss",
   },
-  plugins: [cssModuleTypes(resolve(import.meta.dirname, "src")), react()],
+  plugins: [
+    cssModuleTypes(resolve(import.meta.dirname, "src")),
+    react({
+      babel: {
+        plugins: [
+          ["babel-plugin-react-compiler", { panicThreshold: "all_errors" }],
+        ],
+      },
+    }),
+  ],
 });
