@@ -11,11 +11,13 @@ import {
 import {
   DEFAULT_APP_SETTINGS,
   normalizeAppSettings,
+  ThemeRgbSchema,
   UnknownRecordSchema,
   type AppSettings,
 } from "@lucent/core/settings";
 
 const decodeRecord = Schema.decodeUnknownOption(UnknownRecordSchema);
+const isThemeRgb = Schema.is(ThemeRgbSchema);
 
 const decodeSavedHotkeys = Schema.decodeUnknownOption(
   Schema.Struct({
@@ -61,20 +63,6 @@ const settingsResetFields = (raw: unknown, settings: AppSettings): string[] => {
         reset.push(path);
         return;
       }
-      if (path.endsWith(".tokens")) {
-        if (
-          Object.entries(record.value).some(
-            ([name, token]) =>
-              !Object.hasOwn(normalizedRecord.value, name) ||
-              !isDeepStrictEqual(
-                typeof token === "string" ? hexToRgb(token) : token,
-                normalizedRecord.value[name],
-              ),
-          )
-        )
-          reset.push(path);
-        return;
-      }
       for (const [name, field] of Object.entries(normalizedRecord.value)) {
         inspect(
           record.value[name],
@@ -99,9 +87,51 @@ const settingsResetFields = (raw: unknown, settings: AppSettings): string[] => {
   return reset;
 };
 
+const isValidThemeToken = (token: unknown): boolean =>
+  typeof token === "string" ? hexToRgb(token) !== null : isThemeRgb(token);
+
+const migrateThemeTokensToColors = (
+  document: Readonly<Record<string, unknown>>,
+) => {
+  const appearance = decodeRecord(document["appearance"]);
+  const themes = Option.flatMap(appearance, (value) =>
+    decodeRecord(value["themes"]),
+  );
+  if (Option.isNone(appearance) || Option.isNone(themes)) {
+    return { value: document, issues: {} };
+  }
+
+  const migrated = normalizeAppSettings(document).appearance.themes;
+  const reset: string[] = [];
+  const nextThemes: Record<string, unknown> = { ...themes.value };
+  for (const variant of ["light", "dark"] as const) {
+    const theme = decodeRecord(themes.value[variant]);
+    if (Option.isNone(theme) || !Object.hasOwn(theme.value, "tokens")) {
+      continue;
+    }
+    const { tokens, ...rest } = theme.value;
+    const tokenRecord = decodeRecord(tokens);
+    if (
+      Option.isNone(tokenRecord) ||
+      !Object.values(tokenRecord.value).every(isValidThemeToken)
+    ) {
+      reset.push(`appearance.themes.${variant}.tokens`);
+    }
+    nextThemes[variant] = { ...rest, colors: migrated[variant].colors };
+  }
+
+  return {
+    value: {
+      ...document,
+      appearance: { ...appearance.value, themes: nextThemes },
+    },
+    issues: reset.length === 0 ? {} : { reset },
+  };
+};
+
 export const settingsVersions = {
   current: DEFAULT_APP_SETTINGS.version,
-  migrations: {},
+  migrations: { 1: migrateThemeTokensToColors },
 };
 
 export const decodeSettings = (document: Readonly<Record<string, unknown>>) => {

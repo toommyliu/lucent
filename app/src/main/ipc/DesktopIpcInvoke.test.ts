@@ -173,7 +173,7 @@ describe("createDesktopIpcInvokeHandler", () => {
       }),
   );
 
-  it.effect("rejects unknown appearance token payloads before saving", () =>
+  it.effect("rejects unknown appearance color payloads before saving", () =>
     Effect.gen(function* () {
       let saveCount = 0;
       const invoke = createDesktopIpcInvokeHandler(
@@ -190,7 +190,7 @@ describe("createDesktopIpcInvokeHandler", () => {
         invoke(undefined, {
           themes: {
             dark: {
-              tokens: {
+              colors: {
                 bogus: [1, 2, 3],
               },
             },
@@ -206,7 +206,7 @@ describe("createDesktopIpcInvokeHandler", () => {
     }),
   );
 
-  it.effect("accepts a single-token appearance patch", () =>
+  it.effect("accepts a single-color appearance patch", () =>
     Effect.gen(function* () {
       const savedPatches: unknown[] = [];
       const invoke = createDesktopIpcInvokeHandler(
@@ -223,7 +223,7 @@ describe("createDesktopIpcInvokeHandler", () => {
         invoke(undefined, {
           themes: {
             dark: {
-              tokens: {
+              colors: {
                 background: [1, 2, 3],
               },
             },
@@ -233,7 +233,7 @@ describe("createDesktopIpcInvokeHandler", () => {
 
       expect(envelope.ok).toBe(true);
       expect(savedPatches).toEqual([
-        { themes: { dark: { tokens: { background: [1, 2, 3] } } } },
+        { themes: { dark: { colors: { background: [1, 2, 3] } } } },
       ]);
     }),
   );

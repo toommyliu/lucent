@@ -1,0 +1,15 @@
+@layer ui.components {
+  .root {
+    width: 100%;
+    height: var(--control-height);
+
+    &[type="search"]::-webkit-search-cancel-button {
+      appearance: none;
+    }
+
+    &[readonly] {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+}

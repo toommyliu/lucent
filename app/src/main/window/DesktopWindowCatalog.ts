@@ -32,7 +32,9 @@ const desktopWindowCatalog: Record<DesktopWindowKind, DesktopWindowDefinition> =
     settings: {
       kind: "settings",
       width: 651,
-      height: 654,
+      height: 500,
+      minWidth: 520,
+      minHeight: 400,
       closeBehavior: "hide",
       gameChild: false,
       singleInstance: true,
@@ -40,7 +42,7 @@ const desktopWindowCatalog: Record<DesktopWindowKind, DesktopWindowDefinition> =
     about: {
       kind: "about",
       width: 360,
-      height: 300,
+      height: 227,
       closeBehavior: "destroy",
       fixedSize: true,
       gameChild: false,
