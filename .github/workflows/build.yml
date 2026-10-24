@@ -24,8 +24,14 @@ env:
   RELEASE_TAG: ${{ inputs.tag_name || github.ref_name }}
 
 jobs:
+  build_ruffle:
+    name: Build pinned Ruffle web assets
+    uses: ./.github/workflows/ruffle.yml
+    permissions:
+      contents: read
   build_electron:
     name: Build Electron App
+    needs: build_ruffle
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -61,6 +67,15 @@ jobs:
         continue-on-error: true
         run: |
           pnpm audit --audit-level high
+
+      - name: Remove locally built Ruffle assets
+        run: rm -rf assets/ruffle
+
+      - name: Download CI-built Ruffle assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ruffle-web
+          path: assets/ruffle
 
       - name: Build electron app
         run: pnpm run dist:app:all
