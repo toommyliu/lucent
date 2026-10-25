@@ -13,6 +13,9 @@
   </p>
 </div>
 
+> [!NOTE]
+> As of v0.1.0-beta.1, Lucent runs on a [patched version of Ruffle Web](https://github.com/toommyliu/ruffle/tree/e86a3fba0cfd80175a3538d6a81917c701e6bd45).
+
 ## Disclaimer
 
 Lucent is an unofficial client and is not affiliated with Artix Entertainment.
