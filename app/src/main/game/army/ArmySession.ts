@@ -108,7 +108,7 @@ export interface ArmySessionEndedEvent {
   readonly sessionId: string;
 }
 
-export type StartWaiter = Deferred.Deferred<void, ArmyCoordinatorError>;
+export type StartWaiter = Deferred.Deferred<void, ArmySessionError>;
 export type StepWaiter = Deferred.Deferred<
   ArmyProgressResult,
   ArmyCoordinatorError
@@ -347,7 +347,7 @@ const rejectAndEnd = (
   state: ArmyCoordinatorState,
   error: ArmySynchronizationError,
   nowMs: number,
-): ArmyTransition<Result.Result<void, ArmyCoordinatorError>> => ({
+): ArmyTransition<Result.Result<void, ArmySynchronizationError>> => ({
   ...endSession(
     state,
     error.sessionId,
@@ -397,7 +397,7 @@ export const joinSession = (
 ): ArmyTransition<
   Result.Result<
     { readonly config: ArmyConfigPayload; readonly sessionId: string },
-    ArmyCoordinatorError
+    ArmyParticipantError
   >
 > => {
   const playerKey = normalizeArmyPlayerKey(args.playerName);
@@ -412,7 +412,7 @@ export const joinSession = (
     sessionId: `${args.nowMs.toString(36)}-${state.nextSessionId}`,
     waiters: [],
   };
-  const reject = (error: ArmyCoordinatorError) =>
+  const reject = (error: ArmyParticipantError) =>
     unchanged(state, Result.fail(error));
 
   if (
@@ -526,7 +526,7 @@ export const identify = (
   participantId: ArmyParticipantId,
 ): Result.Result<
   { readonly playerKey: string; readonly session: ActiveSession },
-  ArmyCoordinatorError
+  ArmySessionError | ArmyParticipantError
 > => {
   const session = state.sessions.get(sessionId);
   if (session === undefined) {
@@ -728,7 +728,9 @@ export const failSession = (
     readonly reason: string;
     readonly sessionId: string;
   },
-): ArmyTransition<Result.Result<void, ArmyCoordinatorError>> => {
+): ArmyTransition<
+  Result.Result<void, ArmySessionError | ArmyParticipantError>
+> => {
   const seat = identify(state, args.sessionId, args.participantId);
   if (Result.isFailure(seat))
     return unchanged(state, Result.fail(seat.failure));

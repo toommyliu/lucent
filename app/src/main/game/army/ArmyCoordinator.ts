@@ -30,6 +30,7 @@ import { endLoopTaunt } from "./ArmyLoopTauntAssignments";
 import {
   ARMY_START_TIMEOUT_MS,
   ArmyParticipantError,
+  type ArmySessionError,
   type ArmyCoordinatorError,
   type ArmyParticipant,
   type ArmySessionEndCause,
@@ -137,7 +138,7 @@ export interface ArmyCoordinatorShape {
     sessionId: string,
     participantId: ArmyParticipantId,
     reason: string,
-  ) => Effect.Effect<void, ArmyCoordinatorError>;
+  ) => Effect.Effect<void, ArmySessionError | ArmyParticipantError>;
   readonly getSessions: () => Effect.Effect<readonly ArmySessionSnapshot[]>;
   readonly getLoopTauntSlot: (
     sessionId: string,
@@ -147,7 +148,11 @@ export interface ArmyCoordinatorShape {
     load: Effect.Effect<ArmyConfigPayload, E, R>,
     playerName: string,
     participant: ArmyParticipant,
-  ) => Effect.Effect<ArmySessionPayload, ArmyCoordinatorError | E, R>;
+  ) => Effect.Effect<
+    ArmySessionPayload,
+    ArmyParticipantError | ArmySessionError | E,
+    R
+  >;
   readonly leave: (participantId: ArmyParticipantId) => Effect.Effect<void>;
   readonly onSessionEnded: (
     listener: (event: ArmySessionEndedEvent) => Effect.Effect<void, unknown>,
@@ -172,7 +177,7 @@ export interface ArmyCoordinatorShape {
     ) => LoopTauntStep<A>,
   ) => Effect.Effect<
     readonly [A, MutationEffects],
-    ArmyCoordinatorError | ArmyLoopTauntError
+    ArmySessionError | ArmyParticipantError | ArmyLoopTauntError
   >;
   readonly updateLoopTaunt: (
     sessionId: string,
@@ -291,10 +296,8 @@ export const makeArmyCoordinator = (): Effect.Effect<
         }),
       );
 
-    const awaitWaiter = <A>(args: {
-      readonly restore: (
-        effect: Effect.Effect<A, ArmyCoordinatorError>,
-      ) => Effect.Effect<A, ArmyCoordinatorError>;
+    const awaitWaiter = <A, E>(args: {
+      readonly restore: (effect: Effect.Effect<A, E>) => Effect.Effect<A, E>;
       readonly expire: (
         state: ArmyCoordinatorState,
         nowMs: number,
@@ -302,8 +305,8 @@ export const makeArmyCoordinator = (): Effect.Effect<
       readonly interruptReason: string;
       readonly sessionId: string;
       readonly timeoutMs: number;
-      readonly waiter: Deferred.Deferred<A, ArmyCoordinatorError>;
-    }): Effect.Effect<A, ArmyCoordinatorError> =>
+      readonly waiter: Deferred.Deferred<A, E>;
+    }): Effect.Effect<A, E> =>
       Deferred.await(args.waiter).pipe(
         Effect.timeoutOption(args.timeoutMs),
         Effect.flatMap(
@@ -360,7 +363,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
                 ),
               ),
             ));
-          const waiter = yield* Deferred.make<void, ArmyCoordinatorError>();
+          const waiter = yield* Deferred.make<void, ArmySessionError>();
           const joined = yield* dispatch((state, nowMs) =>
             participant.isCurrent()
               ? joinSession(state, {
@@ -485,7 +488,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
           ): readonly [
             Result.Result<
               readonly [A, MutationEffects],
-              ArmyCoordinatorError | ArmyLoopTauntError
+              ArmySessionError | ArmyParticipantError | ArmyLoopTauntError
             >,
             ArmyCoordinatorState,
           ] => {
