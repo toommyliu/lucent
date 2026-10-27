@@ -1,4 +1,4 @@
-import { basename, resolve } from "node:path";
+import { basename, relative, resolve } from "node:path";
 
 import { FileSystem } from "effect/FileSystem";
 
@@ -30,7 +30,7 @@ import {
   type DiscoveredScriptCatalog,
   type ScriptPackageCatalogReplacement,
 } from "./ScriptCatalogDiscovery";
-import { isPathInside } from "./ScriptPackageFileSystem";
+import { isPathInside, portablePath } from "./ScriptPackageFileSystem";
 import {
   resolveLooseScriptReference,
   logScriptPackageInspectionFailures,
@@ -228,15 +228,19 @@ export const layer = Layer.effect(
         function* (reference) {
           if (reference.kind === "loose") {
             const path = resolve(scriptsDir, reference.path);
+            if (portablePath(relative(scriptsDir, path)) !== reference.path) {
+              return undefined;
+            }
             const resolved = yield* Effect.promise(() =>
               resolveLooseScriptReference(scriptsDir, path),
             );
-            if (resolved === undefined || resolved.path !== reference.path) {
+            if (resolved === undefined) {
               return undefined;
             }
+            const canonicalPath = resolve(scriptsDir, resolved.path);
             return {
-              name: basename(path),
-              path,
+              name: basename(canonicalPath),
+              path: canonicalPath,
               reference: resolved,
               relativePath: resolved.path,
             } satisfies ScriptCatalogEntry;
