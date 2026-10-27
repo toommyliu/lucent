@@ -14,10 +14,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
-    name: Verify
+  check:
+    name: ${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [format, lint, typecheck]
 
     steps:
       - name: Checkout
@@ -37,14 +41,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check formatting
-        run: pnpm format
+      - name: Run ${{ matrix.task }}
+        run: pnpm ${{ matrix.task }}
 
-      - name: Lint
-        run: pnpm lint
+  verify:
+    name: Verify
+    needs: check
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
 
-      - name: Typecheck
-        run: pnpm typecheck
+    steps:
+      - name: Require all checks to pass
+        if: needs.check.result != 'success'
+        run: exit 1
 
   test:
     name: Test
