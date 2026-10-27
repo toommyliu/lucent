@@ -113,10 +113,11 @@ export const layer = Layer.effect(
       timeToLive: ACCOUNT_SERVER_PING_CACHE_TTL_MS,
     });
 
-    const getCachedServers = serverLoads.withPermits(1)(
-      Effect.gen(function* () {
+    const getCachedServers = Effect.fnUntraced(
+      function* (force = false) {
         const timestamp = yield* Clock.currentTimeMillis;
         if (
+          !force &&
           serverCache !== null &&
           timestamp - serverCache.fetchedAt < SERVERS_CACHE_TTL_MS
         ) {
@@ -159,7 +160,8 @@ export const layer = Layer.effect(
         serverCache = { fetchedAt: yield* Clock.currentTimeMillis, servers };
         yield* Cache.invalidateAll(pingCache);
         return servers;
-      }),
+      },
+      serverLoads.withPermits(1),
     );
 
     const toResult = (
@@ -172,11 +174,11 @@ export const layer = Layer.effect(
           : lastRefreshRequestTime + ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
     });
 
-    const get: AccountServersShape["get"] = getCachedServers.pipe(
+    const get: AccountServersShape["get"] = getCachedServers().pipe(
       Effect.map(toResult),
     );
 
-    const getPings: AccountServersShape["getPings"] = getCachedServers.pipe(
+    const getPings: AccountServersShape["getPings"] = getCachedServers().pipe(
       Effect.flatMap((servers) => Cache.get(pingCache, servers)),
     );
 
@@ -190,9 +192,8 @@ export const layer = Layer.effect(
       }
 
       lastRefreshRequestTime = timestamp;
-      serverCache = null;
       yield* Cache.invalidateAll(pingCache);
-      return toResult(yield* getCachedServers);
+      return toResult(yield* getCachedServers(true));
     });
 
     return AccountServers.of({ get, getPings, refresh });
