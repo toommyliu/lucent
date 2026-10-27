@@ -298,11 +298,18 @@ export const resolveLooseScriptReference = async (
         return undefined;
       }
     }
+    const [realRootPath, realSelectedPath] = await Promise.all([
+      fs.realpath(rootPath),
+      fs.realpath(selectedPath),
+    ]);
+    if (!isPathInside(realRootPath, realSelectedPath)) return undefined;
+    return {
+      kind: "loose",
+      path: portablePath(relative(realRootPath, realSelectedPath)),
+    };
   } catch {
     return undefined;
   }
-
-  return { kind: "loose", path: portablePath(nativeRelativePath) };
 };
 
 const resolveMainPath = async (
