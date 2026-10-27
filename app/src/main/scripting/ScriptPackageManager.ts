@@ -861,8 +861,20 @@ export const layer = Layer.effect(
               : { ref: managed.source.requestedRef }),
             known: managed.commitLookup,
           }).pipe(
-            Effect.mapError((cause) =>
-              managerError("update", cause.message, cause),
+            Effect.catch(
+              Effect.fnUntraced(function* (cause) {
+                const rateLimited = rateLimitedState(cause);
+                if (rateLimited !== undefined) {
+                  const next = { ...managed, update: rateLimited };
+                  yield* state
+                    .save(next)
+                    .pipe(
+                      Effect.andThen(catalog.updateManagedPackage(next)),
+                      Effect.ignore,
+                    );
+                }
+                return yield* managerError("update", cause.message, cause);
+              }),
             ),
           );
           const observed = recordRemoteResolution(managed, resolution);

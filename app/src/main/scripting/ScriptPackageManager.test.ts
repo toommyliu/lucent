@@ -1971,6 +1971,44 @@ layer(desktopFileSystemLayer)("script package update check races", (it) => {
       }),
   );
 
+  it.effect("saves a rate limit when an update cannot look up the commit", () =>
+    Effect.gen(function* () {
+      const { managed, workspaceDir } = yield* installedPackage;
+      const harness = makeManagerHarness({
+        managed,
+        resolution: Effect.fail(
+          new GitHubScriptPackageClientError({
+            kind: "rate-limited",
+            detail: "GitHub's request limit has been reached.",
+            retryAt: "2026-10-17T12:00:00.000Z",
+          }),
+        ),
+        workspaceDir,
+      });
+      const { manager, catalog, state } = yield* harness.services;
+
+      const error = yield* manager
+        .update({ packageName: PACKAGE_NAME })
+        .pipe(Effect.flip);
+
+      const rateLimited = {
+        status: "rate-limited",
+        retryAt: "2026-10-17T12:00:00.000Z",
+        message: "GitHub's request limit has been reached.",
+      };
+      expect(error).toMatchObject({
+        operation: "update",
+        message: "GitHub's request limit has been reached.",
+      });
+      expect(harness.downloadCount()).toBe(0);
+      expect((yield* state.get(PACKAGE_NAME))?.update).toEqual(rateLimited);
+      expect((yield* catalog.getOverview).packages[0]).toMatchObject({
+        name: PACKAGE_NAME,
+        update: rateLimited,
+      });
+    }),
+  );
+
   it.effect("keeps successful and interrupted update checks silent", () =>
     Effect.gen(function* () {
       const { managed, workspaceDir } = yield* installedPackage;
