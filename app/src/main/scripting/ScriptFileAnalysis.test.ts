@@ -170,7 +170,7 @@ it.effect(
       expect(result).toMatchObject({
         _tag: "ScriptFilesError",
         path,
-        message: "Script source could not be parsed.",
+        message: "Script source could not be parsed: Unexpected token (1:28)",
       });
       expect(result).not.toHaveProperty("failureCause");
     }),

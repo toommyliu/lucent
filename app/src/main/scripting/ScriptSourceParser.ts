@@ -264,17 +264,24 @@ const parseSource = (
           ...options,
           sourceType: "script",
         }) as unknown as AstNode;
-      } catch {
-        return acorn.parse(source, {
-          ...options,
-          sourceType: "module",
-        }) as unknown as AstNode;
+      } catch (cause) {
+        try {
+          return acorn.parse(source, {
+            ...options,
+            sourceType: "module",
+          }) as unknown as AstNode;
+        } catch {
+          throw cause;
+        }
       }
     },
     catch: (cause) =>
       new ScriptInputsExtractorError({
         operation: "parse",
-        detail: "Script source could not be parsed.",
+        detail:
+          cause instanceof Error
+            ? `Script source could not be parsed: ${cause.message}`
+            : "Script source could not be parsed.",
         cause,
       }),
   });

@@ -150,7 +150,7 @@ describe("script files", () => {
         expect(yield* resolveScriptFile(malformedPath)).toMatchObject({
           status: "failed",
           path: malformedPath,
-          message: "Script source could not be parsed.",
+          message: "Script source could not be parsed: Unexpected token (1:28)",
           detailsText: expect.stringContaining("ScriptInputsExtractorError"),
         });
         expect(yield* resolveScriptFile(oversizedPath)).toMatchObject({
@@ -222,7 +222,7 @@ describe("script resolution failure logging", () => {
         ]);
         expect(results[1]).toEqual({ status: "missing", path: missingPath });
         expect(results[2]).toMatchObject({
-          message: "Script source could not be parsed.",
+          message: "Script source could not be parsed: Unexpected token (1:28)",
         });
         expect(logs).toEqual([
           {
