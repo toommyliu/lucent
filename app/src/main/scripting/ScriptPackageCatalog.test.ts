@@ -26,6 +26,7 @@ import {
   replaceDiscoveredPackage,
 } from "./ScriptCatalogDiscovery";
 import { inspectScriptPackageDirectory } from "./ScriptPackageInspection";
+import { makeScriptSourceRegistry } from "./ScriptSourceRegistry";
 import {
   layer as scriptPackageCatalogLayer,
   ScriptPackageCatalog,
@@ -626,6 +627,145 @@ const makeCatalogHarness = (
   });
 
 describe("ScriptPackageCatalog", () => {
+  it.effect(
+    "canonicalizes loose file and directory casing only when the filesystem resolves it",
+    () =>
+      Effect.gen(function* () {
+        const { catalog, workspace } = yield* makeCatalogHarness();
+        yield* Effect.promise(() =>
+          write(
+            join(workspace.scriptsDir, "Lib", "util.js"),
+            "exports.value = 1;",
+          ),
+        );
+        const caseInsensitive = yield* Effect.promise(() =>
+          fs.stat(join(workspace.scriptsDir, "Lib", "Util.js")).then(
+            () => true,
+            (cause: NodeJS.ErrnoException) => {
+              if (cause.code === "ENOENT") return false;
+              throw cause;
+            },
+          ),
+        );
+
+        for (const path of ["Lib/util.js", "Lib/Util.js", "lib/UTIL.js"]) {
+          const expected =
+            path === "Lib/util.js" || caseInsensitive
+              ? { kind: "loose", path: "Lib/util.js" }
+              : undefined;
+          expect(
+            yield* catalog.referenceForPath(join(workspace.scriptsDir, path)),
+          ).toEqual(expected);
+          expect(
+            yield* catalog.resolveReference({ kind: "loose", path }),
+          ).toEqual(
+            expected === undefined
+              ? undefined
+              : {
+                  name: "util.js",
+                  path: join(workspace.scriptsDir, "Lib", "util.js"),
+                  reference: { kind: "loose", path: "Lib/util.js" },
+                  relativePath: "Lib/util.js",
+                },
+          );
+        }
+      }),
+  );
+
+  it.effect(
+    "shares one loose module id across differently cased imports when the filesystem resolves them",
+    () =>
+      Effect.gen(function* () {
+        const { catalog, workspace } = yield* makeCatalogHarness();
+        yield* Effect.promise(() =>
+          Promise.all([
+            write(
+              join(workspace.scriptsDir, "entry.js"),
+              'require("./a"); require("./b");',
+            ),
+            write(join(workspace.scriptsDir, "a.js"), 'require("./util");'),
+            write(join(workspace.scriptsDir, "b.js"), 'require("./Util");'),
+            write(join(workspace.scriptsDir, "util.js"), "exports.value = 1;"),
+          ]),
+        );
+        const caseInsensitive = yield* Effect.promise(() =>
+          fs.stat(join(workspace.scriptsDir, "Util.js")).then(
+            () => true,
+            (cause: NodeJS.ErrnoException) => {
+              if (cause.code === "ENOENT") return false;
+              throw cause;
+            },
+          ),
+        );
+        const registry = yield* makeScriptSourceRegistry().pipe(
+          Effect.provideService(ScriptPackageCatalog, catalog),
+        );
+        const read = registry.readReference({
+          kind: "loose",
+          path: "entry.js",
+        });
+        if (!caseInsensitive) {
+          const error = yield* read.pipe(Effect.flip);
+          expect(error.message).toBe(
+            'b.js can\'t import "./Util". The relative module was not found.',
+          );
+          return;
+        }
+
+        const file = yield* read;
+        expect(file.snapshot?.modules.map((module) => module.id)).toEqual([
+          "loose:a.js",
+          "loose:b.js",
+          "loose:entry.js",
+          "loose:util.js",
+        ]);
+        expect(
+          file.snapshot?.modules.find((module) => module.id === "loose:a.js")
+            ?.imports,
+        ).toEqual({ "./util": { kind: "module", moduleId: "loose:util.js" } });
+        expect(
+          file.snapshot?.modules.find((module) => module.id === "loose:b.js")
+            ?.imports,
+        ).toEqual({ "./Util": { kind: "module", moduleId: "loose:util.js" } });
+      }),
+  );
+
+  it.effect(
+    "rejects loose symlinks, escapes, and noncanonical path syntax",
+    () =>
+      Effect.gen(function* () {
+        const { catalog, workspace } = yield* makeCatalogHarness();
+        yield* Effect.promise(async () => {
+          await write(join(workspace.root, "outside.js"), "exports.value = 1;");
+          await write(
+            join(workspace.scriptsDir, "Lib", "util.js"),
+            "exports.value = 1;",
+          );
+          await fs.symlink(
+            join(workspace.root, "outside.js"),
+            join(workspace.scriptsDir, "linked.js"),
+          );
+          await fs.symlink(
+            join(workspace.scriptsDir, "Lib"),
+            join(workspace.scriptsDir, "alias"),
+            "junction",
+          );
+        });
+
+        for (const path of [
+          "linked.js",
+          "alias/util.js",
+          "../outside.js",
+          "./first.js",
+          "Lib/../first.js",
+        ]) {
+          expect(
+            yield* catalog.resolveReference({ kind: "loose", path }),
+          ).toBeUndefined();
+        }
+      }),
+  );
+
   it.effect("recreates missing catalog folders recursively", () =>
     Effect.gen(function* () {
       const { catalog, workspace } = yield* makeCatalogHarness();
