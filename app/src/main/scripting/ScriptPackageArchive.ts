@@ -218,5 +218,5 @@ export const extractScriptPackageArchive = Effect.fn(
         unlink: true,
       }),
     catch: tarError(archivePath),
-  });
+  }).pipe(Effect.uninterruptible);
 });
