@@ -35,7 +35,6 @@ export const open = makeDesktopIpcMethod({
     if (!openableWindowKinds[sender.kind]?.includes(payload.kind)) {
       return yield* new DesktopWindowError({
         detail: `${sender.kind} windows may not open ${payload.kind}.`,
-        id: payload.kind,
       });
     }
 

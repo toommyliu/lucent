@@ -572,7 +572,7 @@ describe("saved settings recovery", () => {
           _tag: "Failure",
           failure: {
             _tag: "DesktopSettingsError",
-            operation: "read",
+            message: `JSON file read failed at ${path}.`,
             detail: `JSON file read failed at ${path}.`,
             cause: { _tag: "JsonFileError", operation: "read", path },
           },

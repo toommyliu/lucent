@@ -25,19 +25,9 @@ const isStoredDocument = Schema.is(
   Schema.Record(Schema.String, Schema.Unknown),
 );
 
-const accountSettingsOperationSchema = Schema.Literals([
-  "mkdir",
-  "read",
-  "rename",
-  "unlink",
-  "validate-username",
-  "write",
-]);
-
 export class AccountSettingsError extends Schema.TaggedError<AccountSettingsError>()(
   "AccountSettingsError",
   {
-    operation: accountSettingsOperationSchema,
     detail: Schema.String,
     cause: Schema.optionalKey(Schema.Defect()),
   },
@@ -64,7 +54,6 @@ export class AccountSettingsRepository extends Context.Service<
 
 const wrapJsonError = (error: JsonFileError): AccountSettingsError =>
   new AccountSettingsError({
-    operation: error.operation === "parse" ? "read" : error.operation,
     detail: error.message,
     cause: error,
   });
@@ -82,7 +71,6 @@ const normalizeUsername = (
     ? Effect.succeed(normalized)
     : Effect.fail(
         new AccountSettingsError({
-          operation: "validate-username",
           detail: "Invalid account username.",
         }),
       );

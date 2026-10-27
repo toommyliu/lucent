@@ -107,7 +107,6 @@ describe("DesktopApplicationMenu logging", () => {
             Effect.fail(
               new DesktopSettingsError({
                 detail: "Failed to save appearance",
-                operation: "write",
               }),
             ),
           updateHotkeys: unused,

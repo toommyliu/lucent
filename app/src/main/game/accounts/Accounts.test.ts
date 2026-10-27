@@ -45,7 +45,7 @@ afterEach(async () => {
 });
 
 const windowUnavailable = Effect.fail(
-  new DesktopWindowError({ id: "game", detail: "Window unavailable" }),
+  new DesktopWindowError({ detail: "Window unavailable" }),
 );
 
 const failStreamAt =
