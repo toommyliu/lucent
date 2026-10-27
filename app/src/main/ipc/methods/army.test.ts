@@ -8,7 +8,10 @@ import * as Scope from "effect/Scope";
 import * as Exit from "effect/Exit";
 import { makeLifetime } from "../../window/RendererLifetimeTesting";
 
-import type { ArmyConfigPayload } from "@lucent/core/army";
+import {
+  normalizeArmyConfigName,
+  type ArmyConfigPayload,
+} from "@lucent/core/army";
 import { ArmyIpc } from "../../../shared/ipc";
 import { makeListenerRegistry } from "../../app/ListenerRegistry";
 import {
@@ -257,6 +260,31 @@ describe("army start IPC", () => {
           });
           const coordinator = yield* ArmyCoordinator;
           expect(yield* coordinator.getSessions()).toEqual([]);
+        }),
+    ),
+  );
+
+  it.effect("reads a config whose name ends in .yaml from its own file", () =>
+    runStartIpc(
+      (configNameInput) => {
+        const configName = normalizeArmyConfigName(configNameInput);
+        return configName === "solo.yaml"
+          ? Effect.succeed({ ...soloConfig, configName })
+          : Effect.fail(
+              new ArmyConfigRepositoryError({
+                operation: "read",
+                configName,
+                cause: new Error("Missing config"),
+              }),
+            );
+      },
+      (_windows, invokeStart) =>
+        Effect.gen(function* () {
+          const reply = yield* invokeStart("solo.yaml.yaml");
+          expect(yield* Fiber.join(reply)).toMatchObject({
+            ok: true,
+            value: { configName: "solo.yaml", playerName: "Alice" },
+          });
         }),
     ),
   );
