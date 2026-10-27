@@ -1,3 +1,4 @@
+import { normalizeArmyConfigName } from "@lucent/core/army";
 import * as Effect from "effect/Effect";
 
 import { ArmyIpc } from "../../../shared/ipc";
@@ -26,8 +27,13 @@ export const start = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.start")(function* (payload, sender) {
     const configs = yield* ArmyConfigRepository;
     const coordinator = yield* ArmyCoordinator;
-    const config = yield* configs.read(payload.configName);
-    return yield* coordinator.join(config, payload.playerName, sender.lifetime);
+    const configName = normalizeArmyConfigName(payload.configName);
+    return yield* coordinator.join(
+      configName,
+      configs.read(payload.configName),
+      payload.playerName,
+      sender.lifetime,
+    );
   }),
 });
 

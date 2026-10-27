@@ -44,7 +44,8 @@ describe("ArmyCoordinator", () => {
       return Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
         const session = yield* coordinator.join(
-          makeConfig(["Alice"]),
+          "test",
+          Effect.succeed(makeConfig(["Alice"])),
           "Alice",
           live(7),
         );
@@ -105,10 +106,15 @@ describe("ArmyCoordinator", () => {
       Effect.gen(function* () {
         const coordinator = yield* makeArmyCoordinator();
         const error = yield* Effect.flip(
-          coordinator.join(makeConfig(["Alice"]), "Alice", {
-            rendererId: 7,
-            isCurrent: () => false,
-          }),
+          coordinator.join(
+            "test",
+            Effect.succeed(makeConfig(["Alice"])),
+            "Alice",
+            {
+              rendererId: 7,
+              isCurrent: () => false,
+            },
+          ),
         );
 
         expect(error).toMatchObject({
@@ -132,7 +138,8 @@ describe("ArmyCoordinator", () => {
         }),
       );
       const session = yield* coordinator.join(
-        makeConfig(["Alice"]),
+        "test",
+        Effect.succeed(makeConfig(["Alice"])),
         "Alice",
         live(participantId),
       );
@@ -160,7 +167,8 @@ describe("ArmyCoordinator", () => {
         const participantId = makeParticipant();
         const config = makeConfig(["Alice"]);
         const first = yield* coordinator.join(
-          config,
+          config.configName,
+          Effect.succeed(config),
           "Alice",
           live(participantId),
         );
@@ -175,7 +183,8 @@ describe("ArmyCoordinator", () => {
         });
 
         const second = yield* coordinator.join(
-          config,
+          config.configName,
+          Effect.succeed(config),
           "Alice",
           live(participantId),
         );
@@ -197,14 +206,20 @@ describe("ArmyCoordinator", () => {
       const aliceWindow = makeParticipant();
       const bobWindow = makeParticipant();
       const alice = yield* coordinator
-        .join(makeConfig(["Alice", "Bob"]), "Alice", live(aliceWindow))
+        .join(
+          "test",
+          Effect.succeed(makeConfig(["Alice", "Bob"])),
+          "Alice",
+          live(aliceWindow),
+        )
         .pipe(Effect.forkScoped);
 
       yield* Effect.yieldNow;
       expect(alice.pollUnsafe()).toBeUndefined();
 
       const bob = yield* coordinator.join(
-        makeConfig(["Alice", "Bob"]),
+        "test",
+        Effect.succeed(makeConfig(["Alice", "Bob"])),
         "Bob",
         live(bobWindow),
       );
@@ -226,12 +241,14 @@ describe("ArmyCoordinator", () => {
       const [alice] = yield* Effect.all(
         [
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Alice",
             live(aliceWindow),
           ),
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Bob",
             live(bobWindow),
           ),
@@ -292,13 +309,15 @@ describe("ArmyCoordinator", () => {
     Effect.gen(function* () {
       const coordinator = yield* makeArmyCoordinator();
       yield* coordinator.join(
-        makeConfig(["Alice"]),
+        "test",
+        Effect.succeed(makeConfig(["Alice"])),
         "Alice",
         live(makeParticipant()),
       );
       const error = yield* Effect.flip(
         coordinator.join(
-          makeConfig(["Alice"]),
+          "test",
+          Effect.succeed(makeConfig(["Alice"])),
           "Alice",
           live(makeParticipant()),
         ),
@@ -312,7 +331,8 @@ describe("ArmyCoordinator", () => {
       const coordinator = yield* makeArmyCoordinator();
       const aliceWindow = makeParticipant();
       const session = yield* coordinator.join(
-        makeConfig(["Alice"]),
+        "test",
+        Effect.succeed(makeConfig(["Alice"])),
         "Alice",
         live(aliceWindow),
       );
@@ -335,12 +355,14 @@ describe("ArmyCoordinator", () => {
       const [alice] = yield* Effect.all(
         [
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             " alice ",
             live(aliceWindow),
           ),
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "BOB",
             live(bobWindow),
           ),
@@ -371,7 +393,12 @@ describe("ArmyCoordinator", () => {
     Effect.gen(function* () {
       const coordinator = yield* makeArmyCoordinator();
       const pending = yield* coordinator
-        .join(makeConfig(["Alice", "Bob"]), "Alice", live(makeParticipant()))
+        .join(
+          "test",
+          Effect.succeed(makeConfig(["Alice", "Bob"])),
+          "Alice",
+          live(makeParticipant()),
+        )
         .pipe(Effect.result, Effect.forkScoped);
       yield* Effect.yieldNow;
       yield* TestClock.adjust("120 seconds");
@@ -390,12 +417,14 @@ describe("ArmyCoordinator", () => {
       const [alice, bob] = yield* Effect.all(
         [
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Alice",
             live(aliceWindow),
           ),
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Bob",
             live(bobWindow),
           ),
@@ -430,12 +459,14 @@ describe("ArmyCoordinator", () => {
         const [alice, bob] = yield* Effect.all(
           [
             coordinator.join(
-              makeConfig(["Alice", "Bob"]),
+              "test",
+              Effect.succeed(makeConfig(["Alice", "Bob"])),
               "Alice",
               live(aliceWindow),
             ),
             coordinator.join(
-              makeConfig(["Alice", "Bob"]),
+              "test",
+              Effect.succeed(makeConfig(["Alice", "Bob"])),
               "Bob",
               live(bobWindow),
             ),
@@ -493,7 +524,12 @@ describe("ArmyCoordinator", () => {
         Effect.sync(() => events.push(event)),
       );
       const pending = yield* coordinator
-        .join(makeConfig(["Alice", "Bob"]), "Alice", live(aliceWindow))
+        .join(
+          "test",
+          Effect.succeed(makeConfig(["Alice", "Bob"])),
+          "Alice",
+          live(aliceWindow),
+        )
         .pipe(Effect.flip, Effect.forkScoped);
       yield* Effect.yieldNow;
       yield* TestClock.adjust("120 seconds");
@@ -527,12 +563,14 @@ describe("ArmyCoordinator", () => {
       const [alice] = yield* Effect.all(
         [
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Alice",
             live(aliceWindow),
           ),
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Bob",
             live(bobWindow),
           ),
@@ -571,10 +609,15 @@ describe("ArmyCoordinator", () => {
       );
       const config = makeConfig(["Alice", "Bob", "Carol"]);
       const bob = yield* coordinator
-        .join(config, "Bob", live(bobWindow))
+        .join(config.configName, Effect.succeed(config), "Bob", live(bobWindow))
         .pipe(Effect.flip, Effect.forkScoped);
       yield* coordinator
-        .join(config, "Alice", live(aliceWindow))
+        .join(
+          config.configName,
+          Effect.succeed(config),
+          "Alice",
+          live(aliceWindow),
+        )
         .pipe(Effect.forkScoped);
       yield* Effect.yieldNow;
 
@@ -608,12 +651,14 @@ describe("ArmyCoordinator", () => {
       const [alice] = yield* Effect.all(
         [
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Alice",
             live(aliceWindow),
           ),
           coordinator.join(
-            makeConfig(["Alice", "Bob"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice", "Bob"])),
             "Bob",
             live(bobWindow),
           ),
@@ -655,12 +700,14 @@ describe("ArmyCoordinator", () => {
         const [alice] = yield* Effect.all(
           [
             coordinator.join(
-              makeConfig(["Alice", "Bob"]),
+              "test",
+              Effect.succeed(makeConfig(["Alice", "Bob"])),
               "Alice",
               live(aliceWindow),
             ),
             coordinator.join(
-              makeConfig(["Alice", "Bob"]),
+              "test",
+              Effect.succeed(makeConfig(["Alice", "Bob"])),
               "Bob",
               live(bobWindow),
             ),
@@ -711,7 +758,7 @@ describe("army registration interruption", () => {
         Effect.sync(() => events.push(event)),
       );
       const joining = yield* coordinator
-        .join(makeConfig(["Alice"]), "Alice", live(1))
+        .join("test", Effect.succeed(makeConfig(["Alice"])), "Alice", live(1))
         .pipe(Effect.forkScoped);
       yield* Fiber.await(joining);
       expect(interrupted).toBe(1);
@@ -751,7 +798,8 @@ describe("army checkpoint cursor", () => {
         Effect.sync(() => events.push(event)),
       );
       const session = yield* coordinator.join(
-        makeConfig(["Alice"]),
+        "test",
+        Effect.succeed(makeConfig(["Alice"])),
         "Alice",
         live(1),
       );
@@ -777,7 +825,8 @@ describe("army checkpoint cursor", () => {
     Effect.gen(function* () {
       const coordinator = yield* makeArmyCoordinator();
       const session = yield* coordinator.join(
-        makeConfig(["Alice"]),
+        "test",
+        Effect.succeed(makeConfig(["Alice"])),
         "Alice",
         live(1),
       );
@@ -810,7 +859,8 @@ describe("army checkpoint cursor", () => {
         Effect.gen(function* () {
           const coordinator = yield* makeArmyCoordinator();
           const session = yield* coordinator.join(
-            makeConfig(["Alice"]),
+            "test",
+            Effect.succeed(makeConfig(["Alice"])),
             "Alice",
             live(1),
           );
@@ -845,12 +895,17 @@ describe("army end logging", () => {
             Effect.sync(() => events.push(event)),
           );
           const joining = yield* coordinator
-            .join(config, "Alice", live(1))
+            .join(config.configName, Effect.succeed(config), "Alice", live(1))
             .pipe(Effect.forkScoped);
           yield* Effect.yieldNow;
           let waiting: Fiber.Fiber<unknown, unknown> = joining;
           if (phase === "active") {
-            const session = yield* coordinator.join(config, "Bob", live(2));
+            const session = yield* coordinator.join(
+              config.configName,
+              Effect.succeed(config),
+              "Bob",
+              live(2),
+            );
             yield* Fiber.join(joining);
             waiting = yield* coordinator
               .sync(session.sessionId, 1, { step: 0 })
@@ -893,9 +948,24 @@ describe("army timeout diagnostics", () => {
         const config = makeConfig(["Alice", "Bob", "Carol"]);
         const [session] = yield* Effect.all(
           [
-            coordinator.join(config, "Alice", live(1)),
-            coordinator.join(config, "Bob", live(2)),
-            coordinator.join(config, "Carol", live(3)),
+            coordinator.join(
+              config.configName,
+              Effect.succeed(config),
+              "Alice",
+              live(1),
+            ),
+            coordinator.join(
+              config.configName,
+              Effect.succeed(config),
+              "Bob",
+              live(2),
+            ),
+            coordinator.join(
+              config.configName,
+              Effect.succeed(config),
+              "Carol",
+              live(3),
+            ),
           ],
           { concurrency: "unbounded" },
         );

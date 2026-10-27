@@ -59,10 +59,15 @@ const makeHarness = Effect.fn("ArmyLoopTauntOrchestrator.test.makeHarness")(
     const config = makeConfig(players);
     const sessions = yield* Effect.all(
       players.map((playerName, index) =>
-        coordinator.join(config, playerName, {
-          rendererId: ids[index]!,
-          isCurrent: () => true,
-        }),
+        coordinator.join(
+          config.configName,
+          Effect.succeed(config),
+          playerName,
+          {
+            rendererId: ids[index]!,
+            isCurrent: () => true,
+          },
+        ),
       ),
       { concurrency: "unbounded" },
     );
