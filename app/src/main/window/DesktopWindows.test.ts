@@ -226,7 +226,8 @@ const makeHarness = (
       GameSessions,
       GameSessions.of({
         acquireGamePartition:
-          options.acquireGamePartition ?? (() => Effect.succeed("persist:game")),
+          options.acquireGamePartition ??
+          (() => Effect.succeed("persist:game")),
         clearAppData: Effect.void,
         prepareGameNetworking: Effect.void,
         retireManagedGameProfile: () => Effect.void,
@@ -371,39 +372,42 @@ describe("DesktopWindows.open", () => {
     }),
   );
 
-  it.effect("leaves no registered host when first-tab preparation fails", () => {
-    const harness = makeHarness(true, {
-      acquireGamePartition: () =>
-        Effect.fail(
-          new ElectronGamePartitionError({
-            cause: "partition unavailable",
-            partition: "persist:managed",
-          }),
-        ),
-    });
-    return Effect.gen(function* () {
-      const windows = yield* DesktopWindows;
-      const settings = yield* DesktopSettings;
-      const error = yield* Effect.flip(
-        windows.open("game", { managedGameProfileKey: "failed-account" }),
-      );
-      expect(error.detail).toBe("Failed to open desktop window: game");
-      expect(error.cause).toMatchObject({
-        detail: "Failed to prepare an isolated Flash session.",
+  it.effect(
+    "leaves no registered host when first-tab preparation fails",
+    () => {
+      const harness = makeHarness(true, {
+        acquireGamePartition: () =>
+          Effect.fail(
+            new ElectronGamePartitionError({
+              cause: "partition unavailable",
+              partition: "persist:managed",
+            }),
+          ),
       });
-      expect(yield* windows.getRendererIds("game")).toEqual([]);
-      expect(yield* windows.describe(102)).toBeUndefined();
-      expect(yield* windows.describe(103)).toBeUndefined();
-      yield* settings.updatePreferences({
-        showGameUsernameInWindowTitle: true,
-      });
-      expect(
-        harness.records.filter(
-          (record) => record.level === "warn" || record.level === "error",
-        ),
-      ).toEqual([]);
-    }).pipe(Effect.provide(harness.layer));
-  });
+      return Effect.gen(function* () {
+        const windows = yield* DesktopWindows;
+        const settings = yield* DesktopSettings;
+        const error = yield* Effect.flip(
+          windows.open("game", { managedGameProfileKey: "failed-account" }),
+        );
+        expect(error.detail).toBe("Failed to open desktop window: game");
+        expect(error.cause).toMatchObject({
+          detail: "Failed to prepare an isolated Flash session.",
+        });
+        expect(yield* windows.getRendererIds("game")).toEqual([]);
+        expect(yield* windows.describe(102)).toBeUndefined();
+        expect(yield* windows.describe(103)).toBeUndefined();
+        yield* settings.updatePreferences({
+          showGameUsernameInWindowTitle: true,
+        });
+        expect(
+          harness.records.filter(
+            (record) => record.level === "warn" || record.level === "error",
+          ),
+        ).toEqual([]);
+      }).pipe(Effect.provide(harness.layer));
+    },
+  );
 
   it.effect(
     "keeps an opening top-level window alive after the last window closes",
