@@ -38,21 +38,10 @@ import { type JsonFileError, makeJsonFile } from "../filesystem/JsonFile";
 import { makeSavedDocument } from "../filesystem/SavedDocument";
 import * as SettingsDiagnostics from "./DesktopSettingsDiagnostics";
 
-const settingsOperationSchema = Schema.Literals([
-  "mkdir",
-  "parse",
-  "read",
-  "rename",
-  "unlink",
-  "write",
-  "validate-hotkey",
-]);
-
 export class DesktopSettingsError extends Schema.TaggedError<DesktopSettingsError>()(
   "DesktopSettingsError",
   {
     detail: Schema.String,
-    operation: settingsOperationSchema,
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
@@ -86,7 +75,6 @@ export class DesktopSettings extends Context.Service<
 
 const wrapDataError = (error: JsonFileError): DesktopSettingsError =>
   new DesktopSettingsError({
-    operation: error.operation,
     detail: error.message,
     cause: error,
   });
@@ -169,7 +157,6 @@ const applyPreferencesPatch = (
 
 const hotkeyValidationError = (detail: string): DesktopSettingsError =>
   new DesktopSettingsError({
-    operation: "validate-hotkey",
     detail,
   });
 
