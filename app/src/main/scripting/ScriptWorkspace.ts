@@ -1,3 +1,4 @@
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 
@@ -93,7 +94,7 @@ export const layer = Layer.effect(
         .makeDirectory(path, { recursive: true })
         .pipe(
           Effect.mapError((cause) =>
-            makeError("create-directory", path, cause.reason.cause ?? cause),
+            makeError("create-directory", path, nativeCause(cause)),
           ),
         );
 
@@ -101,7 +102,7 @@ export const layer = Layer.effect(
       function* (path: string) {
         yield* fileSystem
           .makeDirectory(path, { mode: 0o700, recursive: true })
-          .pipe(Effect.mapError((cause) => cause.reason.cause ?? cause));
+          .pipe(Effect.mapError((cause) => nativeCause(cause)));
         const info = yield* Effect.tryPromise({
           try: () => fs.lstat(path),
           catch: (cause) => cause,
@@ -113,7 +114,7 @@ export const layer = Layer.effect(
         if (env.platform !== "win32")
           yield* fileSystem
             .chmod(path, 0o700)
-            .pipe(Effect.mapError((cause) => cause.reason.cause ?? cause));
+            .pipe(Effect.mapError((cause) => nativeCause(cause)));
       },
       (effect, path) =>
         effect.pipe(

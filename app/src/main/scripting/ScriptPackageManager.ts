@@ -6,7 +6,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { FileSystem } from "effect/FileSystem";
-import { isPlatformError } from "effect/PlatformError";
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
@@ -164,9 +164,6 @@ const recordRemoteResolution = (
       },
   ...(resolution.etag === undefined ? {} : { etag: resolution.etag }),
 });
-
-const nativeCause = (cause: unknown): unknown =>
-  isPlatformError(cause) ? (cause.reason.cause ?? cause) : cause;
 
 const managerError = (
   operation: typeof packageManagerOperationSchema.Type,

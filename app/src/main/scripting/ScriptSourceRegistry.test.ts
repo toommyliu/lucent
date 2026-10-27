@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Context from "effect/Context";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import { vi } from "vitest";
@@ -225,6 +226,63 @@ describe("script source dependency discovery", () => {
         );
       }
     }),
+  );
+
+  it.effect(
+    "re-reads a cached dependency after a same-size edit with its mtime restored",
+    () =>
+      Effect.gen(function* () {
+        const workspace = yield* Effect.promise(makeWorkspace);
+        const helperPath = join(workspace.scriptsDir, "helper.js");
+        const timestamp = 1_577_836_800;
+        yield* Effect.promise(() =>
+          write(join(workspace.scriptsDir, "entry.js"), 'require("./helper");'),
+        );
+        yield* Effect.promise(() => write(helperPath, "exports.value = 1;"));
+        yield* Effect.promise(() =>
+          fs.utimes(helperPath, timestamp, timestamp),
+        );
+        const discovery = yield* Effect.promise(() =>
+          discoverScriptCatalog({
+            currentVersion: "1.0.0",
+            ...workspace,
+          }),
+        );
+        let helperReads = 0;
+        const services = yield* Layer.build(
+          makeLayer(
+            discovery,
+            Effect.fnUntraced(function* (path: string) {
+              if (path === helperPath) helperReads += 1;
+              return yield* analyzeScriptFile(path);
+            }),
+          ),
+        );
+        const registry = Context.get(services, ScriptSourceRegistry);
+        const request = registry.readReference({
+          kind: "loose",
+          path: "entry.js",
+        });
+        const initial = yield* request;
+        yield* request;
+        expect(helperReads).toBe(1);
+        yield* Effect.promise(() => write(helperPath, "exports.value = 2;"));
+        yield* Effect.promise(() =>
+          fs.utimes(helperPath, timestamp, timestamp),
+        );
+        const updated = yield* request;
+        expect(
+          initial.snapshot?.modules.find(
+            (module) => module.path === "helper.js",
+          )?.source,
+        ).toBe("exports.value = 1;");
+        expect(
+          updated.snapshot?.modules.find(
+            (module) => module.path === "helper.js",
+          )?.source,
+        ).toBe("exports.value = 2;");
+        expect(helperReads).toBe(2);
+      }),
   );
 
   it.effect("counts concurrent cache misses for one file once", () =>

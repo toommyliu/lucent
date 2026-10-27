@@ -1,3 +1,4 @@
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import { promises as fs } from "node:fs";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 
@@ -163,7 +164,7 @@ export const readScriptPackageManifest = async (
             ? new Error(
                 `package.json exceeds the ${formatBytes(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
               )
-            : (cause.reason.cause ?? cause),
+            : nativeCause(cause),
         ),
       ),
     ).pipe(Effect.provide(NodeFileSystem.layer)),

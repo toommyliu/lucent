@@ -24,7 +24,11 @@ import {
   resolveRelativeScriptModulePath,
   scriptModulePathCandidates,
 } from "@lucent/core/scriptPackages";
-import { isMissingFileError } from "../filesystem/BoundedFileSystem";
+import {
+  FileNotFound,
+  nativeCause,
+  regularFileFingerprint,
+} from "../filesystem/BoundedFileSystem";
 import {
   analyzeScriptFile,
   logScriptFileResolutionFailure,
@@ -38,11 +42,7 @@ import {
   ScriptPackageCatalog,
   ScriptPackageCatalogError,
 } from "./ScriptPackageCatalog";
-import {
-  portablePath,
-  regularFileFingerprint,
-  sha256Revision,
-} from "./ScriptPackageFileSystem";
+import { portablePath, sha256Revision } from "./ScriptPackageFileSystem";
 import {
   formatBytes,
   SCRIPT_SNAPSHOT_MAX_BYTES,
@@ -56,6 +56,7 @@ export class ScriptSourceRegistryError extends Schema.TaggedError<ScriptSourceRe
   "ScriptSourceRegistryError",
   {
     detail: Schema.String,
+    kind: Schema.Literals(["not-found", "failed"]),
     path: Schema.optionalKey(Schema.String),
     cause: Schema.optionalKey(Schema.Defect()),
   },
@@ -170,6 +171,7 @@ const failedResolution = (
   };
 };
 
+const isFileNotFound = Schema.is(FileNotFound);
 const isScriptFilesError = Schema.is(ScriptFilesError);
 const isScriptSourceRegistryError = Schema.is(ScriptSourceRegistryError);
 const isScriptPackageCatalogError = Schema.is(ScriptPackageCatalogError);
@@ -192,7 +194,7 @@ const resolutionFailureCause = (
           ? []
           : resolutionFailureCause(Cause.fail(error.cause)).reasons;
       }
-      if (isMissingFileError(error)) {
+      if (isFileNotFound(error)) {
         return [];
       }
       return [reason];
@@ -204,13 +206,6 @@ const resolveFailure = (path: string, error: unknown) =>
     path,
     resolutionFailureCause(Cause.fail(error)),
   ).pipe(Effect.as(failedResolution(path, error)));
-
-const isMissingSource = (error: unknown, path: string): boolean =>
-  isScriptSourceRegistryError(error) &&
-  error.path === path &&
-  isMissingFileError(
-    isScriptFilesError(error.cause) ? error.cause.cause : error.cause,
-  );
 
 const moduleFromAnalysis = (
   target: ModuleTarget,
@@ -241,7 +236,11 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
     let sourceCacheBytes = 0;
 
     const registryError = (cause: Error) =>
-      new ScriptSourceRegistryError({ detail: cause.message, cause });
+      new ScriptSourceRegistryError({
+        kind: "failed",
+        detail: cause.message,
+        cause,
+      });
     const getDiscovery = catalog.getDiscovery.pipe(
       Effect.mapError(registryError),
     );
@@ -275,15 +274,22 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
     const readModule = Effect.fn("ScriptSourceRegistry.readModule")(function* (
       target: ModuleTarget,
     ) {
-      const currentFingerprint = yield* Effect.tryPromise({
-        try: () => regularFileFingerprint(target.absolutePath),
-        catch: (cause) =>
-          new ScriptSourceRegistryError({
-            detail: errorMessage(cause, "Failed to inspect script source."),
-            path: target.absolutePath,
-            cause,
-          }),
-      });
+      const currentFingerprint = yield* regularFileFingerprint(
+        target.absolutePath,
+      ).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ScriptSourceRegistryError({
+              kind: "failed",
+              detail: errorMessage(
+                nativeCause(cause),
+                "Failed to inspect script source.",
+              ),
+              path: target.absolutePath,
+              cause,
+            }),
+        ),
+      );
       const cached = sourceCache.get(target.absolutePath);
       if (
         cached?.fingerprint === currentFingerprint &&
@@ -299,6 +305,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
         Effect.mapError(
           (cause) =>
             new ScriptSourceRegistryError({
+              kind: "failed",
               detail: cause.message,
               path: target.absolutePath,
               cause,
@@ -335,6 +342,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
       detail: string,
     ): ScriptSourceRegistryError =>
       new ScriptSourceRegistryError({
+        kind: "failed",
         detail: `${importer.packageName ?? importer.path} can't import ${JSON.stringify(specifier)}. ${detail}`,
         path: importer.absolutePath,
       });
@@ -389,6 +397,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
           totalBytes += loaded.bytes;
           if (totalBytes > SCRIPT_SNAPSHOT_MAX_BYTES) {
             return yield* new ScriptSourceRegistryError({
+              kind: "failed",
               detail: `Script sources exceed the ${formatBytes(SCRIPT_SNAPSHOT_MAX_BYTES)} execution limit.`,
               path: selectedTarget.absolutePath,
             });
@@ -510,6 +519,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
         const entry = yield* resolveEntry(reference);
         if (entry === undefined) {
           return yield* new ScriptSourceRegistryError({
+            kind: "failed",
             detail: "The selected script is no longer available.",
           });
         }
@@ -519,12 +529,14 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
           const owner = discovery?.packages.get(reference.packageName);
           if (owner?.compatibility.status === "incompatible") {
             return yield* new ScriptSourceRegistryError({
+              kind: "failed",
               detail: `${owner.name} requires Lucent ${owner.compatibility.requiredVersion}; this app is ${owner.compatibility.currentVersion}.`,
               path: entry.path,
             });
           }
           if (owner?.dependencyStatus.status === "blocked") {
             return yield* new ScriptSourceRegistryError({
+              kind: "failed",
               detail: `${owner.name} can't run because one or more required packages are unavailable.`,
               path: entry.path,
             });
@@ -538,6 +550,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
         }
         if (target === undefined) {
           return yield* new ScriptSourceRegistryError({
+            kind: "failed",
             detail: "The selected script is no longer available.",
             path: entry.path,
           });
@@ -546,6 +559,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
           Effect.mapError(
             (cause) =>
               new ScriptSourceRegistryError({
+                kind: cause.kind,
                 detail: cause.message,
                 path: entry.path,
                 cause,
@@ -589,6 +603,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
         Effect.mapError(
           (cause) =>
             new ScriptSourceRegistryError({
+              kind: "failed",
               detail: cause.message,
               path,
               cause,
@@ -600,6 +615,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
                 Effect.mapError(
                   (cause) =>
                     new ScriptSourceRegistryError({
+                      kind: cause.kind,
                       detail: cause.message,
                       path,
                       cause,
@@ -632,7 +648,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
                   }),
                 ),
                 Effect.catchIf(
-                  (error) => isMissingSource(error, entry.path),
+                  (error) => error.kind === "not-found",
                   () =>
                     Effect.succeed<ScriptFileResolution>({
                       status: "missing",

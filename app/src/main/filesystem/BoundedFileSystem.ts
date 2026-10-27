@@ -1,6 +1,7 @@
 import { promises as fs, type Dirent, type Stats } from "node:fs";
 import * as Effect from "effect/Effect";
 import { FileSystem } from "effect/FileSystem";
+import * as Predicate from "effect/Predicate";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -18,6 +19,69 @@ export class FileChangedWhileReading extends Schema.TaggedError<FileChangedWhile
   "FileChangedWhileReading",
   { path: Schema.String },
 ) {}
+
+export class FileNotFound extends Schema.TaggedError<FileNotFound>()(
+  "FileNotFound",
+  {
+    path: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {
+  override get message(): string {
+    return this.cause instanceof Error
+      ? this.cause.message
+      : String(this.cause);
+  }
+}
+
+export class NotRegularFile extends Schema.TaggedError<NotRegularFile>()(
+  "NotRegularFile",
+  {
+    path: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Expected a regular file: ${this.path}.`;
+  }
+}
+
+export type FileReadError = FileNotFound | PlatformError.PlatformError;
+
+const isFileNotFound = Schema.is(FileNotFound);
+
+export function nativeCause(error: PlatformError.PlatformError): {};
+export function nativeCause(error: unknown): unknown;
+export function nativeCause(error: unknown): unknown {
+  return PlatformError.isPlatformError(error)
+    ? (error.reason.cause ?? error)
+    : isFileNotFound(error)
+      ? error.cause
+      : error;
+}
+
+export const fileReadError =
+  (path: string) =>
+  (error: PlatformError.PlatformError): FileReadError => {
+    const cause = nativeCause(error);
+    return Predicate.isTagged(error.reason, "NotFound") ||
+      isMissingFileError(cause)
+      ? new FileNotFound({ path, cause })
+      : error;
+  };
+
+const statPath = (path: string) =>
+  Effect.tryPromise({
+    try: () => fs.stat(path),
+    catch: (cause) => fileReadError(path)(nativeFileError("stat", path, cause)),
+  });
+
+export const regularFileFingerprint = Effect.fnUntraced(function* (
+  path: string,
+) {
+  const stat = yield* statPath(path);
+  if (!stat.isFile()) return yield* new NotRegularFile({ path });
+  return fileFingerprint(stat);
+});
 
 export const fileFingerprint = (stat: Stats): string =>
   [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
@@ -61,13 +125,10 @@ export const readStableFile = Effect.fnUntraced(function* (
   } = {},
 ) {
   const fileSystem = yield* FileSystem;
-  const stat = Effect.tryPromise({
-    try: () => fs.stat(path),
-    catch: (cause) => cause,
-  });
+  const stat = statPath(path);
   const before = yield* stat;
   if (options.requireRegularFile && !before.isFile())
-    return yield* Effect.fail(new Error(`Expected a regular file: ${path}.`));
+    return yield* new NotRegularFile({ path });
   if (before.size > maxBytes)
     return yield* new FileSystemLimitError({
       path,
@@ -78,12 +139,12 @@ export const readStableFile = Effect.fnUntraced(function* (
     Effect.mapError((cause) =>
       cause._tag === "FileSystemLimitError"
         ? cause
-        : (cause.reason.cause ?? cause),
+        : fileReadError(path)(cause),
     ),
   );
   const after = yield* stat.pipe(
     Effect.mapError((cause) =>
-      options.missingAfterReadIsChange && isMissingFileError(cause)
+      options.missingAfterReadIsChange && isFileNotFound(cause)
         ? new FileChangedWhileReading({ path })
         : cause,
     ),

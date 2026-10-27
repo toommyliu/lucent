@@ -1,3 +1,4 @@
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import { basename, relative, resolve } from "node:path";
 
 import { FileSystem } from "effect/FileSystem";
@@ -120,7 +121,7 @@ export const layer = Layer.effect(
           (cause) =>
             new ScriptPackageCatalogError({
               operation: "scan",
-              cause: cause.reason.cause ?? cause,
+              cause: nativeCause(cause),
             }),
         ),
       );

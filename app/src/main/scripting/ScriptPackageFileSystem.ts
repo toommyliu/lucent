@@ -6,12 +6,14 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
 
 import {
   FileChangedWhileReading,
   FileSystemLimitError,
-  fileFingerprint,
+  nativeCause,
+  NotRegularFile,
   isMissingFileError,
   readStableFile as readStableFileEffect,
 } from "../filesystem/BoundedFileSystem";
@@ -50,6 +52,8 @@ export const isPathInside = (root: string, candidate: string): boolean => {
   return path === "" || (!path.startsWith(`..${sep}`) && path !== "..");
 };
 
+const isNotRegularFile = Schema.is(NotRegularFile);
+
 export const readStableFile = async (
   path: string,
   maxBytes: number,
@@ -67,19 +71,15 @@ export const readStableFile = async (
             )
           : cause instanceof FileChangedWhileReading
             ? new Error(`File changed while it was being read: ${path}.`)
-            : cause,
+            : isNotRegularFile(cause)
+              ? new Error(cause.message)
+              : nativeCause(cause),
       ),
       Effect.provide(NodeFileSystem.layer),
     ),
   );
   if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
   return exit.value.contents;
-};
-
-export const regularFileFingerprint = async (path: string): Promise<string> => {
-  const stat = await fs.stat(path);
-  if (!stat.isFile()) throw new Error(`Expected a regular file: ${path}.`);
-  return fileFingerprint(stat);
 };
 
 export const sha256Revision = (contents: Buffer | string): string =>

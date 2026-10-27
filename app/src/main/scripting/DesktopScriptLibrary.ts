@@ -1,3 +1,4 @@
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import { basename, resolve } from "node:path";
 
 import * as Context from "effect/Context";
@@ -175,7 +176,7 @@ export const layer = Layer.effect(
         .makeDirectory(scriptsDir, { recursive: true })
         .pipe(
           Effect.mapError((cause) =>
-            wrapError("mkdir", cause.reason.cause ?? cause, scriptsDir),
+            wrapError("mkdir", nativeCause(cause), scriptsDir),
           ),
         );
       const result = yield* dialog
