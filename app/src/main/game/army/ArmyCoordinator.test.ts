@@ -847,6 +847,7 @@ describe("army checkpoint cursor", () => {
       expect(yield* report(1)).toEqual(done);
       expect(yield* Effect.flip(report(0))).toMatchObject({
         reason: "completed-step",
+        message: "Army step 0 has already completed",
       });
       expect(yield* coordinator.getSessions()).toEqual([]);
     }),
@@ -875,7 +876,10 @@ describe("army checkpoint cursor", () => {
               ? coordinator.sync(session.sessionId, 1, payload)
               : coordinator.progress(session.sessionId, 1, payload),
           );
-          expect(error).toMatchObject({ reason: "completed-step" });
+          expect(error).toMatchObject({
+            reason: "completed-step",
+            message: "Army step 0 has already completed",
+          });
           expect(yield* coordinator.getSessions()).toEqual([]);
         }),
     );

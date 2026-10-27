@@ -700,6 +700,7 @@ describe("ArmyLoopTauntOrchestrator", () => {
         .pipe(Effect.flip);
       expect(duplicate).toMatchObject({
         reason: "already-registered",
+        message: "Loop taunt sender is already registered",
       });
 
       yield* harness.orchestrator.leave(
@@ -770,7 +771,9 @@ describe("ArmyLoopTauntOrchestrator", () => {
       expect(invalidError).toMatchObject({
         reason: "invalid-registration",
       });
-      expect(invalidError.message).toContain("same priority group");
+      expect(invalidError.message).toBe(
+        "Loop taunt player 1 appears in more than one assignment in the same priority group",
+      );
 
       const left = assignment({ players: [1] });
       const right = assignment({
@@ -811,7 +814,9 @@ describe("ArmyLoopTauntOrchestrator", () => {
       expect(mismatchError).toMatchObject({
         reason: "registration-mismatch",
       });
-      expect(mismatchError.message).toContain("priority group boundaries");
+      expect(mismatchError.message).toBe(
+        "Loop taunt assignments and priority group boundaries must match across the Army roster",
+      );
 
       yield* harness.orchestrator.leave(
         {
@@ -1255,7 +1260,11 @@ describe("ArmyLoopTauntOrchestrator", () => {
             .pipe(Effect.result),
         ).toMatchObject({
           _tag: "Failure",
-          failure: { reason: "inactive-run", runId },
+          failure: {
+            reason: "inactive-run",
+            runId,
+            message: "Loop taunt run is not active",
+          },
         });
       }),
   );
@@ -1298,8 +1307,22 @@ describe("ArmyLoopTauntOrchestrator", () => {
           harness.orchestrator.await(run, senderId).pipe(Effect.result),
         );
         expect(afterRetirement).toMatchObject([
-          { _tag: "Failure", failure: { reason: "inactive-run", runId } },
-          { _tag: "Failure", failure: { reason: "inactive-run", runId } },
+          {
+            _tag: "Failure",
+            failure: {
+              reason: "inactive-run",
+              runId,
+              message: "Loop taunt run is not active",
+            },
+          },
+          {
+            _tag: "Failure",
+            failure: {
+              reason: "inactive-run",
+              runId,
+              message: "Loop taunt run is not active",
+            },
+          },
         ]);
       }),
   );
@@ -1312,7 +1335,10 @@ describe("ArmyLoopTauntOrchestrator", () => {
       const rejected = yield* harness.orchestrator
         .register(registration, -1)
         .pipe(Effect.flip);
-      expect(rejected).toMatchObject({ reason: "sender-mismatch" });
+      expect(rejected).toMatchObject({
+        reason: "sender-mismatch",
+        message: "Army sender is not attached to this session",
+      });
     }),
   );
 
