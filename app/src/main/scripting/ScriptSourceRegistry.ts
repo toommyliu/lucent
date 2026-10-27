@@ -205,6 +205,13 @@ const resolveFailure = (path: string, error: unknown) =>
     resolutionFailureCause(Cause.fail(error)),
   ).pipe(Effect.as(failedResolution(path, error)));
 
+const isMissingSource = (error: unknown, path: string): boolean =>
+  isScriptSourceRegistryError(error) &&
+  error.path === path &&
+  isMissingFileError(
+    isScriptFilesError(error.cause) ? error.cause.cause : error.cause,
+  );
+
 const moduleFromAnalysis = (
   target: ModuleTarget,
   analysis: ScriptFileAnalysis,
@@ -623,6 +630,14 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
                     status: "found",
                     file,
                   }),
+                ),
+                Effect.catchIf(
+                  (error) => isMissingSource(error, entry.path),
+                  () =>
+                    Effect.succeed<ScriptFileResolution>({
+                      status: "missing",
+                      path: displayPath,
+                    }),
                 ),
               ),
         ),
