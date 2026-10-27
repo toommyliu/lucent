@@ -10,12 +10,17 @@ import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
 import type {
+  InvalidScriptPackage,
   ScriptCatalogChange,
   ScriptCatalogEntry,
   ScriptCatalogOverview,
   ScriptCatalogPage,
   ScriptCatalogPageRequest,
+  ScriptPackageDirectory,
+  ScriptPackageName,
+  ScriptPackageSummary,
   ScriptReference,
+  ValidScriptPackage,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import type { Listener } from "../app/ListenerRegistry";
@@ -40,6 +45,7 @@ import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
+import { packageDirectoryPath } from "./ScriptPackageDirectories";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 export class ScriptPackageCatalogError extends Schema.TaggedError<ScriptPackageCatalogError>()(
@@ -54,6 +60,27 @@ export class ScriptPackageCatalogError extends Schema.TaggedError<ScriptPackageC
   }
 }
 
+export type InstalledPackage =
+  | { readonly kind: "absent" }
+  | { readonly kind: "ambiguous"; readonly paths: readonly string[] }
+  | {
+      readonly kind: "invalid";
+      readonly root: string;
+      readonly summary: InvalidScriptPackage;
+    }
+  | {
+      readonly kind: "unmanaged";
+      readonly directory: ScriptPackageDirectory;
+      readonly root: string;
+      readonly summary: ValidScriptPackage;
+    }
+  | {
+      readonly kind: "managed";
+      readonly managed: ManagedScriptPackage;
+      readonly root: string;
+      readonly summary: ScriptPackageSummary | undefined;
+    };
+
 export interface ScriptPackageCatalogShape {
   readonly getOverview: Effect.Effect<
     ScriptCatalogOverview,
@@ -66,6 +93,9 @@ export interface ScriptPackageCatalogShape {
   readonly getPage: (
     request: ScriptCatalogPageRequest,
   ) => Effect.Effect<ScriptCatalogPage, ScriptPackageCatalogError>;
+  readonly locate: (
+    name: ScriptPackageName,
+  ) => Effect.Effect<InstalledPackage, ScriptPackageCatalogError>;
   readonly onChanged: (
     listener: Listener<ScriptCatalogChange>,
   ) => Effect.Effect<void, never, Scope.Scope>;
@@ -201,6 +231,35 @@ export const layer = Layer.effect(
             } satisfies ScriptCatalogPage;
           }),
         ),
+      locate: Effect.fn("ScriptPackageCatalog.locate")(
+        function* (
+          name,
+        ): Effect.fn.Return<InstalledPackage, ScriptPackageCatalogError> {
+          const current = yield* discovery.get;
+          const matching = current.catalog.packages.filter(
+            (entry) => entry.name === name,
+          );
+          if (matching.length > 1) {
+            return {
+              kind: "ambiguous",
+              paths: matching.map((entry) => entry.path),
+            };
+          }
+          const summary = matching[0];
+          const managed = yield* state.get(name);
+          if (managed !== undefined) {
+            const root = packageDirectoryPath(packagesDir, managed.directory);
+            if (summary === undefined || resolve(summary.path) === root) {
+              return { kind: "managed", managed, root, summary };
+            }
+          }
+          if (summary === undefined) return { kind: "absent" };
+          const root = resolve(summary.path);
+          return summary.status === "invalid"
+            ? { kind: "invalid", root, summary }
+            : { kind: "unmanaged", directory: basename(root), root, summary };
+        },
+      ),
       onChanged: (listener) =>
         discovery.subscribe((value) =>
           listener({ revision: value.catalog.revision }),

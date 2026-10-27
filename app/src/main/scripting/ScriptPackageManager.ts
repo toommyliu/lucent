@@ -1,5 +1,5 @@
 import { pathExists } from "../filesystem/BoundedFileSystem";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -13,6 +13,7 @@ import * as Semaphore from "effect/Semaphore";
 
 import type {
   ScriptCatalogOverview,
+  ScriptPackageDirectory,
   ScriptPackageMutationResult,
   ScriptPackageIntegrity,
   ScriptPackageRevision,
@@ -194,16 +195,6 @@ export const layer = Layer.effect(
     const state = yield* ScriptPackageState;
     const { packagesDir } = resolveScriptWorkspacePaths(env.workspaceDir);
     const mutationGate = yield* Semaphore.make(1);
-
-    const managedPackageForPath = (
-      managed: ManagedScriptPackage | undefined,
-      path: string | undefined,
-    ): ManagedScriptPackage | undefined =>
-      managed !== undefined &&
-      (path === undefined ||
-        resolve(path) === packageDirectoryPath(packagesDir, managed.directory))
-        ? managed
-        : undefined;
 
     const inspectIntegrity = Effect.fnUntraced(
       function* (rootPath: string, managed: ManagedScriptPackage | undefined) {
@@ -587,54 +578,54 @@ export const layer = Layer.effect(
                 );
               }
 
-              const discovery = yield* catalog.getDiscovery.pipe(
-                Effect.mapError((cause) =>
-                  managerError(
-                    "validate",
-                    "Failed to inspect installed packages.",
-                    cause,
+              const installed = yield* catalog
+                .locate(packageName)
+                .pipe(
+                  Effect.mapError((cause) =>
+                    managerError(
+                      "validate",
+                      "Failed to inspect installed packages.",
+                      cause,
+                    ),
                   ),
-                ),
-              );
-              const matchingPackages = discovery.catalog.packages.filter(
-                (entry) => entry.name === packageName,
-              );
-              if (matchingPackages.length > 1) {
-                return yield* managerError(
-                  "validate",
-                  `More than one package folder declares the name ${JSON.stringify(packageName)}.`,
                 );
-              }
-              const matchingPackage = matchingPackages[0];
-              const savedPackage = managedPackageForPath(
-                replacement?.installed ?? (yield* state.get(packageName)),
-                matchingPackage?.path,
-              );
-              const reservedDirectories = new Set(
-                (yield* state.getAll).map((entry) => entry.directory),
-              );
               const folderError = (cause: unknown) =>
                 managerError(
                   "validate",
                   "Failed to choose a package folder.",
                   cause,
                 );
-              const directory =
-                savedPackage !== undefined
-                  ? savedPackage.directory
-                  : matchingPackage !== undefined
-                    ? yield* Effect.try({
-                        try: () =>
-                          decodePackageDirectory(
-                            basename(matchingPackage.path),
-                          ),
-                        catch: folderError,
-                      })
-                    : yield* allocatePackageDirectory(
-                        packagesDir,
-                        packageName,
-                        reservedDirectories,
-                      ).pipe(Effect.mapError(folderError));
+              let directory: ScriptPackageDirectory;
+              switch (installed.kind) {
+                case "ambiguous":
+                  return yield* managerError(
+                    "validate",
+                    `More than one package folder declares the name ${JSON.stringify(packageName)}.`,
+                  );
+                case "managed":
+                  directory = installed.managed.directory;
+                  break;
+                case "unmanaged":
+                  directory = installed.directory;
+                  break;
+                case "invalid":
+                  directory = yield* Effect.try({
+                    try: () => decodePackageDirectory(basename(installed.root)),
+                    catch: folderError,
+                  });
+                  break;
+                case "absent":
+                  directory = yield* allocatePackageDirectory(
+                    packagesDir,
+                    packageName,
+                    new Set(
+                      (yield* state.getAll).map((entry) => entry.directory),
+                    ),
+                  ).pipe(Effect.mapError(folderError));
+                  break;
+                default:
+                  return installed satisfies never;
+              }
               const destination = packageDirectoryPath(packagesDir, directory);
               const destinationExists = yield* pathExists(destination).pipe(
                 Effect.mapError((cause) =>
@@ -645,11 +636,7 @@ export const layer = Layer.effect(
                   ),
                 ),
               );
-              if (
-                destinationExists &&
-                savedPackage === undefined &&
-                matchingPackage === undefined
-              ) {
+              if (destinationExists && installed.kind === "absent") {
                 return yield* managerError(
                   "validate",
                   `Package folder ${JSON.stringify(directory)} is already in use.`,
@@ -749,39 +736,42 @@ export const layer = Layer.effect(
     const update: ScriptPackageManagerShape["update"] = (input) =>
       mutationGate.withPermits(1)(
         Effect.gen(function* () {
-          const discovery = yield* catalog.getDiscovery.pipe(
-            Effect.mapError((cause) =>
-              managerError(
-                "update",
-                "Failed to inspect installed packages.",
-                cause,
+          const installed = yield* catalog
+            .locate(input.packageName)
+            .pipe(
+              Effect.mapError((cause) =>
+                managerError(
+                  "update",
+                  "Failed to inspect installed packages.",
+                  cause,
+                ),
               ),
-            ),
-          );
-          const summary = discovery.catalog.packages.find(
-            (entry) =>
-              entry.status === "valid" && entry.name === input.packageName,
-          );
+            );
+          switch (installed.kind) {
+            case "absent":
+            case "ambiguous":
+            case "invalid":
+              return yield* managerError(
+                "update",
+                `Package ${JSON.stringify(input.packageName)} is not installed.`,
+              );
+            case "unmanaged":
+              return yield* managerError(
+                "update",
+                "This package is unmanaged and has no GitHub source to update.",
+              );
+            case "managed":
+              break;
+            default:
+              return installed satisfies never;
+          }
+          const { managed, root: savedRoot, summary } = installed;
           if (summary?.status !== "valid") {
             return yield* managerError(
               "update",
               `Package ${JSON.stringify(input.packageName)} is not installed.`,
             );
           }
-          const managed = managedPackageForPath(
-            yield* state.get(input.packageName),
-            summary.path,
-          );
-          if (managed === undefined) {
-            return yield* managerError(
-              "update",
-              "This package is unmanaged and has no GitHub source to update.",
-            );
-          }
-          const savedRoot = packageDirectoryPath(
-            packagesDir,
-            managed.directory,
-          );
           const resolution = yield* resolveSource({
             ...managed.source,
             ...(managed.source.requestedRef === undefined
@@ -851,27 +841,28 @@ export const layer = Layer.effect(
     const restore: ScriptPackageManagerShape["restore"] = (input) =>
       mutationGate.withPermits(1)(
         Effect.gen(function* () {
-          const overview = yield* catalog.getOverview.pipe(
-            Effect.mapError(mapCatalogError),
-          );
-          const matchingPackages = overview.packages.filter(
-            (entry) => entry.name === input.packageName,
-          );
-          if (matchingPackages.length > 1)
-            return yield* managerError(
-              "restore",
-              `More than one package folder declares the name ${JSON.stringify(input.packageName)}.`,
-            );
-          const managed = managedPackageForPath(
-            yield* state.get(input.packageName),
-            matchingPackages[0]?.path,
-          );
-          if (managed === undefined) {
-            return yield* managerError(
-              "restore",
-              "This package has no saved GitHub installation to restore.",
-            );
+          const installed = yield* catalog
+            .locate(input.packageName)
+            .pipe(Effect.mapError(mapCatalogError));
+          switch (installed.kind) {
+            case "ambiguous":
+              return yield* managerError(
+                "restore",
+                `More than one package folder declares the name ${JSON.stringify(input.packageName)}.`,
+              );
+            case "absent":
+            case "invalid":
+            case "unmanaged":
+              return yield* managerError(
+                "restore",
+                "This package has no saved GitHub installation to restore.",
+              );
+            case "managed":
+              break;
+            default:
+              return installed satisfies never;
           }
+          const { managed } = installed;
           const source = managed.source;
           const restoreCommit = (commit: string) =>
             installInternal(
@@ -945,10 +936,6 @@ export const layer = Layer.effect(
                 );
                 if (inspected.manifest.name !== managed.name)
                   return yield* managerError("restore", unavailable);
-                const destination = packageDirectoryPath(
-                  packagesDir,
-                  managed.directory,
-                );
                 return yield* replacePackage({
                   inspected,
                   managed: {
@@ -958,7 +945,7 @@ export const layer = Layer.effect(
                       Effect.map(DateTime.formatIso),
                     ),
                   },
-                  rootPath: destination,
+                  rootPath: installed.root,
                   sourceRoot: staging,
                 });
               }),
@@ -973,41 +960,41 @@ export const layer = Layer.effect(
     const remove: ScriptPackageManagerShape["remove"] = (input) =>
       mutationGate.withPermits(1)(
         Effect.gen(function* () {
-          const discovery = yield* catalog.getDiscovery.pipe(
-            Effect.mapError((cause) =>
-              managerError(
-                "remove",
-                "Failed to inspect installed packages.",
-                cause,
+          const installed = yield* catalog
+            .locate(input.packageName)
+            .pipe(
+              Effect.mapError((cause) =>
+                managerError(
+                  "remove",
+                  "Failed to inspect installed packages.",
+                  cause,
+                ),
               ),
-            ),
-          );
-          const summary = discovery.catalog.packages.find(
-            (entry) =>
-              entry.status === "valid" && entry.name === input.packageName,
-          );
-          if (summary?.status !== "valid") {
-            return yield* managerError(
-              "remove",
-              `Package ${JSON.stringify(input.packageName)} is not installed.`,
             );
-          }
-          const managed = managedPackageForPath(
-            yield* state.get(input.packageName),
-            summary.path,
-          );
-          const directory = yield* Effect.try({
-            try: () =>
-              managed?.directory ??
-              decodePackageDirectory(basename(summary.path)),
-            catch: (cause) =>
-              managerError(
+          switch (installed.kind) {
+            case "absent":
+            case "ambiguous":
+            case "invalid":
+              return yield* managerError(
                 "remove",
-                "The package folder name is not safe.",
-                cause,
-              ),
-          });
-          const root = packageDirectoryPath(packagesDir, directory);
+                `Package ${JSON.stringify(input.packageName)} is not installed.`,
+              );
+            case "managed":
+              if (installed.summary?.status !== "valid") {
+                return yield* managerError(
+                  "remove",
+                  `Package ${JSON.stringify(input.packageName)} is not installed.`,
+                );
+              }
+              break;
+            case "unmanaged":
+              break;
+            default:
+              return installed satisfies never;
+          }
+          const { root } = installed;
+          const managed =
+            installed.kind === "managed" ? installed.managed : undefined;
           if (input.confirmModified !== true && managed === undefined) {
             return localModifications(input.packageName);
           }
