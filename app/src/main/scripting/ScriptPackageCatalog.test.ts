@@ -562,6 +562,7 @@ layer(nodeFileSystemLayer)("discoverScriptCatalog", (it) => {
           directory: "tools-folder",
           files: yield* hashDirectory(packageRoot),
           installedAt: epoch,
+          update: { status: "unchecked" },
           name: "@author/tools",
           source: {
             kind: "repository",
@@ -608,6 +609,7 @@ layer(nodeFileSystemLayer)("discoverScriptCatalog", (it) => {
           directory: "tracked-folder",
           files: yield* hashDirectory(packageRoot),
           installedAt: epoch,
+          update: { status: "unchecked" },
           name: "expected-name",
           source: {
             kind: "repository",
@@ -980,6 +982,7 @@ layer(nodeFileSystemLayer)("ScriptPackageCatalog", (it) => {
           directory: "tools",
           files: yield* hashDirectory(rootPath),
           installedAt: "2026-10-17T00:00:00.000Z",
+          update: { status: "unchecked" },
           name: "tools",
           source: {
             kind: "repository",
@@ -1053,6 +1056,7 @@ layer(nodeFileSystemLayer)("ScriptPackageCatalog", (it) => {
           directory: "tools",
           files: yield* hashDirectory(rootPath),
           installedAt: "2026-10-17T00:00:00.000Z",
+          update: { status: "unchecked" },
           name: "tools",
           source: {
             kind: "repository",
@@ -1216,6 +1220,7 @@ layer(nodeFileSystemLayer)("ScriptPackageCatalog", (it) => {
             name: "tools",
             files: {},
             installedAt: epoch,
+            update: { status: "unchecked" },
             source: {
               kind: "repository",
               repositoryUrl: "https://github.com/example/tools",
@@ -1256,6 +1261,7 @@ layer(nodeFileSystemLayer)("ScriptPackageCatalog", (it) => {
         directory: "tools",
         files: yield* hashDirectory(rootPath),
         installedAt: epoch,
+        update: { status: "unchecked" },
         name: "tools",
         source: {
           kind: "repository",

@@ -18,6 +18,7 @@ import type {
   ScriptPackageName,
   ScriptPackageIntegrity,
   ScriptPackageRevision,
+  ScriptPackageUpdateState,
 } from "@lucent/core/scriptPackages";
 import { ScriptPackageDirectorySchema } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
@@ -113,7 +114,7 @@ export class ScriptPackageManager extends Context.Service<
 interface ResolvedPackageRevision {
   readonly checkedAt: string;
   readonly revision: ScriptPackageRevision;
-  readonly etag?: string;
+  readonly commitLookup?: ManagedScriptPackage["commitLookup"];
 }
 
 interface ResolvedInstallSource extends ResolvedPackageRevision {
@@ -154,7 +155,7 @@ type PackageTarget =
 
 type PackageDetails = Pick<
   ManagedScriptPackage,
-  "etag" | "remoteRevision" | "source" | "update"
+  "commitLookup" | "source" | "update"
 >;
 
 const BUNDLED_COPY_UNAVAILABLE =
@@ -187,7 +188,6 @@ const remoteDetails = (
       : { requestedRef: origin.requestedRef }),
   };
   return {
-    remoteRevision: resolution.revision,
     source:
       origin.subdirectory === undefined
         ? { kind: "repository", ...shared }
@@ -198,7 +198,9 @@ const remoteDetails = (
             subdirectory: origin.subdirectory,
           },
     update: { status: "current", checkedAt: resolution.checkedAt },
-    ...(resolution.etag === undefined ? {} : { etag: resolution.etag }),
+    ...(resolution.commitLookup === undefined
+      ? {}
+      : { commitLookup: resolution.commitLookup }),
   };
 };
 
@@ -222,7 +224,6 @@ const recordRemoteResolution = (
   files: managed.files,
   installedAt: managed.installedAt,
   name: managed.name,
-  remoteRevision: resolution.revision,
   source: managed.source,
   update: revisionsMatch(resolution.revision, installedRevision(managed))
     ? { status: "current", checkedAt: resolution.checkedAt }
@@ -231,8 +232,21 @@ const recordRemoteResolution = (
         checkedAt: resolution.checkedAt,
         revision: resolution.revision,
       },
-  ...(resolution.etag === undefined ? {} : { etag: resolution.etag }),
+  ...(resolution.commitLookup === undefined
+    ? {}
+    : { commitLookup: resolution.commitLookup }),
 });
+
+const rateLimitedState = (
+  error: GitHubScriptPackageClientError,
+): ScriptPackageUpdateState | undefined =>
+  error.kind === "rate-limited" && error.retryAt !== undefined
+    ? {
+        status: "rate-limited",
+        message: "GitHub's request limit has been reached.",
+        retryAt: error.retryAt,
+      }
+    : undefined;
 
 const managerError = (
   operation: typeof packageManagerOperationSchema.Type,
@@ -309,7 +323,7 @@ export const layer = Layer.effect(
         readonly credentialId?: string;
         readonly ref?: string;
         readonly subdirectory?: string;
-        readonly known?: Pick<ManagedScriptPackage, "etag" | "remoteRevision">;
+        readonly known?: ManagedScriptPackage["commitLookup"];
       }) {
         const commit = yield* client.resolveCommit({
           repositoryUrl: input.repositoryUrl,
@@ -317,23 +331,16 @@ export const layer = Layer.effect(
             ? {}
             : { credentialId: input.credentialId }),
           ...(input.ref === undefined ? {} : { ref: input.ref }),
-          ...(input.subdirectory === undefined &&
-          input.known?.remoteRevision?.kind === "commit" &&
-          input.known.etag !== undefined
-            ? {
-                known: {
-                  etag: input.known.etag,
-                  commit: input.known.remoteRevision.sha,
-                },
-              }
-            : {}),
+          ...(input.known === undefined ? {} : { known: input.known }),
         });
         if (input.subdirectory === undefined) {
           return {
             checkedAt: (yield* DateTime.nowAsDate).toISOString(),
             commit: commit.commit,
             revision: { kind: "commit", sha: commit.commit },
-            ...(commit.etag === undefined ? {} : { etag: commit.etag }),
+            ...(commit.etag === undefined
+              ? {}
+              : { commitLookup: { etag: commit.etag, commit: commit.commit } }),
           } satisfies ResolvedInstallSource;
         }
         const directory = yield* client.resolveDirectory({
@@ -852,7 +859,7 @@ export const layer = Layer.effect(
             ...(managed.source.requestedRef === undefined
               ? {}
               : { ref: managed.source.requestedRef }),
-            known: managed,
+            known: managed.commitLookup,
           }).pipe(
             Effect.mapError((cause) =>
               managerError("update", cause.message, cause),
@@ -941,11 +948,7 @@ export const layer = Layer.effect(
               },
               managed,
             );
-          if (source.kind === "repository")
-            return yield* restoreFrom(
-              githubSource(source, source.resolvedCommit),
-            );
-          if (source.resolvedCommit !== undefined)
+          if (source.kind !== "bundled")
             return yield* restoreFrom(
               githubSource(source, source.resolvedCommit),
             );
@@ -1067,7 +1070,7 @@ export const layer = Layer.effect(
           ResolvedPackageRevision,
           GitHubScriptPackageClientError
         > =
-          source.kind === "directory"
+          source.kind !== "repository"
             ? client
                 .resolveDirectory({
                   repositoryUrl: source.repositoryUrl,
@@ -1096,7 +1099,7 @@ export const layer = Layer.effect(
                 ...(source.requestedRef === undefined
                   ? {}
                   : { ref: source.requestedRef }),
-                known: managed,
+                known: managed.commitLookup,
               });
         const result = yield* resolution.pipe(
           Effect.matchEffect({
@@ -1125,9 +1128,9 @@ export const layer = Layer.effect(
         );
 
         const lastSuccessfulCheckAt =
-          managed.update?.status === "current" ||
-          managed.update?.status === "available" ||
-          managed.update?.status === "unknown"
+          managed.update.status === "current" ||
+          managed.update.status === "available" ||
+          managed.update.status === "unknown"
             ? managed.update.checkedAt
             : undefined;
         const next: ManagedScriptPackage =
@@ -1135,21 +1138,13 @@ export const layer = Layer.effect(
             ? recordRemoteResolution(managed, result.value)
             : {
                 ...managed,
-                update:
-                  result.error.kind === "rate-limited" &&
-                  result.error.retryAt !== undefined
-                    ? {
-                        status: "rate-limited",
-                        message: "GitHub's request limit has been reached.",
-                        retryAt: result.error.retryAt,
-                      }
-                    : {
-                        status: "unknown",
-                        message: result.error.message,
-                        ...(lastSuccessfulCheckAt === undefined
-                          ? {}
-                          : { checkedAt: lastSuccessfulCheckAt }),
-                      },
+                update: rateLimitedState(result.error) ?? {
+                  status: "unknown",
+                  message: result.error.message,
+                  ...(lastSuccessfulCheckAt === undefined
+                    ? {}
+                    : { checkedAt: lastSuccessfulCheckAt }),
+                },
               };
         return yield* mutationGate.withPermits(1)(
           Effect.gen(function* () {
