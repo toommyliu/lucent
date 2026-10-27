@@ -105,6 +105,32 @@ const repositoryUrl = "https://github.com/example/tools";
 
 describe("GitHubScriptPackageClient", () => {
   it.effect.each([
+    { name: "invalid JSON", body: "{" },
+    { name: "an invalid commit schema", body: '{"sha":123}' },
+  ])("rejects $name as an unexpected response", ({ body }) =>
+    Effect.gen(function* () {
+      const harness = makeClientHarness([
+        { ...jsonResponse(null), body: Buffer.from(body) },
+      ]);
+      const client = yield* GitHubScriptPackageClient.pipe(
+        Effect.provide(harness.layer),
+      );
+
+      const error = yield* client
+        .resolveCommit({ repositoryUrl })
+        .pipe(Effect.flip);
+
+      expect(error).toMatchObject({
+        _tag: "GitHubScriptPackageClientError",
+        kind: "unexpected-response",
+      });
+      expect(harness.requests.map(String)).toEqual([
+        "https://api.github.com/repos/example/tools/commits/HEAD",
+      ]);
+    }),
+  );
+
+  it.effect.each([
     {
       name: "without an ETag",
       headers: {},
