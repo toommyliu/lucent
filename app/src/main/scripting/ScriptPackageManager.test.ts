@@ -1,5 +1,5 @@
 import { fileSystemLayer } from "../filesystem/FileSystemTesting";
-import { promises as fs } from "node:fs";
+import nodeFs, { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
@@ -448,6 +448,82 @@ layer(desktopFileSystemLayer)("script package folders", (it) => {
           "packages",
         ]);
         expect(harness.downloadCount()).toBe(0);
+      }).pipe(Effect.scoped),
+  );
+
+  it.effect(
+    "finishes extracting before cleaning up an interrupted install",
+    () =>
+      Effect.gen(function* () {
+        const root = yield* Effect.promise(makeDirectory);
+        const workspaceDir = join(root, "workspace");
+        const repository = join(root, "source", "repository-commit");
+        yield* Effect.promise(() =>
+          Promise.all([
+            write(
+              join(repository, "package.json"),
+              JSON.stringify({ name: PACKAGE_NAME }),
+            ),
+            write(join(repository, "index.js"), NEW_SOURCE),
+          ]),
+        );
+        const archivePath = join(root, "package.tgz");
+        yield* Effect.promise(() =>
+          createTar(
+            { cwd: join(root, "source"), file: archivePath, gzip: true },
+            ["repository-commit"],
+          ),
+        );
+        const harness = makeManagerHarness({
+          archivePath,
+          workspaceDir,
+          resolution: { commit: REMOTE_COMMIT },
+        });
+        const { manager } = yield* harness.services;
+        const stagingPrefix = join(workspaceDir, ".lucent-package-install-");
+        const extracting = yield* Deferred.make<void>();
+        const cleaning = yield* Deferred.make<void>();
+        const finishExtraction = Promise.withResolvers<void>();
+        const open = nodeFs.open;
+        vi.spyOn(nodeFs, "open").mockImplementation((...args: unknown[]) => {
+          const path = String(args[0]);
+          const start = () => Reflect.apply(open, nodeFs, args);
+          if (
+            path.startsWith(stagingPrefix) &&
+            path.endsWith(join("package", "index.js"))
+          ) {
+            Deferred.doneUnsafe(extracting, Effect.void);
+            void finishExtraction.promise.then(start);
+          } else {
+            start();
+          }
+        });
+        const rm = fs.rm;
+        vi.spyOn(fs, "rm").mockImplementation((path, options) => {
+          if (String(path).startsWith(stagingPrefix))
+            Deferred.doneUnsafe(cleaning, Effect.void);
+          return rm(path, options);
+        });
+
+        const installing = yield* manager
+          .install({ repositoryUrl: "https://github.com/example/package" })
+          .pipe(Effect.forkScoped);
+        yield* Deferred.await(extracting);
+        const stopping = yield* Fiber.interrupt(installing).pipe(
+          Effect.forkScoped,
+        );
+        yield* Effect.raceFirst(
+          Deferred.await(cleaning),
+          Effect.promise(() => setTimeout(100)),
+        );
+        const cleanedDuringExtraction = yield* Deferred.isDone(cleaning);
+        finishExtraction.resolve();
+        yield* Fiber.join(stopping);
+
+        expect(cleanedDuringExtraction).toBe(false);
+        expect(yield* Effect.promise(() => fs.readdir(workspaceDir))).toEqual([
+          "packages",
+        ]);
       }).pipe(Effect.scoped),
   );
 
