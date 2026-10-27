@@ -1223,22 +1223,6 @@ const makeDesktopWindows = Effect.gen(function* () {
       ["game-group-controls", groupControlsView],
       ["game-host", hostView],
     ] as const;
-    for (const [kind, view] of chromeViews) {
-      const id = view.webContents.id;
-      const record: DesktopChromeRendererRecord = {
-        rendererId: id,
-        kind,
-        host,
-        scope,
-        lifetime: makeLifetime(id, 0, scope),
-      };
-      renderers.set(id, record);
-      yield* track(record);
-      yield* Scope.addFinalizer(
-        scope,
-        Effect.sync(() => renderers.delete(id)),
-      );
-    }
     yield* listen(
       hostWebContents,
       "before-input-event",
@@ -1275,6 +1259,22 @@ const makeDesktopWindows = Effect.gen(function* () {
     const id = yield* inScope(host.scope, (scope) =>
       createGameViewInHost(scope, host, bootstrapSettings, snapshot, options),
     );
+    for (const [kind, view] of chromeViews) {
+      const id = view.webContents.id;
+      const record: DesktopChromeRendererRecord = {
+        rendererId: id,
+        kind,
+        host,
+        scope,
+        lifetime: makeLifetime(id, 0, scope),
+      };
+      renderers.set(id, record);
+      yield* track(record);
+      yield* Scope.addFinalizer(
+        scope,
+        Effect.sync(() => renderers.delete(id)),
+      );
+    }
     yield* Effect.forEach(
       chromeViews,
       ([kind, view]) =>
