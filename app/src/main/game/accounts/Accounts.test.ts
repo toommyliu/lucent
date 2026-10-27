@@ -745,7 +745,7 @@ describe("Accounts", () => {
 
         expect(
           (yield* Effect.flip(accounts.focusGameWindow(gameWindowId))).message,
-        ).toBe(`Failed to focus game window: ${gameWindowId}`);
+        ).toBe(storageError.message);
         expect(
           (yield* Effect.flip(accounts.closeGameWindows([gameWindowId])))
             .message,

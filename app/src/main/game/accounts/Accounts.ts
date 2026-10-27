@@ -499,13 +499,6 @@ const makeAccounts = Effect.gen(function* () {
         revealed ? Effect.void : removeWindowSession(gameWindowId),
       ),
       Effect.flatMap(() => getState),
-      Effect.mapError((cause) =>
-        accountError(
-          "focus-game-window",
-          `Failed to focus game window: ${gameWindowId}`,
-          cause,
-        ),
-      ),
     );
 
   const getGameLaunch: AccountsShape["getGameLaunch"] = (gameWindowId) =>

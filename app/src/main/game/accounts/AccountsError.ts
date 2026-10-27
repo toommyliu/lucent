@@ -5,7 +5,6 @@ export const AccountOperationSchema = Schema.Literals([
   "create-group",
   "delete-account",
   "delete-group",
-  "focus-game-window",
   "launch",
   "mkdir",
   "parse",
