@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, resolve } from "node:path";
 
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -245,8 +245,26 @@ export const layer = Layer.effect(
         return { canceled: false, file } satisfies ScriptOpenFileResult;
       });
 
-    const openPath: DesktopScriptLibraryShape["openPath"] = (path) =>
-      shell.openPath(path);
+    const openPath: DesktopScriptLibraryShape["openPath"] = Effect.fn(
+      "DesktopScriptLibrary.openPath",
+    )(function* (path) {
+      const resolvedPath = resolve(path);
+      const knownPath = yield* catalog.getDiscovery.pipe(
+        Effect.map(
+          (discovery) =>
+            discovery.paths.has(resolvedPath) ||
+            discovery.catalog.packages.some(
+              (entry) => resolve(entry.path) === resolvedPath,
+            ),
+        ),
+        Effect.catch(() => Effect.succeed(false)),
+      );
+      if (knownPath) {
+        return yield* shell.openPath(resolvedPath);
+      }
+      yield* shell.showItemInFolder(resolvedPath);
+      return true;
+    });
 
     const openRepository: DesktopScriptLibraryShape["openRepository"] = (
       repositoryUrl,
