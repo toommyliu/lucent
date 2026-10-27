@@ -113,56 +113,53 @@ export const layer = Layer.effect(
       timeToLive: ACCOUNT_SERVER_PING_CACHE_TTL_MS,
     });
 
-    const getCachedServers = Effect.fnUntraced(
-      function* (force = false) {
-        const timestamp = yield* Clock.currentTimeMillis;
-        if (
-          !force &&
-          serverCache !== null &&
-          timestamp - serverCache.fetchedAt < SERVERS_CACHE_TTL_MS
-        ) {
-          return serverCache.servers;
-        }
+    const getCachedServers = Effect.fnUntraced(function* (force = false) {
+      const timestamp = yield* Clock.currentTimeMillis;
+      if (
+        !force &&
+        serverCache !== null &&
+        timestamp - serverCache.fetchedAt < SERVERS_CACHE_TTL_MS
+      ) {
+        return serverCache.servers;
+      }
 
-        const servers = yield* requestAccountServers(
-          client,
-          SERVERS_API_URL,
-          requestHeaders,
-        ).pipe(
-          Effect.mapError((cause) =>
-            accountError(
-              "refresh-servers",
-              cause._tag === "SchemaError"
-                ? "Invalid login servers payload"
-                : serverLoadErrorMessage(cause),
-              cause,
-            ),
+      const servers = yield* requestAccountServers(
+        client,
+        SERVERS_API_URL,
+        requestHeaders,
+      ).pipe(
+        Effect.mapError((cause) =>
+          accountError(
+            "refresh-servers",
+            cause._tag === "SchemaError"
+              ? "Invalid login servers payload"
+              : serverLoadErrorMessage(cause),
+            cause,
           ),
-          Effect.catch((error: AccountsError) =>
-            serverCache === null
-              ? Effect.fail(error)
-              : Effect.logWarning(
-                  "Failed to fetch servers; using cache",
-                  Cause.fail(error),
+        ),
+        Effect.catch((error: AccountsError) =>
+          serverCache === null
+            ? Effect.fail(error)
+            : Effect.logWarning(
+                "Failed to fetch servers; using cache",
+                Cause.fail(error),
+              )
+                .pipe(
+                  Effect.annotateLogs({
+                    component: "accounts",
+                    data: {
+                      cachedServerCount: serverCache.servers.length,
+                    },
+                  }),
                 )
-                  .pipe(
-                    Effect.annotateLogs({
-                      component: "accounts",
-                      data: {
-                        cachedServerCount: serverCache.servers.length,
-                      },
-                    }),
-                  )
-                  .pipe(Effect.as(serverCache.servers)),
-          ),
-        );
+                .pipe(Effect.as(serverCache.servers)),
+        ),
+      );
 
-        serverCache = { fetchedAt: yield* Clock.currentTimeMillis, servers };
-        yield* Cache.invalidateAll(pingCache);
-        return servers;
-      },
-      serverLoads.withPermits(1),
-    );
+      serverCache = { fetchedAt: yield* Clock.currentTimeMillis, servers };
+      yield* Cache.invalidateAll(pingCache);
+      return servers;
+    }, serverLoads.withPermits(1));
 
     const toResult = (
       servers: readonly AccountServerData[],
