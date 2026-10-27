@@ -1,18 +1,17 @@
 import { createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
-import { relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
-import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
+import { FileSystem } from "effect/FileSystem";
+import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
 
 import {
   FileChangedWhileReading,
-  FileSystemLimitError,
-  fileFingerprint,
-  isMissingFileError,
+  fileReadError,
+  lstatPath,
+  readDirectoryEntries,
+  type FileReadError,
   readStableFile as readStableFileEffect,
 } from "../filesystem/BoundedFileSystem";
 
@@ -20,7 +19,27 @@ import {
   formatBytes,
   SCRIPT_PACKAGE_FILE_MAX_BYTES,
   SCRIPT_PACKAGE_MAX_FILES,
+  SCRIPT_PACKAGE_MAX_BYTES,
 } from "./ScriptLimits";
+
+export class InvalidScriptPackage extends Schema.TaggedError<InvalidScriptPackage>()(
+  "InvalidScriptPackage",
+  {
+    detail: Schema.String,
+    cause: Schema.optionalKey(Schema.Defect()),
+  },
+) {
+  static fromUnknown(cause: unknown, fallback: string): InvalidScriptPackage {
+    return new InvalidScriptPackage({
+      detail: cause instanceof Error ? cause.message : fallback,
+      cause,
+    });
+  }
+
+  override get message(): string {
+    return this.detail;
+  }
+}
 
 export interface RegularFilePath {
   readonly absolutePath: string;
@@ -50,104 +69,221 @@ export const isPathInside = (root: string, candidate: string): boolean => {
   return path === "" || (!path.startsWith(`..${sep}`) && path !== "..");
 };
 
-export const readStableFile = async (
+export type PackageFileError = FileReadError | InvalidScriptPackage;
+export type PackageFileHashes = Readonly<Record<string, string>>;
+
+const isFileChangedWhileReading = Schema.is(FileChangedWhileReading);
+
+export const readPackageFile = Effect.fnUntraced(function* (
   path: string,
   maxBytes: number,
-): Promise<Buffer> => {
-  const exit = await Effect.runPromiseExit(
-    readStableFileEffect(path, maxBytes, { requireRegularFile: true }).pipe(
-      Effect.retry({
-        schedule: Schedule.recurs(2),
-        while: (cause) => cause instanceof FileChangedWhileReading,
-      }),
-      Effect.mapError((cause) =>
-        cause instanceof FileSystemLimitError
-          ? new Error(
-              `File exceeds the ${formatBytes(maxBytes)} limit: ${path}.`,
-            )
-          : cause instanceof FileChangedWhileReading
-            ? new Error(`File changed while it was being read: ${path}.`)
-            : cause,
-      ),
-      Effect.provide(NodeFileSystem.layer),
+) {
+  const stable = yield* readStableFileEffect(path, maxBytes, {
+    requireRegularFile: true,
+  }).pipe(
+    Effect.retry({
+      schedule: Schedule.recurs(2),
+      while: isFileChangedWhileReading,
+    }),
+    Effect.catchTags({
+      FileSystemLimitError: (cause) =>
+        Effect.fail(
+          new InvalidScriptPackage({
+            detail: `File exceeds the ${formatBytes(maxBytes)} limit: ${path}.`,
+            cause,
+          }),
+        ),
+    }),
+    Effect.catchTag(["NotRegularFile", "FileChangedWhileReading"], (cause) =>
+      Effect.fail(new InvalidScriptPackage({ detail: cause.message, cause })),
     ),
   );
-  if (Exit.isFailure(exit)) throw Cause.squash(exit.cause);
-  return exit.value.contents;
-};
+  return stable.contents;
+});
 
-export const regularFileFingerprint = async (path: string): Promise<string> => {
-  const stat = await fs.stat(path);
-  if (!stat.isFile()) throw new Error(`Expected a regular file: ${path}.`);
-  return fileFingerprint(stat);
-};
+const packageFileHash = (contents: Buffer): string =>
+  `sha256-${sha256Revision(contents)}`;
 
 export const sha256Revision = (contents: Buffer | string): string =>
   createHash("sha256").update(contents).digest("hex");
 
-export const listRegularFilePaths = async (
+export const listRegularFilePaths = Effect.fnUntraced(function* (
   root: string,
   options: ListRegularFilesOptions = {},
-): Promise<readonly RegularFilePath[]> => {
+) {
   const files: RegularFilePath[] = [];
 
-  const visit = async (directory: string): Promise<void> => {
-    const entries = await fs.readdir(directory, { withFileTypes: true });
-    entries.sort((left, right) =>
-      left.name.localeCompare(right.name, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }),
+  const visit = Effect.fnUntraced(function* (
+    directory: string,
+  ): Effect.fn.Return<void, FileReadError | InvalidScriptPackage> {
+    const entries = (yield* readDirectoryEntries(directory)).sort(
+      (left, right) =>
+        left.name.localeCompare(right.name, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
     );
 
     for (const entry of entries) {
       const path = resolve(directory, entry.name);
-      if (entry.isSymbolicLink()) {
+      if (entry.kind === "symbolic-link") {
         if (options.rejectSymlinks === true) {
-          throw new Error(`Symbolic links are not supported: ${path}.`);
+          return yield* new InvalidScriptPackage({
+            detail: `Symbolic links are not supported: ${path}.`,
+          });
         }
         continue;
       }
-      if (entry.isDirectory()) {
-        await visit(path);
+      if (entry.kind === "directory") {
+        yield* visit(path);
         continue;
       }
-      if (!entry.isFile()) continue;
+      if (entry.kind !== "file") continue;
       if (isSystemMetadataFile(entry.name)) continue;
 
       const relativePath = portablePath(relative(root, path));
       files.push({ absolutePath: path, relativePath });
       if (options.maxFiles !== undefined && files.length > options.maxFiles) {
-        throw new Error(
-          `Directory contains more than ${options.maxFiles} files: ${root}.`,
-        );
+        return yield* new InvalidScriptPackage({
+          detail: `Directory contains more than ${options.maxFiles} files: ${root}.`,
+        });
       }
     }
-  };
+    return undefined;
+  });
 
-  try {
-    await visit(root);
-  } catch (cause) {
-    if (isMissingFileError(cause)) return [];
-    throw cause;
-  }
-  return files;
-};
+  return yield* visit(root).pipe(
+    Effect.as(files),
+    Effect.catchTag("FileNotFound", () => Effect.succeed([])),
+  );
+});
 
-export const hashDirectory = async (
+export const hashDirectory = Effect.fn("hashDirectory")(function* (
   root: string,
-): Promise<Readonly<Record<string, string>>> => {
-  const inventory = await listRegularFilePaths(root, {
+): Effect.fn.Return<PackageFileHashes, PackageFileError, FileSystem> {
+  const inventory = yield* listRegularFilePaths(root, {
     maxFiles: SCRIPT_PACKAGE_MAX_FILES,
     rejectSymlinks: true,
   });
   const hashes = new Map<string, string>();
   for (const file of inventory) {
-    const contents = await readStableFile(
+    const contents = yield* readPackageFile(
       file.absolutePath,
       SCRIPT_PACKAGE_FILE_MAX_BYTES,
     );
-    hashes.set(file.relativePath, `sha256-${sha256Revision(contents)}`);
+    hashes.set(file.relativePath, packageFileHash(contents));
   }
   return Object.fromEntries(hashes);
+});
+
+type GitEntry =
+  | {
+      readonly kind: "file";
+      readonly hash: Buffer;
+      readonly executable: boolean;
+    }
+  | { readonly kind: "directory"; readonly entries: Map<string, GitEntry> };
+
+const gitObjectHash = (kind: "blob" | "tree", contents: Buffer): Buffer =>
+  createHash("sha1")
+    .update(`${kind} ${contents.byteLength}\0`)
+    .update(contents)
+    .digest();
+
+// Git sorts directory names as though they have a trailing slash.
+const gitTreeHash = (entries: ReadonlyMap<string, GitEntry>): Buffer => {
+  const ordered = [...entries];
+  ordered.sort(([leftName, left], [rightName, right]) =>
+    Buffer.compare(
+      Buffer.from(leftName + (left.kind === "directory" ? "/" : "")),
+      Buffer.from(rightName + (right.kind === "directory" ? "/" : "")),
+    ),
+  );
+  return gitObjectHash(
+    "tree",
+    Buffer.concat(
+      ordered.flatMap(([name, entry]) => [
+        Buffer.from(
+          `${entry.kind === "directory" ? "40000" : entry.executable ? "100755" : "100644"} ${name}\0`,
+        ),
+        entry.kind === "directory" ? gitTreeHash(entry.entries) : entry.hash,
+      ]),
+    ),
+  );
 };
+
+export const copyBundledScriptPackage = Effect.fn("copyBundledScriptPackage")(
+  function* (
+    source: string,
+    destination: string,
+  ): Effect.fn.Return<
+    { readonly files: PackageFileHashes; readonly tree: string },
+    PackageFileError,
+    FileSystem
+  > {
+    const fileSystem = yield* FileSystem;
+    const root = yield* lstatPath(source);
+    if (root.kind !== "directory") {
+      return yield* new InvalidScriptPackage({
+        detail: "A bundled package must be a directory, not a symbolic link.",
+      });
+    }
+    const inventory = yield* listRegularFilePaths(source, {
+      maxFiles: SCRIPT_PACKAGE_MAX_FILES,
+      rejectSymlinks: true,
+    });
+    const files = new Map<string, string>();
+    const tree = new Map<string, GitEntry>();
+    let totalBytes = 0;
+
+    for (const file of inventory) {
+      const contents = yield* readPackageFile(
+        file.absolutePath,
+        SCRIPT_PACKAGE_FILE_MAX_BYTES,
+      );
+      totalBytes += contents.byteLength;
+      if (totalBytes > SCRIPT_PACKAGE_MAX_BYTES) {
+        return yield* new InvalidScriptPackage({
+          detail: `The bundled package exceeds the ${formatBytes(SCRIPT_PACKAGE_MAX_BYTES)} limit.`,
+        });
+      }
+      const stat = yield* lstatPath(file.absolutePath);
+      const executable = (stat.mode & 0o111) !== 0;
+      const target = join(destination, file.relativePath);
+      yield* fileSystem
+        .makeDirectory(dirname(target), { recursive: true })
+        .pipe(Effect.mapError(fileReadError(dirname(target))));
+      yield* fileSystem
+        .writeFile(target, contents, {
+          flag: "wx",
+          mode: executable ? 0o755 : 0o644,
+        })
+        .pipe(Effect.mapError(fileReadError(target)));
+      files.set(file.relativePath, packageFileHash(contents));
+
+      const parts = file.relativePath.split("/").slice(0, -1);
+      let entries = tree;
+      for (const part of parts) {
+        const entry = entries.get(part);
+        const directory =
+          entry?.kind === "directory"
+            ? entry
+            : {
+                kind: "directory" as const,
+                entries: new Map<string, GitEntry>(),
+              };
+        entries.set(part, directory);
+        entries = directory.entries;
+      }
+      entries.set(basename(file.relativePath), {
+        kind: "file",
+        hash: gitObjectHash("blob", contents),
+        executable,
+      });
+    }
+    return {
+      files: Object.fromEntries(files),
+      tree: gitTreeHash(tree).toString("hex"),
+    };
+  },
+);

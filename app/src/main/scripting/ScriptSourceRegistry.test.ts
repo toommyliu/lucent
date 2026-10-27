@@ -1,10 +1,12 @@
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Context from "effect/Context";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import { vi } from "vitest";
@@ -69,6 +71,8 @@ const makeLayer = (
         revision: discovery.catalog.revision,
         total: discovery.catalog.scripts.length,
       }),
+    locate: () =>
+      Effect.die("Unexpected package lookup in the source registry"),
     onChanged: () => Effect.void,
     referenceForPath: (path) => Effect.succeed(discovery.paths.get(path)),
     refresh: Effect.succeed(overview),
@@ -88,7 +92,10 @@ const makeLayer = (
   return Layer.effect(
     ScriptSourceRegistry,
     makeScriptSourceRegistry(limits, analyze),
-  ).pipe(Layer.provide(Layer.succeed(ScriptPackageCatalog, catalog)));
+  ).pipe(
+    Layer.provide(Layer.succeed(ScriptPackageCatalog, catalog)),
+    Layer.provide(NodeFileSystem.layer),
+  );
 };
 
 afterEach(async () => {
@@ -100,7 +107,7 @@ afterEach(async () => {
   );
 });
 
-describe("script source dependency discovery", () => {
+layer(NodeFileSystem.layer)("script source dependency discovery", (it) => {
   for (const kind of ["loose", "package"] as const) {
     it.effect(`keeps the ${kind} sources read while preparing a snapshot`, () =>
       Effect.gen(function* () {
@@ -124,13 +131,11 @@ describe("script source dependency discovery", () => {
             write(helperPath, "exports.value = 1;"),
           ]),
         );
-        const discovery = yield* Effect.promise(() =>
-          discoverScriptCatalog({
-            currentVersion: "1.0.0",
-            packagesDir: workspace.packagesDir,
-            scriptsDir: workspace.scriptsDir,
-          }),
-        );
+        const discovery = yield* discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }).pipe(Effect.map((report) => report.discovery));
         const registry = yield* ScriptSourceRegistry.pipe(
           Effect.provide(
             makeLayer(
@@ -183,13 +188,11 @@ describe("script source dependency discovery", () => {
           ),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       for (const missing of ["entry", "module"] as const) {
         const registry = yield* ScriptSourceRegistry.pipe(
           Effect.provide(
@@ -227,6 +230,61 @@ describe("script source dependency discovery", () => {
     }),
   );
 
+  it.effect(
+    "re-reads a cached dependency after a same-size edit with its mtime restored",
+    () =>
+      Effect.gen(function* () {
+        const workspace = yield* Effect.promise(makeWorkspace);
+        const helperPath = join(workspace.scriptsDir, "helper.js");
+        const timestamp = 1_577_836_800;
+        yield* Effect.promise(() =>
+          write(join(workspace.scriptsDir, "entry.js"), 'require("./helper");'),
+        );
+        yield* Effect.promise(() => write(helperPath, "exports.value = 1;"));
+        yield* Effect.promise(() =>
+          fs.utimes(helperPath, timestamp, timestamp),
+        );
+        const discovery = yield* discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          ...workspace,
+        }).pipe(Effect.map((report) => report.discovery));
+        let helperReads = 0;
+        const services = yield* Layer.build(
+          makeLayer(
+            discovery,
+            Effect.fnUntraced(function* (path: string) {
+              if (path === helperPath) helperReads += 1;
+              return yield* analyzeScriptFile(path);
+            }),
+          ),
+        );
+        const registry = Context.get(services, ScriptSourceRegistry);
+        const request = registry.readReference({
+          kind: "loose",
+          path: "entry.js",
+        });
+        const initial = yield* request;
+        yield* request;
+        expect(helperReads).toBe(1);
+        yield* Effect.promise(() => write(helperPath, "exports.value = 2;"));
+        yield* Effect.promise(() =>
+          fs.utimes(helperPath, timestamp, timestamp),
+        );
+        const updated = yield* request;
+        expect(
+          initial.snapshot?.modules.find(
+            (module) => module.path === "helper.js",
+          )?.source,
+        ).toBe("exports.value = 1;");
+        expect(
+          updated.snapshot?.modules.find(
+            (module) => module.path === "helper.js",
+          )?.source,
+        ).toBe("exports.value = 2;");
+        expect(helperReads).toBe(2);
+      }),
+  );
+
   it.effect("counts concurrent cache misses for one file once", () =>
     Effect.gen(function* () {
       const workspace = yield* Effect.promise(makeWorkspace);
@@ -240,13 +298,11 @@ describe("script source dependency discovery", () => {
           write(otherPath, "exports.value = 2;"),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const bothReading = yield* Deferred.make<void>();
       let sharedReads = 0;
       let otherReads = 0;
@@ -323,13 +379,11 @@ describe("script source dependency discovery", () => {
             write(join(workspace.scriptsDir, "tiny.js"), "0;"),
           ]),
         );
-        const discovery = yield* Effect.promise(() =>
-          discoverScriptCatalog({
-            currentVersion: "1.0.0",
-            packagesDir: workspace.packagesDir,
-            scriptsDir: workspace.scriptsDir,
-          }),
-        );
+        const discovery = yield* discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }).pipe(Effect.map((report) => report.discovery));
         const bothReading = yield* Deferred.make<void>();
         let sharedReads = 0;
         const registry = yield* ScriptSourceRegistry.pipe(
@@ -447,13 +501,11 @@ describe("script source dependency discovery", () => {
             ),
           ]),
         );
-        const discovery = yield* Effect.promise(() =>
-          discoverScriptCatalog({
-            currentVersion: "1.0.0",
-            packagesDir: workspace.packagesDir,
-            scriptsDir: workspace.scriptsDir,
-          }),
-        );
+        const discovery = yield* discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }).pipe(Effect.map((report) => report.discovery));
         const registry = yield* ScriptSourceRegistry.pipe(
           Effect.provide(makeLayer(discovery)),
         );
@@ -494,13 +546,11 @@ describe("script source dependency discovery", () => {
           write(join(packageRoot, "vendor.js"), vendorSource),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -563,13 +613,11 @@ describe("script source dependency discovery", () => {
           write(join(secondRoot, "index.js"), 'exports.second = "second";'),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.1-beta.1",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.1-beta.1",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -625,13 +673,11 @@ describe("script source dependency discovery", () => {
           write(join(secondRoot, "index.js"), "exports.value = true;"),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -668,13 +714,11 @@ describe("script source dependency discovery", () => {
           ),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -699,13 +743,11 @@ describe("script source dependency discovery", () => {
           'if (false) require("./missing"); module.exports = function* run() {};',
         ),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -720,7 +762,7 @@ describe("script source dependency discovery", () => {
   );
 });
 
-describe("terminal script resolution logging", () => {
+layer(NodeFileSystem.layer)("terminal script resolution logging", (it) => {
   it.effect("resolves deleted package scripts as missing", () =>
     Effect.gen(function* () {
       const workspace = yield* Effect.promise(makeWorkspace);
@@ -732,13 +774,11 @@ describe("terminal script resolution logging", () => {
           write(path, "module.exports = function* run() {};"),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -772,13 +812,11 @@ describe("terminal script resolution logging", () => {
           write(lib, "module.exports = 1;"),
         ]),
       );
-      const discovery = yield* Effect.promise(() =>
-        discoverScriptCatalog({
-          currentVersion: "1.0.0",
-          packagesDir: workspace.packagesDir,
-          scriptsDir: workspace.scriptsDir,
-        }),
-      );
+      const discovery = yield* discoverScriptCatalog({
+        currentVersion: "1.0.0",
+        packagesDir: workspace.packagesDir,
+        scriptsDir: workspace.scriptsDir,
+      }).pipe(Effect.map((report) => report.discovery));
       const registry = yield* ScriptSourceRegistry.pipe(
         Effect.provide(makeLayer(discovery)),
       );
@@ -805,13 +843,11 @@ describe("terminal script resolution logging", () => {
         yield* Effect.promise(() =>
           write(path, "module.exports = function* run() {};"),
         );
-        const discovery = yield* Effect.promise(() =>
-          discoverScriptCatalog({
-            currentVersion: "1.0.0",
-            packagesDir: workspace.packagesDir,
-            scriptsDir: workspace.scriptsDir,
-          }),
-        );
+        const discovery = yield* discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }).pipe(Effect.map((report) => report.discovery));
         vi.spyOn(ScriptSourceParser, "analyzeScriptSource").mockReturnValue(
           Effect.die(new Error("Analyzer defect")),
         );
@@ -859,13 +895,11 @@ describe("terminal script resolution logging", () => {
         yield* Effect.promise(() =>
           write(path, "module.exports = function* run() {};"),
         );
-        const discovery = yield* Effect.promise(() =>
-          discoverScriptCatalog({
-            currentVersion: "1.0.0",
-            packagesDir: workspace.packagesDir,
-            scriptsDir: workspace.scriptsDir,
-          }),
-        );
+        const discovery = yield* discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }).pipe(Effect.map((report) => report.discovery));
         const registry = yield* ScriptSourceRegistry.pipe(
           Effect.provide(makeLayer(discovery)),
         );
@@ -933,13 +967,11 @@ describe("terminal script resolution logging", () => {
       () =>
         Effect.gen(function* () {
           const workspace = yield* Effect.promise(makeWorkspace);
-          const discovery = yield* Effect.promise(() =>
-            discoverScriptCatalog({
-              currentVersion: "1.0.0",
-              packagesDir: workspace.packagesDir,
-              scriptsDir: workspace.scriptsDir,
-            }),
-          );
+          const discovery = yield* discoverScriptCatalog({
+            currentVersion: "1.0.0",
+            packagesDir: workspace.packagesDir,
+            scriptsDir: workspace.scriptsDir,
+          }).pipe(Effect.map((report) => report.discovery));
           const path = join(workspace.scriptsDir, "missing.js");
           const failing = yield* ScriptSourceRegistry.pipe(
             Effect.provide(

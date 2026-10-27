@@ -1,9 +1,11 @@
+import { fileSystemLayer } from "../filesystem/FileSystemTesting";
+import { FileSystem } from "effect/FileSystem";
 import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 import { vi } from "vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -13,7 +15,7 @@ import * as TestClock from "effect/testing/TestClock";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { ElectronApp } from "../electron/ElectronApp";
 import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
-import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
+import { copyBundledScriptPackage } from "./ScriptPackageFileSystem";
 import {
   BundledScriptPackageSetupSchema,
   initializeBundledScriptPackages,
@@ -23,7 +25,7 @@ import {
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
 import { hashDirectory } from "./ScriptPackageFileSystem";
-import { pathExists } from "./ScriptPackageDirectories";
+import { nativeFileError, pathExists } from "../filesystem/BoundedFileSystem";
 import {
   layer as stateLayer,
   ScriptPackageState,
@@ -33,8 +35,8 @@ import {
 vi.mock("electron", () => ({ app: {} }));
 
 const directories: string[] = [];
-const decodeSetupState = Schema.decodeUnknownSync(
-  BundledScriptPackageSetupSchema,
+const decodeSetupStateJson = Schema.decodeUnknownSync(
+  Schema.fromJsonString(BundledScriptPackageSetupSchema),
 );
 
 const write = async (path: string, contents: string): Promise<void> => {
@@ -92,9 +94,12 @@ const makeFixture = async () => {
     }),
   );
 
-  const makeLayer = (failSaves = false) => {
+  const makeLayer = (
+    failSaves = false,
+    providedFileSystem: Layer.Layer<FileSystem> = desktopFileSystemLayer,
+  ) => {
     const stored = stateLayer.pipe(
-      Layer.provide(Layer.mergeAll(environment, desktopFileSystemLayer)),
+      Layer.provide(Layer.mergeAll(environment, providedFileSystem)),
     );
     const state = failSaves
       ? Layer.effect(
@@ -116,17 +121,20 @@ const makeFixture = async () => {
       : stored;
     return Layer.mergeAll(
       environment,
-      desktopFileSystemLayer,
+      providedFileSystem,
       state,
       catalogLayer.pipe(
         Layer.provide(
-          Layer.mergeAll(environment, state, app, desktopFileSystemLayer),
+          Layer.mergeAll(environment, state, app, providedFileSystem),
         ),
       ),
     );
   };
 
-  const start = (failSaves = false) =>
+  const start = (
+    failSaves = false,
+    providedFileSystem: Layer.Layer<FileSystem> = desktopFileSystemLayer,
+  ) =>
     Effect.gen(function* () {
       yield* initializeBundledScriptPackages;
       const catalog = yield* ScriptPackageCatalog;
@@ -135,7 +143,7 @@ const makeFixture = async () => {
         catalog: yield* catalog.getOverview,
         managed: yield* state.getAll,
       };
-    }).pipe(Effect.provide(makeLayer(failSaves)));
+    }).pipe(Effect.provide(makeLayer(failSaves, providedFileSystem)));
 
   const readHistory = async (): Promise<unknown> =>
     JSON.parse(await fs.readFile(historyPath, "utf8")) as unknown;
@@ -163,14 +171,12 @@ afterEach(async () => {
   );
 });
 
-describe("bundled script packages", () => {
+layer(desktopFileSystemLayer)("bundled script packages", (it) => {
   it.effect("writes setup history only after completing a bundle", () =>
     Effect.gen(function* () {
       const fixture = yield* Effect.promise(makeFixture);
       expect((yield* fixture.start()).managed).toEqual([]);
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
 
       yield* Effect.promise(() => fixture.addPackage("a"));
       expect((yield* fixture.start()).managed).toMatchObject([{ name: "a" }]);
@@ -227,16 +233,14 @@ describe("bundled script packages", () => {
             integrity: "verified",
             update: { status: "unchecked" },
             source: {
-              kind: "directory",
+              kind: "bundled",
               repositoryUrl: "https://github.com/toommyliu/lucent",
               subdirectory: "script-packages/farming",
             },
           },
         ]);
         expect(result.managed[0]?.files).toEqual(
-          yield* Effect.promise(() =>
-            hashDirectory(join(fixture.sourceRoot, "farming")),
-          ),
+          yield* hashDirectory(join(fixture.sourceRoot, "farming")),
         );
         expect(yield* Effect.promise(fixture.readHistory)).toEqual({
           version: 1,
@@ -275,9 +279,7 @@ describe("bundled script packages", () => {
             fs.readFile(join(packages, "b", "index.js"), "utf8"),
           ),
         ).toContain('"3.0.0"');
-        expect(
-          yield* Effect.promise(() => pathExists(join(packages, "a"))),
-        ).toBe(false);
+        expect(yield* pathExists(join(packages, "a"))).toBe(false);
         expect(yield* Effect.promise(fixture.readHistory)).toEqual({
           version: 1,
           completed: ["a", "b", "c"],
@@ -399,9 +401,15 @@ describe("bundled script packages", () => {
           completed: ["a"],
         });
 
-        const writes = vi.spyOn(fs, "writeFile");
-        const restarted = yield* fixture.start();
-        expect(writes).toHaveBeenCalledTimes(0);
+        let writes = 0;
+        const countingFileSystem = fileSystemLayer((real) => ({
+          writeFile: (...args) => {
+            writes += 1;
+            return real.writeFile(...args);
+          },
+        }));
+        const restarted = yield* fixture.start(false, countingFileSystem);
+        expect(writes).toBe(0);
         expect(restarted.managed).toEqual([]);
         expect(restarted.catalog.packages).toMatchObject([
           { name: "a", version: "1.0.0", integrity: "unmanaged" },
@@ -484,9 +492,7 @@ describe("bundled script packages", () => {
       const fixture = yield* Effect.promise(makeFixture);
       yield* Effect.promise(() => fixture.addPackage("a"));
       yield* fixture.start(true);
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
       const file = join(fixture.workspace, "packages", "a", "index.js");
       yield* Effect.promise(async () => {
         await write(`${file}.tmp`, "user edits\n");
@@ -511,9 +517,7 @@ describe("bundled script packages", () => {
       const fixture = yield* Effect.promise(makeFixture);
       yield* Effect.promise(() => fixture.addPackage("a"));
       yield* fixture.start(true);
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
       yield* TestClock.setTime(1234567890000);
       const result = yield* fixture.start();
       expect(result.catalog.packages).toMatchObject([
@@ -572,9 +576,7 @@ describe("bundled script packages", () => {
             fs.readdir(join(fixture.workspace, "packages")),
           ),
         ).toEqual(["a-2"]);
-        expect(
-          yield* Effect.promise(() => pathExists(fixture.historyPath)),
-        ).toBe(false);
+        expect(yield* pathExists(fixture.historyPath)).toBe(false);
 
         const recovered = yield* fixture.start();
         expect(recovered.managed).toMatchObject([
@@ -702,24 +704,26 @@ describe("bundled script packages", () => {
       Effect.gen(function* () {
         const fixture = yield* Effect.promise(makeFixture);
         yield* Effect.promise(() => fixture.addPackage("a"));
-        const rename = fs.rename;
-        const failure = vi
-          .spyOn(fs, "rename")
-          .mockImplementation(async (source, target) => {
-            if (String(target) === fixture.historyPath) {
-              const contents = await fs.readFile(source, "utf8");
-              if (
-                decodeSetupState(
-                  JSON.parse(contents) as unknown,
-                ).completed.includes("a")
-              ) {
-                throw new Error("Simulated failure recording completed setup");
-              }
-            }
-            return rename(source, target);
-          });
-        const initial = yield* fixture.start();
-        failure.mockRestore();
+        let historyFailures = 0;
+        const failingHistory = fileSystemLayer((real) => ({
+          rename: (source, target) =>
+            target === fixture.historyPath
+              ? Effect.gen(function* () {
+                  const contents = yield* real.readFileString(source);
+                  if (decodeSetupStateJson(contents).completed.includes("a")) {
+                    historyFailures += 1;
+                    return yield* nativeFileError(
+                      "rename",
+                      source,
+                      new Error("Simulated failure recording completed setup"),
+                    );
+                  }
+                  return yield* real.rename(source, target);
+                })
+              : real.rename(source, target),
+        }));
+        const initial = yield* fixture.start(false, failingHistory);
+        expect(historyFailures).toBe(1);
         const installed = initial.managed[0];
         if (installed === undefined)
           throw new Error("Package was not installed");
@@ -771,37 +775,58 @@ describe("bundled script packages", () => {
       }),
   );
 
+  it.effect("installs the other bundles when one hits a defect", () =>
+    Effect.gen(function* () {
+      const fixture = yield* Effect.promise(makeFixture);
+      yield* Effect.promise(() => fixture.addPackage("a"));
+      yield* Effect.promise(() => fixture.addPackage("b"));
+      const dyingPublication = fileSystemLayer((real) => ({
+        rename: (source, target) =>
+          source.endsWith("/package") && target.endsWith("/packages/a")
+            ? Effect.die(new Error("Unexpected failure while publishing"))
+            : real.rename(source, target),
+      }));
+      yield* fixture.start(false, dyingPublication);
+      expect(yield* pathExists(join(fixture.workspace, "packages", "a"))).toBe(
+        false,
+      );
+      expect(yield* pathExists(join(fixture.workspace, "packages", "b"))).toBe(
+        true,
+      );
+    }),
+  );
+
   it.effect("cleans failed staging and retries with the current bundle", () =>
     Effect.gen(function* () {
       const fixture = yield* Effect.promise(makeFixture);
       yield* Effect.promise(() => fixture.addPackage("a"));
-      const rename = fs.rename;
-      const failure = vi
-        .spyOn(fs, "rename")
-        .mockImplementation(async (source, target) => {
-          if (
-            String(source).endsWith("/package") &&
-            String(target).endsWith("/packages/a")
-          ) {
-            throw new Error("Simulated interruption before publication");
+      let publicationFailures = 0;
+      const failingPublication = fileSystemLayer((real) => ({
+        rename: (source, target) => {
+          if (source.endsWith("/package") && target.endsWith("/packages/a")) {
+            publicationFailures += 1;
+            return Effect.fail(
+              nativeFileError(
+                "rename",
+                source,
+                new Error("Simulated interruption before publication"),
+              ),
+            );
           }
-          return rename(source, target);
-        });
-      yield* fixture.start();
-      failure.mockRestore();
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+          return real.rename(source, target);
+        },
+      }));
+      yield* fixture.start(false, failingPublication);
+      expect(publicationFailures).toBe(1);
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
       expect(
         (yield* Effect.promise(() => fs.readdir(fixture.workspace))).filter(
           (name) => name.startsWith(".lucent-package-seed-"),
         ),
       ).toEqual([]);
-      expect(
-        yield* Effect.promise(() =>
-          pathExists(join(fixture.workspace, "packages", "a")),
-        ),
-      ).toBe(false);
+      expect(yield* pathExists(join(fixture.workspace, "packages", "a"))).toBe(
+        false,
+      );
       yield* Effect.promise(() => fixture.addPackage("a", "a", "2.0.0"));
       expect((yield* fixture.start()).catalog.packages).toMatchObject([
         { name: "a", version: "2.0.0", integrity: "verified" },
@@ -831,36 +856,57 @@ describe("bundled script packages", () => {
   );
 });
 
-describe("bundled package snapshots", () => {
-  it("matches Git's directory revision, including sorting, nested files, and executable modes", async () => {
-    const fixture = await makeFixture();
-    const source = join(fixture.root, "git-source");
-    await writePackage(source, "example");
-    await write(join(source, "lib", "helper.js"), "exports.value = 1;\n");
-    await write(join(source, "lib.js"), "module.exports = {};\n");
-    await write(join(source, "__proto__"), "an ordinary package file\n");
-    await write(join(source, "run.sh"), "#!/bin/sh\n");
-    await fs.chmod(join(source, "run.sh"), 0o755);
-    execFileSync("git", ["init", "--quiet"], { cwd: source });
-    execFileSync("git", ["add", "."], { cwd: source });
-    const expected = execFileSync("git", ["write-tree"], {
-      cwd: source,
-      encoding: "utf8",
-    }).trim();
-    await fs.rm(join(source, ".git"), { recursive: true });
-    const target = join(fixture.root, "copied");
-    const result = await copyBundledScriptPackage(source, target);
-    expect(result.tree).toBe(expected);
-    expect(result.files).toEqual(await hashDirectory(target));
-  });
+layer(desktopFileSystemLayer)("bundled package snapshots", (it) => {
+  it.effect(
+    "matches Git's directory revision, including sorting, nested files, and executable modes",
+    () =>
+      Effect.gen(function* () {
+        const fixture = yield* Effect.promise(() => makeFixture());
+        const source = join(fixture.root, "git-source");
+        yield* Effect.promise(() => writePackage(source, "example"));
+        yield* Effect.promise(() =>
+          write(join(source, "lib", "helper.js"), "exports.value = 1;\n"),
+        );
+        yield* Effect.promise(() =>
+          write(join(source, "lib.js"), "module.exports = {};\n"),
+        );
+        yield* Effect.promise(() =>
+          write(join(source, "__proto__"), "an ordinary package file\n"),
+        );
+        yield* Effect.promise(() =>
+          write(join(source, "run.sh"), "#!/bin/sh\n"),
+        );
+        yield* Effect.promise(() => fs.chmod(join(source, "run.sh"), 0o755));
+        execFileSync("git", ["init", "--quiet"], { cwd: source });
+        execFileSync("git", ["add", "."], { cwd: source });
+        const expected = execFileSync("git", ["write-tree"], {
+          cwd: source,
+          encoding: "utf8",
+        }).trim();
+        yield* Effect.promise(() =>
+          fs.rm(join(source, ".git"), { recursive: true }),
+        );
+        const target = join(fixture.root, "copied");
+        const result = yield* copyBundledScriptPackage(source, target);
+        expect(result.tree).toBe(expected);
+        expect(result.files).toEqual(yield* hashDirectory(target));
+      }),
+  );
 
-  it("rejects links inside a bundled package", async () => {
-    const fixture = await makeFixture();
-    await fixture.addPackage("a");
-    const source = join(fixture.sourceRoot, "a");
-    await fs.symlink(join(source, "index.js"), join(source, "linked.js"));
-    await expect(
-      copyBundledScriptPackage(source, join(fixture.root, "copy")),
-    ).rejects.toThrow("Symbolic links");
-  });
+  it.effect("rejects links inside a bundled package", () =>
+    Effect.gen(function* () {
+      const fixture = yield* Effect.promise(() => makeFixture());
+      yield* Effect.promise(() => fixture.addPackage("a"));
+      const source = join(fixture.sourceRoot, "a");
+      yield* Effect.promise(() =>
+        fs.symlink(join(source, "index.js"), join(source, "linked.js")),
+      );
+      expect(
+        (yield* copyBundledScriptPackage(
+          source,
+          join(fixture.root, "copy"),
+        ).pipe(Effect.flip)).message,
+      ).toContain("Symbolic links");
+    }),
+  );
 });

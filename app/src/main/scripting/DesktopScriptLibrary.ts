@@ -1,3 +1,4 @@
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import { basename, resolve } from "node:path";
 
 import * as Context from "effect/Context";
@@ -155,6 +156,7 @@ export const layer = Layer.effect(
                 ),
               )
             : readScriptFile(entry.path).pipe(
+                Effect.provideService(FileSystem, fileSystem),
                 Effect.map((file) => ({
                   ...file,
                   name: entry.name,
@@ -175,7 +177,7 @@ export const layer = Layer.effect(
         .makeDirectory(scriptsDir, { recursive: true })
         .pipe(
           Effect.mapError((cause) =>
-            wrapError("mkdir", cause.reason.cause ?? cause, scriptsDir),
+            wrapError("mkdir", nativeCause(cause), scriptsDir),
           ),
         );
       const result = yield* dialog
@@ -237,6 +239,7 @@ export const layer = Layer.effect(
           reference?.kind === "package"
             ? yield* loadReference(reference)
             : yield* readScriptFile(path).pipe(
+                Effect.provideService(FileSystem, fileSystem),
                 Effect.map((file) =>
                   reference === undefined ? file : { ...file, reference },
                 ),

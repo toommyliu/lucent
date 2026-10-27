@@ -1,16 +1,20 @@
-import { promises as fs } from "node:fs";
+import {
+  lstatPath,
+  nativeCause,
+  realPath,
+} from "../filesystem/BoundedFileSystem";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 
 import * as Schema from "effect/Schema";
+import { isPlatformError, type PlatformError } from "effect/PlatformError";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
 import { FileSystem } from "effect/FileSystem";
-import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import { satisfies, valid, validRange } from "semver";
 
 import type {
   ScriptPackageCompatibility,
+  ScriptPackageIntegrity,
   ScriptPackageName,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
@@ -21,6 +25,8 @@ import {
 } from "@lucent/core/scriptPackages";
 import {
   hashDirectory,
+  InvalidScriptPackage,
+  type PackageFileError,
   isPathInside,
   listRegularFilePaths,
   portablePath,
@@ -33,20 +39,14 @@ import {
 import type { ManagedScriptPackage } from "./ScriptPackageState";
 import { logFailure } from "../../shared/logFailure";
 import {
-  isMissingFileError,
+  fileReadError,
   readFileBounded,
 } from "../filesystem/BoundedFileSystem";
 
 export interface ScriptPackageInspectionFailure {
   readonly packageName: string;
-  readonly cause: unknown;
+  readonly error: PlatformError;
 }
-
-export const isUnexpectedPackageFileError = (cause: unknown): boolean =>
-  cause instanceof Error &&
-  "code" in cause &&
-  typeof cause.code === "string" &&
-  !isMissingFileError(cause);
 
 export const logScriptPackageInspectionFailures = Effect.fnUntraced(function* (
   failures: readonly ScriptPackageInspectionFailure[],
@@ -56,7 +56,8 @@ export const logScriptPackageInspectionFailures = Effect.fnUntraced(function* (
     ...new Set(failures.map((failure) => failure.packageName)),
   ].toSorted();
   const cause = failures.reduce<Cause.Cause<unknown>>(
-    (combined, failure) => Cause.combine(combined, Cause.fail(failure.cause)),
+    (combined, failure) =>
+      Cause.combine(combined, Cause.fail(nativeCause(failure.error))),
     Cause.empty,
   );
   yield* logFailure("Failed to inspect script package files", cause, {
@@ -105,7 +106,6 @@ export { decodePackageName };
 
 const decodeRelativePath = Schema.decodeUnknownSync(ScriptRelativePathSchema);
 
-/** Parses the manifest while keeping catalog diagnostics readable. */
 const parseManifestJson = (
   source: string,
 ): typeof ScriptPackageManifestJsonSchema.Type => {
@@ -144,34 +144,7 @@ export interface InspectedScriptPackageDirectory {
 const optionalString = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 
-export const readScriptPackageManifest = async (
-  path: string,
-): Promise<ScriptPackageManifest> => {
-  const stat = await fs.lstat(path);
-  if (!stat.isFile()) throw new Error("package.json must be a file.");
-  if (stat.size > SCRIPT_PACKAGE_MANIFEST_MAX_BYTES) {
-    throw new Error(
-      `package.json exceeds the ${formatBytes(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
-    );
-  }
-
-  const read = await Effect.runPromiseExit(
-    Effect.flatMap(FileSystem, (fileSystem) =>
-      readFileBounded(fileSystem, path, SCRIPT_PACKAGE_MANIFEST_MAX_BYTES).pipe(
-        Effect.mapError((cause) =>
-          cause._tag === "FileSystemLimitError"
-            ? new Error(
-                `package.json exceeds the ${formatBytes(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
-              )
-            : (cause.reason.cause ?? cause),
-        ),
-      ),
-    ).pipe(Effect.provide(NodeFileSystem.layer)),
-  );
-  if (Exit.isFailure(read)) {
-    throw Cause.squash(read.cause);
-  }
-  const bytes = read.value;
+const parseManifest = (bytes: Uint8Array): ScriptPackageManifest => {
   const record = parseManifestJson(
     Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString(
       "utf8",
@@ -224,6 +197,43 @@ export const readScriptPackageManifest = async (
   };
 };
 
+const manifestLimitExceeded = () =>
+  new InvalidScriptPackage({
+    detail: `package.json exceeds the ${formatBytes(SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)} limit.`,
+  });
+
+export const readScriptPackageManifest = Effect.fn("readScriptPackageManifest")(
+  function* (path: string) {
+    const stat = yield* lstatPath(path);
+    if (stat.kind !== "file")
+      return yield* new InvalidScriptPackage({
+        detail: "package.json must be a file.",
+      });
+    if (stat.size > SCRIPT_PACKAGE_MANIFEST_MAX_BYTES)
+      return yield* manifestLimitExceeded();
+    const fileSystem = yield* FileSystem;
+    const bytes = yield* readFileBounded(
+      fileSystem,
+      path,
+      SCRIPT_PACKAGE_MANIFEST_MAX_BYTES,
+    ).pipe(
+      Effect.mapError((error) =>
+        error._tag === "FileSystemLimitError"
+          ? manifestLimitExceeded()
+          : fileReadError(path)(error),
+      ),
+    );
+    return yield* Effect.try({
+      try: () => parseManifest(bytes),
+      catch: (cause) =>
+        InvalidScriptPackage.fromUnknown(
+          cause,
+          "This folder isn't a valid package.",
+        ),
+    });
+  },
+);
+
 const parsePackageName = (name: string): ScriptPackageName => {
   try {
     return decodePackageName(name);
@@ -265,13 +275,14 @@ export const isJavaScriptFile = (path: string): boolean => {
   return extension === ".js" || extension === ".cjs";
 };
 
-/** Resolves a selected loose script without enumerating the script library. */
-export const resolveLooseScriptReference = async (
+export const resolveLooseScriptReference = Effect.fn(
+  "resolveLooseScriptReference",
+)(function* (
   scriptsDir: string,
   path: string,
-): Promise<
+): Effect.fn.Return<
   Extract<ScriptReference, { readonly kind: "loose" }> | undefined
-> => {
+> {
   const rootPath = resolve(scriptsDir);
   const selectedPath = resolve(path);
   const selectedName = basename(selectedPath);
@@ -287,48 +298,46 @@ export const resolveLooseScriptReference = async (
   const nativeRelativePath = relative(rootPath, selectedPath);
   const segments = nativeRelativePath.split(sep);
   let currentPath = rootPath;
-  try {
+  return yield* Effect.gen(function* () {
     for (const [index, segment] of segments.entries()) {
       currentPath = join(currentPath, segment);
-      const stat = await fs.lstat(currentPath);
-      if (stat.isSymbolicLink()) return undefined;
+      const stat = yield* lstatPath(currentPath);
+      if (stat.kind === "symbolic-link") return undefined;
 
       const isSelectedFile = index === segments.length - 1;
-      if (isSelectedFile ? !stat.isFile() : !stat.isDirectory()) {
+      if (isSelectedFile ? stat.kind !== "file" : stat.kind !== "directory") {
         return undefined;
       }
     }
-    const [realRootPath, realSelectedPath] = await Promise.all([
-      fs.realpath(rootPath),
-      fs.realpath(selectedPath),
-    ]);
+    const [realRootPath, realSelectedPath] = yield* Effect.all(
+      [realPath(rootPath), realPath(selectedPath)],
+      { concurrency: 2 },
+    );
     if (!isPathInside(realRootPath, realSelectedPath)) return undefined;
     return {
       kind: "loose",
       path: portablePath(relative(realRootPath, realSelectedPath)),
-    };
-  } catch {
-    return undefined;
-  }
-};
+    } satisfies ScriptReference;
+  }).pipe(Effect.orElseSucceed(() => undefined));
+});
 
-const resolveMainPath = async (
+const resolveMainPath = Effect.fnUntraced(function* (
   packageRoot: string,
   value: string,
-): Promise<string | null> => {
-  try {
-    decodeRelativePath(value);
-  } catch {
-    throw new Error("The package.json main path is invalid.");
-  }
+) {
+  yield* Effect.try({
+    try: () => decodeRelativePath(value),
+    catch: () =>
+      new InvalidScriptPackage({
+        detail: "The package.json main path is invalid.",
+      }),
+  });
   const segments = value.split("/");
-
   const initial = resolve(packageRoot, ...segments);
-  if (!isPathInside(packageRoot, initial)) {
-    throw new Error(
-      "The package.json main path points outside the package folder.",
-    );
-  }
+  if (!isPathInside(packageRoot, initial))
+    return yield* new InvalidScriptPackage({
+      detail: "The package.json main path points outside the package folder.",
+    });
   const extension = extname(initial).toLowerCase();
   const candidates =
     extension === ".js" || extension === ".cjs"
@@ -340,38 +349,51 @@ const resolveMainPath = async (
           join(initial, "index.js"),
           join(initial, "index.cjs"),
         ];
-
   for (const candidate of candidates) {
-    try {
-      const stat = await fs.lstat(candidate);
-      if (!stat.isFile() || stat.isSymbolicLink()) continue;
-      const realPath = await fs.realpath(candidate);
-      if (!isPathInside(await fs.realpath(packageRoot), realPath)) {
-        throw new Error(
-          "The package.json main path points outside the package folder.",
-        );
-      }
+    const found = yield* Effect.gen(function* () {
+      const stat = yield* lstatPath(candidate);
+      if (stat.kind !== "file") return null;
+      const canonicalPath = yield* realPath(candidate);
+      if (!isPathInside(yield* realPath(packageRoot), canonicalPath))
+        return yield* new InvalidScriptPackage({
+          detail:
+            "The package.json main path points outside the package folder.",
+        });
       return candidate;
-    } catch (cause) {
-      if (isMissingFileError(cause)) continue;
-      throw cause;
-    }
+    }).pipe(Effect.catchTag("FileNotFound", () => Effect.succeed(null)));
+    if (found !== null) return found;
   }
   return null;
-};
+});
 
-export const inspectScriptPackageDirectory = async (
+export const inspectScriptPackageDirectory = Effect.fnUntraced(function* (
   rootPath: string,
   validatedManifest?: InspectedScriptPackageDirectory["manifest"],
-): Promise<InspectedScriptPackageDirectory> => {
+): Effect.fn.Return<
+  InspectedScriptPackageDirectory,
+  PackageFileError,
+  FileSystem
+> {
   const manifest =
     validatedManifest ??
-    (await readScriptPackageManifest(join(rootPath, "package.json")));
-  const name = validatedManifest?.name ?? parsePackageName(manifest.name);
-  const [mainPath, inventory] = await Promise.all([
-    resolveMainPath(rootPath, manifest.main),
-    listRegularFilePaths(rootPath, { maxFiles: SCRIPT_PACKAGE_MAX_FILES }),
-  ]);
+    (yield* readScriptPackageManifest(join(rootPath, "package.json")));
+  const name =
+    validatedManifest?.name ??
+    (yield* Effect.try({
+      try: () => parsePackageName(manifest.name),
+      catch: (cause) =>
+        InvalidScriptPackage.fromUnknown(
+          cause,
+          "This folder isn't a valid package.",
+        ),
+    }));
+  const [mainPath, inventory] = yield* Effect.all(
+    [
+      resolveMainPath(rootPath, manifest.main),
+      listRegularFilePaths(rootPath, { maxFiles: SCRIPT_PACKAGE_MAX_FILES }),
+    ],
+    { concurrency: 2 },
+  );
   return {
     files: inventory
       .filter((file) => isJavaScriptFile(file.relativePath))
@@ -379,7 +401,7 @@ export const inspectScriptPackageDirectory = async (
     mainPath,
     manifest: { ...manifest, name },
   };
-};
+});
 
 const hashesMatch = (
   left: Readonly<Record<string, string>>,
@@ -393,45 +415,56 @@ const hashesMatch = (
   );
 };
 
-export const inspectManagedPackageFolder = async (
+export const inspectManagedPackageFolder = Effect.fn(
+  "inspectManagedPackageFolder",
+)(function* (
   packagesDir: string,
   rootPath: string,
   managed: ManagedScriptPackage | undefined,
   validatedManifest?: InspectedScriptPackageDirectory["manifest"],
-): Promise<InspectedScriptPackageDirectory> => {
-  if (!(await fs.lstat(rootPath)).isDirectory()) {
-    throw new Error("The package folder is not a regular directory.");
-  }
-  const inspected = await inspectScriptPackageDirectory(
+) {
+  if ((yield* lstatPath(rootPath)).kind !== "directory")
+    return yield* new InvalidScriptPackage({
+      detail: "The package folder is not a regular directory.",
+    });
+  const inspected = yield* inspectScriptPackageDirectory(
     rootPath,
     validatedManifest,
   );
-  if (managed !== undefined && managed.name !== inspected.manifest.name) {
-    throw new Error(
-      `The installed package name is ${JSON.stringify(managed.name)}, but package.json declares ${JSON.stringify(inspected.manifest.name)}.`,
-    );
-  }
-  if (
-    !isPathInside(await fs.realpath(packagesDir), await fs.realpath(rootPath))
-  ) {
-    throw new Error("The package points outside Lucent's packages folder.");
-  }
+  if (managed !== undefined && managed.name !== inspected.manifest.name)
+    return yield* new InvalidScriptPackage({
+      detail: `The installed package name is ${JSON.stringify(managed.name)}, but package.json declares ${JSON.stringify(inspected.manifest.name)}.`,
+    });
+  if (!isPathInside(yield* realPath(packagesDir), yield* realPath(rootPath)))
+    return yield* new InvalidScriptPackage({
+      detail: "The package points outside Lucent's packages folder.",
+    });
   return inspected;
-};
+});
 
-export const integrityFor = async (
+export interface IntegrityCheck {
+  readonly integrity: ScriptPackageIntegrity;
+  readonly failure?: ScriptPackageInspectionFailure;
+}
+
+export const integrityFor = Effect.fnUntraced(function* (
   rootPath: string,
   managed: ManagedScriptPackage | undefined,
-  onFailure?: (failure: ScriptPackageInspectionFailure) => void,
-): Promise<"modified" | "unmanaged" | "verified"> => {
-  if (managed === undefined) return "unmanaged";
-  try {
-    return hashesMatch(await hashDirectory(rootPath), managed.files)
-      ? "verified"
-      : "modified";
-  } catch (cause) {
-    if (isUnexpectedPackageFileError(cause))
-      onFailure?.({ packageName: managed.name, cause });
-    return "modified";
-  }
-};
+): Effect.fn.Return<IntegrityCheck, never, FileSystem> {
+  if (managed === undefined) return { integrity: "unmanaged" };
+  return yield* hashDirectory(rootPath).pipe(
+    Effect.map(
+      (hashes): IntegrityCheck => ({
+        integrity: hashesMatch(hashes, managed.files) ? "verified" : "modified",
+      }),
+    ),
+    Effect.catch((error) =>
+      Effect.succeed<IntegrityCheck>({
+        integrity: "modified",
+        ...(isPlatformError(error)
+          ? { failure: { packageName: managed.name, error } }
+          : {}),
+      }),
+    ),
+  );
+});

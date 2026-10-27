@@ -1,3 +1,4 @@
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import {
   mkdtemp,
   rm,
@@ -13,7 +14,7 @@ import * as Effect from "effect/Effect";
 import * as Logger from "effect/Logger";
 import { vi } from "vitest";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 
 import {
   analyzeScriptFile,
@@ -41,7 +42,7 @@ afterEach(async () => {
   tempDirectories.clear();
 });
 
-describe("script files", () => {
+layer(NodeFileSystem.layer)("script files", (it) => {
   it.effect(
     "returns the current source and extracted inputs after a same-size edit",
     () =>
@@ -157,6 +158,9 @@ describe("script files", () => {
           status: "failed",
           path: oversizedPath,
           message: `Script file exceeds the 16 MiB limit: ${oversizedPath}.`,
+          detailsText: expect.stringContaining(
+            `File is larger than 16777216 bytes: ${oversizedPath}.`,
+          ),
         });
       }),
   );
@@ -184,7 +188,7 @@ describe("script files", () => {
   );
 });
 
-describe("script resolution failure logging", () => {
+layer(NodeFileSystem.layer)("script resolution failure logging", (it) => {
   it.effect(
     "logs unexpected file I/O once and keeps expected source outcomes silent",
     () =>

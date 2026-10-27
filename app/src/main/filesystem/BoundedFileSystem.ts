@@ -1,6 +1,7 @@
 import { promises as fs, type Dirent, type Stats } from "node:fs";
 import * as Effect from "effect/Effect";
 import { FileSystem } from "effect/FileSystem";
+import * as Predicate from "effect/Predicate";
 import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -12,21 +13,91 @@ export class FileSystemLimitError extends Schema.TaggedError<FileSystemLimitErro
     limit: Schema.Number,
     kind: Schema.Literals(["bytes", "entries"]),
   },
-) {}
+) {
+  override get message(): string {
+    return this.kind === "bytes"
+      ? `File is larger than ${this.limit} bytes: ${this.path}.`
+      : `Directory has more than ${this.limit} entries: ${this.path}.`;
+  }
+}
 
 export class FileChangedWhileReading extends Schema.TaggedError<FileChangedWhileReading>()(
   "FileChangedWhileReading",
   { path: Schema.String },
-) {}
+) {
+  override get message(): string {
+    return `File changed while it was being read: ${this.path}.`;
+  }
+}
+
+export class FileNotFound extends Schema.TaggedError<FileNotFound>()(
+  "FileNotFound",
+  {
+    path: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {
+  override get message(): string {
+    return this.cause instanceof Error
+      ? this.cause.message
+      : String(this.cause);
+  }
+}
+
+export class NotRegularFile extends Schema.TaggedError<NotRegularFile>()(
+  "NotRegularFile",
+  {
+    path: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Expected a regular file: ${this.path}.`;
+  }
+}
+
+export type FileReadError = FileNotFound | PlatformError.PlatformError;
+
+export const isFileNotFound = Schema.is(FileNotFound);
+
+export function nativeCause(error: PlatformError.PlatformError): {};
+export function nativeCause(error: unknown): unknown;
+export function nativeCause(error: unknown): unknown {
+  return PlatformError.isPlatformError(error)
+    ? (error.reason.cause ?? error)
+    : isFileNotFound(error)
+      ? error.cause
+      : error;
+}
+
+export const fileReadError =
+  (path: string) =>
+  (error: PlatformError.PlatformError): FileReadError => {
+    const cause = nativeCause(error);
+    return Predicate.isTagged(error.reason, "NotFound") ||
+      (Predicate.hasProperty(cause, "code") &&
+        (cause.code === "ENOENT" || cause.code === "ENOTDIR"))
+      ? new FileNotFound({ path, cause })
+      : error;
+  };
+
+const tryNodeFs = <A>(method: string, path: string, run: () => Promise<A>) =>
+  Effect.tryPromise({
+    try: run,
+    catch: (cause) => fileReadError(path)(nativeFileError(method, path, cause)),
+  });
+
+const statPath = (path: string) => tryNodeFs("stat", path, () => fs.stat(path));
+
+export const regularFileFingerprint = Effect.fnUntraced(function* (
+  path: string,
+) {
+  const stat = yield* statPath(path);
+  if (!stat.isFile()) return yield* new NotRegularFile({ path });
+  return fileFingerprint(stat);
+});
 
 export const fileFingerprint = (stat: Stats): string =>
   [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
-
-export const isMissingFileError = (cause: unknown): boolean =>
-  typeof cause === "object" &&
-  cause !== null &&
-  "code" in cause &&
-  (cause.code === "ENOENT" || cause.code === "ENOTDIR");
 
 export const readFileBounded = Effect.fn("readFileBounded")(function* (
   fileSystem: FileSystem,
@@ -61,13 +132,10 @@ export const readStableFile = Effect.fnUntraced(function* (
   } = {},
 ) {
   const fileSystem = yield* FileSystem;
-  const stat = Effect.tryPromise({
-    try: () => fs.stat(path),
-    catch: (cause) => cause,
-  });
+  const stat = statPath(path);
   const before = yield* stat;
   if (options.requireRegularFile && !before.isFile())
-    return yield* Effect.fail(new Error(`Expected a regular file: ${path}.`));
+    return yield* new NotRegularFile({ path });
   if (before.size > maxBytes)
     return yield* new FileSystemLimitError({
       path,
@@ -78,12 +146,12 @@ export const readStableFile = Effect.fnUntraced(function* (
     Effect.mapError((cause) =>
       cause._tag === "FileSystemLimitError"
         ? cause
-        : (cause.reason.cause ?? cause),
+        : fileReadError(path)(cause),
     ),
   );
   const after = yield* stat.pipe(
     Effect.mapError((cause) =>
-      options.missingAfterReadIsChange && isMissingFileError(cause)
+      options.missingAfterReadIsChange && isFileNotFound(cause)
         ? new FileChangedWhileReading({ path })
         : cause,
     ),
@@ -120,15 +188,51 @@ export const nativeFileError = (
   });
 };
 
+export interface PathInfo {
+  readonly kind: "file" | "directory" | "symbolic-link" | "other";
+  readonly size: number;
+  readonly mode: number;
+}
+
+export const lstatPath = Effect.fnUntraced(function* (path: string) {
+  const info = yield* tryNodeFs("lstat", path, () => fs.lstat(path));
+  return {
+    kind: fileKind(info),
+    size: info.size,
+    mode: info.mode,
+  } satisfies PathInfo;
+});
+
+export const realPath = (path: string) =>
+  tryNodeFs("realpath", path, () => fs.realpath(path));
+
+export interface DirectoryEntry {
+  readonly name: string;
+  readonly kind: PathInfo["kind"];
+}
+
+export const readDirectoryEntries = Effect.fnUntraced(function* (path: string) {
+  const entries = yield* tryNodeFs("readdir", path, () =>
+    fs.readdir(path, { withFileTypes: true }),
+  );
+  return entries.map(
+    (entry): DirectoryEntry => ({ name: entry.name, kind: fileKind(entry) }),
+  );
+});
+
+export const pathExists = (path: string) =>
+  lstatPath(path).pipe(
+    Effect.as(true),
+    Effect.catchTag("FileNotFound", () => Effect.succeed(false)),
+  );
+
 export const lstat = (path: string) =>
   Effect.tryPromise({
     try: () => fs.lstat(path),
     catch: (cause) => nativeFileError("lstat", path, cause),
   });
 
-export const fileKind = (
-  info: Stats | Dirent,
-): "file" | "directory" | "symbolic-link" | "other" =>
+export const fileKind = (info: Stats | Dirent): DirectoryEntry["kind"] =>
   info.isFile()
     ? "file"
     : info.isDirectory()
@@ -151,10 +255,7 @@ export const readDirectoryBounded = Effect.fn("readDirectoryBounded")(
         catch: (cause) => nativeFileError("opendir", path, cause),
       }),
       Effect.fn(function* (directory) {
-        const entries: {
-          readonly name: string;
-          readonly kind: ReturnType<typeof fileKind>;
-        }[] = [];
+        const entries: DirectoryEntry[] = [];
         while (true) {
           const entry = yield* Effect.tryPromise({
             try: () => directory.read(),

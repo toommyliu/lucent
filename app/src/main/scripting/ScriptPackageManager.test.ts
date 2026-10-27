@@ -1,9 +1,10 @@
-import { promises as fs } from "node:fs";
+import { fileSystemLayer } from "../filesystem/FileSystemTesting";
+import nodeFs, { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import { vi } from "vitest";
 import * as Deferred from "effect/Deferred";
@@ -59,32 +60,25 @@ const REMOTE_TREE = "4".repeat(40);
 const PACKAGE_NAME = "example";
 const PACKAGE_SUBDIRECTORY = "packages/example";
 
-const packageFileSystemLayer = Layer.effect(
-  FileSystem,
-  Effect.map(FileSystem, (fileSystem) => ({
-    ...fileSystem,
-    makeTempDirectory: (options) => {
-      const prefix = join(
-        options?.directory ?? tmpdir(),
-        options?.prefix ?? "",
-      );
-      return Effect.tryPromise({
-        try: () => fs.mkdtemp(prefix),
-        catch: (cause) => nativeFileError("makeTempDirectory", prefix, cause),
-      });
-    },
-    rename: (from, to) =>
-      Effect.tryPromise({
-        try: () => fs.rename(from, to),
-        catch: (cause) => nativeFileError("rename", from, cause),
-      }),
-    remove: (path, options) =>
-      Effect.tryPromise({
-        try: () => fs.rm(path, options),
-        catch: (cause) => nativeFileError("remove", path, cause),
-      }),
-  })),
-).pipe(Layer.provide(desktopFileSystemLayer));
+const packageFileSystemLayer = fileSystemLayer(() => ({
+  makeTempDirectory: (options) => {
+    const prefix = join(options?.directory ?? tmpdir(), options?.prefix ?? "");
+    return Effect.tryPromise({
+      try: () => fs.mkdtemp(prefix),
+      catch: (cause) => nativeFileError("makeTempDirectory", prefix, cause),
+    });
+  },
+  rename: (from, to) =>
+    Effect.tryPromise({
+      try: () => fs.rename(from, to),
+      catch: (cause) => nativeFileError("rename", from, cause),
+    }),
+  remove: (path, options) =>
+    Effect.tryPromise({
+      try: () => fs.rm(path, options),
+      catch: (cause) => nativeFileError("remove", path, cause),
+    }),
+}));
 
 const makeDirectory = async (): Promise<string> => {
   const path = await fs.mkdtemp(join(tmpdir(), "lucent-package-archive-"));
@@ -134,8 +128,14 @@ type CommitResolution = Effect.Success<
   ReturnType<GitHubScriptPackageClientShape["resolveCommit"]>
 >;
 
+const resolvedCommit = (managed: ManagedScriptPackage | undefined) =>
+  managed === undefined || managed.source.kind === "bundled"
+    ? undefined
+    : managed.source.resolvedCommit;
+
 const makeManagerHarness = (options: {
   readonly assetsDir?: string;
+  readonly fileSystemLayer?: Layer.Layer<FileSystem>;
   readonly archivePath?: string | ((ref: string | undefined) => string);
   readonly downloadError?: GitHubScriptPackageClientError;
   readonly directoryTree?: string | Effect.Effect<string>;
@@ -152,6 +152,7 @@ const makeManagerHarness = (options: {
     | Effect.Effect<CommitResolution, GitHubScriptPackageClientError>;
   readonly workspaceDir: string;
 }) => {
+  const providedFileSystem = options.fileSystemLayer ?? packageFileSystemLayer;
   let downloadCount = 0;
   const archiveRequests: Parameters<
     GitHubScriptPackageClientShape["downloadArchive"]
@@ -226,7 +227,7 @@ const makeManagerHarness = (options: {
   ).pipe(
     Layer.provide(
       scriptPackageStateLayer.pipe(
-        Layer.provide(Layer.mergeAll(environmentLayer, desktopFileSystemLayer)),
+        Layer.provide(Layer.mergeAll(environmentLayer, providedFileSystem)),
       ),
     ),
   );
@@ -234,7 +235,7 @@ const makeManagerHarness = (options: {
     Layer.provide(
       Layer.mergeAll(
         environmentLayer,
-        desktopFileSystemLayer,
+        providedFileSystem,
         stateLayer,
         Layer.succeed(
           ElectronApp,
@@ -252,7 +253,7 @@ const makeManagerHarness = (options: {
     ),
   );
   const layer = scriptPackageManagerLayer.pipe(
-    Layer.provide(packageFileSystemLayer),
+    Layer.provide(providedFileSystem),
     Layer.provideMerge(
       Layer.mergeAll(
         environmentLayer,
@@ -367,31 +368,34 @@ afterEach(async () => {
 const OLD_SOURCE = "module.exports = 'old';";
 const NEW_SOURCE = "module.exports = 'new';";
 
-const installedPackage = Effect.promise(async () => {
-  const root = await makeDirectory();
+const installedPackage = Effect.gen(function* () {
+  const root = yield* Effect.promise(() => makeDirectory());
   const workspaceDir = join(root, "workspace");
   const repository = join(root, "source", "repository-commit");
   const destination = join(workspaceDir, "packages", PACKAGE_NAME);
-  await Promise.all([
-    write(
-      join(repository, "package.json"),
-      JSON.stringify({ name: PACKAGE_NAME }),
-    ),
-    write(join(repository, "index.js"), NEW_SOURCE),
-    write(
-      join(destination, "package.json"),
-      JSON.stringify({ name: PACKAGE_NAME }),
-    ),
-    write(join(destination, "index.js"), OLD_SOURCE),
-  ]);
+  yield* Effect.promise(() =>
+    Promise.all([
+      write(
+        join(repository, "package.json"),
+        JSON.stringify({ name: PACKAGE_NAME }),
+      ),
+      write(join(repository, "index.js"), NEW_SOURCE),
+      write(
+        join(destination, "package.json"),
+        JSON.stringify({ name: PACKAGE_NAME }),
+      ),
+      write(join(destination, "index.js"), OLD_SOURCE),
+    ]),
+  );
   const archivePath = join(root, "package.tgz");
-  await createTar(
-    { cwd: join(root, "source"), file: archivePath, gzip: true },
-    ["repository-commit"],
+  yield* Effect.promise(() =>
+    createTar({ cwd: join(root, "source"), file: archivePath, gzip: true }, [
+      "repository-commit",
+    ]),
   );
   const managed: ManagedScriptPackage = {
     directory: PACKAGE_NAME,
-    files: await hashDirectory(destination),
+    files: yield* hashDirectory(destination),
     installedAt: "2026-08-01T00:00:00.000Z",
     name: PACKAGE_NAME,
     source: {
@@ -399,11 +403,12 @@ const installedPackage = Effect.promise(async () => {
       repositoryUrl: "https://github.com/example/package",
       resolvedCommit: INSTALLED_COMMIT,
     },
+    update: { status: "unchecked" },
   };
   return { archivePath, destination, managed, workspaceDir };
 });
 
-describe("script package folders", () => {
+layer(desktopFileSystemLayer)("script package folders", (it) => {
   it.effect(
     "removes staging when interrupted immediately after its creation",
     () =>
@@ -443,6 +448,82 @@ describe("script package folders", () => {
           "packages",
         ]);
         expect(harness.downloadCount()).toBe(0);
+      }).pipe(Effect.scoped),
+  );
+
+  it.effect(
+    "finishes extracting before cleaning up an interrupted install",
+    () =>
+      Effect.gen(function* () {
+        const root = yield* Effect.promise(makeDirectory);
+        const workspaceDir = join(root, "workspace");
+        const repository = join(root, "source", "repository-commit");
+        yield* Effect.promise(() =>
+          Promise.all([
+            write(
+              join(repository, "package.json"),
+              JSON.stringify({ name: PACKAGE_NAME }),
+            ),
+            write(join(repository, "index.js"), NEW_SOURCE),
+          ]),
+        );
+        const archivePath = join(root, "package.tgz");
+        yield* Effect.promise(() =>
+          createTar(
+            { cwd: join(root, "source"), file: archivePath, gzip: true },
+            ["repository-commit"],
+          ),
+        );
+        const harness = makeManagerHarness({
+          archivePath,
+          workspaceDir,
+          resolution: { commit: REMOTE_COMMIT },
+        });
+        const { manager } = yield* harness.services;
+        const stagingPrefix = join(workspaceDir, ".lucent-package-install-");
+        const extracting = yield* Deferred.make<void>();
+        const cleaning = yield* Deferred.make<void>();
+        const finishExtraction = Promise.withResolvers<void>();
+        const open = nodeFs.open;
+        vi.spyOn(nodeFs, "open").mockImplementation((...args: unknown[]) => {
+          const path = String(args[0]);
+          const start = () => Reflect.apply(open, nodeFs, args);
+          if (
+            path.startsWith(stagingPrefix) &&
+            path.endsWith(join("package", "index.js"))
+          ) {
+            Deferred.doneUnsafe(extracting, Effect.void);
+            void finishExtraction.promise.then(start);
+          } else {
+            start();
+          }
+        });
+        const rm = fs.rm;
+        vi.spyOn(fs, "rm").mockImplementation((path, options) => {
+          if (String(path).startsWith(stagingPrefix))
+            Deferred.doneUnsafe(cleaning, Effect.void);
+          return rm(path, options);
+        });
+
+        const installing = yield* manager
+          .install({ repositoryUrl: "https://github.com/example/package" })
+          .pipe(Effect.forkScoped);
+        yield* Deferred.await(extracting);
+        const stopping = yield* Fiber.interrupt(installing).pipe(
+          Effect.forkScoped,
+        );
+        yield* Effect.raceFirst(
+          Deferred.await(cleaning),
+          Effect.promise(() => setTimeout(100)),
+        );
+        const cleanedDuringExtraction = yield* Deferred.isDone(cleaning);
+        finishExtraction.resolve();
+        yield* Fiber.join(stopping);
+
+        expect(cleanedDuringExtraction).toBe(false);
+        expect(yield* Effect.promise(() => fs.readdir(workspaceDir))).toEqual([
+          "packages",
+        ]);
       }).pipe(Effect.scoped),
   );
 
@@ -496,6 +577,7 @@ describe("script package folders", () => {
             repositoryUrl: "https://github.com/example/other-package",
             resolvedCommit: INSTALLED_COMMIT,
           },
+          update: { status: "unchecked" },
         },
         resolution: {
           commit: REMOTE_COMMIT,
@@ -722,6 +804,39 @@ describe("script package folders", () => {
       }),
   );
 
+  for (const operation of ["update", "remove"] as const) {
+    it.effect(`rejects duplicate package folders during ${operation}`, () =>
+      Effect.gen(function* () {
+        const { destination, managed, workspaceDir } = yield* installedPackage;
+        const harness = makeManagerHarness({
+          managed,
+          resolution: { commit: REMOTE_COMMIT },
+          workspaceDir,
+        });
+        const { manager, catalog, state } = yield* harness.services;
+        yield* Effect.promise(() =>
+          fs.cp(destination, join(dirname(destination), "example-old"), {
+            recursive: true,
+          }),
+        );
+        yield* catalog.refresh;
+        const error = yield* manager[operation]({
+          packageName: PACKAGE_NAME,
+        }).pipe(Effect.flip);
+        expect(error.operation).toBe(operation);
+        expect(yield* state.get(PACKAGE_NAME)).toEqual(managed);
+        expect(
+          yield* Effect.promise(() => fs.readdir(dirname(destination))),
+        ).toEqual(["example", "example-old"]);
+        expect(harness.requests).toEqual([]);
+        expect(harness.downloadCount()).toBe(0);
+        expect(error.message).toBe(
+          'More than one package folder declares the name "example".',
+        );
+      }),
+    );
+  }
+
   it.effect("removes a package from its saved folder", () =>
     Effect.gen(function* () {
       const root = yield* Effect.promise(makeDirectory);
@@ -740,7 +855,7 @@ describe("script package folders", () => {
       const harness = makeManagerHarness({
         managed: {
           directory,
-          files: yield* Effect.promise(() => hashDirectory(packageRoot)),
+          files: yield* hashDirectory(packageRoot),
           installedAt: "2026-08-01T00:00:00.000Z",
           name: PACKAGE_NAME,
           source: {
@@ -748,6 +863,7 @@ describe("script package folders", () => {
             repositoryUrl: "https://github.com/example/package",
             resolvedCommit: INSTALLED_COMMIT,
           },
+          update: { status: "unchecked" },
         },
         resolution: { commit: REMOTE_COMMIT },
         workspaceDir,
@@ -774,17 +890,14 @@ describe("script package folders", () => {
   );
 });
 
-describe("script package updates", () => {
+layer(desktopFileSystemLayer)("script package updates", (it) => {
   it.effect(
     "does not download when the remote commit is already installed",
     () =>
       Effect.gen(function* () {
         const { managed, workspaceDir } = yield* installedPackage;
         const harness = makeManagerHarness({
-          managed: {
-            ...managed,
-            etag: "stale-etag-without-a-commit",
-          },
+          managed,
           resolution: {
             commit: INSTALLED_COMMIT,
             etag: "current-etag",
@@ -799,8 +912,7 @@ describe("script package updates", () => {
         expect(harness.downloadCount()).toBe(0);
         expect(harness.requests[0]?.known).toBeUndefined();
         expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-          etag: "current-etag",
-          remoteRevision: { kind: "commit", sha: INSTALLED_COMMIT },
+          commitLookup: { etag: "current-etag", commit: INSTALLED_COMMIT },
           update: { status: "current" },
         });
       }),
@@ -814,8 +926,7 @@ describe("script package updates", () => {
         const harness = makeManagerHarness({
           managed: {
             ...managed,
-            etag: "current-etag",
-            remoteRevision: { kind: "commit", sha: INSTALLED_COMMIT },
+            commitLookup: { etag: "current-etag", commit: INSTALLED_COMMIT },
           },
           resolution: { commit: INSTALLED_COMMIT, etag: "current-etag" },
           workspaceDir,
@@ -831,8 +942,7 @@ describe("script package updates", () => {
           commit: INSTALLED_COMMIT,
         });
         expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-          etag: "current-etag",
-          remoteRevision: { kind: "commit", sha: INSTALLED_COMMIT },
+          commitLookup: { etag: "current-etag", commit: INSTALLED_COMMIT },
           update: { status: "current" },
         });
       }),
@@ -908,17 +1018,17 @@ describe("script package updates", () => {
         const harness = makeManagerHarness({
           archivePath,
           managed: {
+            commitLookup: { etag: "current-etag", commit: INSTALLED_COMMIT },
             directory,
-            etag: "current-etag",
             files: {},
             installedAt: "2026-07-27T00:00:00.000Z",
             name: PACKAGE_NAME,
-            remoteRevision: { kind: "commit", sha: INSTALLED_COMMIT },
             source: {
               kind: "repository",
               repositoryUrl: "https://github.com/example/package",
               resolvedCommit: INSTALLED_COMMIT,
             },
+            update: { status: "unchecked" },
           },
           resolution: {
             commit: INSTALLED_COMMIT,
@@ -961,12 +1071,11 @@ describe("script package updates", () => {
         const harness = makeManagerHarness({
           workspaceDir,
           managed: {
+            commitLookup: { etag: "remote-etag", commit: REMOTE_COMMIT },
             directory: PACKAGE_NAME,
-            etag: "remote-etag",
             files: {},
             installedAt: "2026-07-27T00:00:00.000Z",
             name: PACKAGE_NAME,
-            remoteRevision: { kind: "commit", sha: REMOTE_COMMIT },
             source: {
               kind: "repository",
               repositoryUrl: "https://github.com/example/package",
@@ -992,8 +1101,7 @@ describe("script package updates", () => {
         });
         expect(harness.downloadCount()).toBe(0);
         expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-          etag: "remote-etag",
-          remoteRevision: { kind: "commit", sha: REMOTE_COMMIT },
+          commitLookup: { etag: "remote-etag", commit: REMOTE_COMMIT },
           update: {
             status: "available",
             revision: { kind: "commit", sha: REMOTE_COMMIT },
@@ -1022,12 +1130,13 @@ describe("script package updates", () => {
             installedAt: "2026-08-01T00:00:00.000Z",
             name: PACKAGE_NAME,
             source: {
-              kind: "directory",
+              kind: "bundled",
               repositoryUrl: "https://github.com/example/monorepo",
               requestedRef: "main",
               resolvedTree: INSTALLED_TREE,
               subdirectory: PACKAGE_SUBDIRECTORY,
             },
+            update: { status: "unchecked" },
           },
           resolution: { commit: REMOTE_COMMIT },
         });
@@ -1044,13 +1153,14 @@ describe("script package updates", () => {
             subdirectory: PACKAGE_SUBDIRECTORY,
           }),
         ]);
-        expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-          remoteRevision: { kind: "tree", sha: REMOTE_TREE },
+        const saved = yield* state.get(PACKAGE_NAME);
+        expect(saved).toMatchObject({
           update: {
             status: "available",
             revision: { kind: "tree", sha: REMOTE_TREE },
           },
         });
+        expect(saved).not.toHaveProperty("commitLookup");
         expect(catalog.packages[0]).toMatchObject({
           update: {
             status: "available",
@@ -1096,18 +1206,20 @@ describe("script package updates", () => {
         directoryTree: REMOTE_TREE,
         managed: {
           directory: PACKAGE_NAME,
-          files: yield* Effect.promise(() => hashDirectory(destination)),
+          files: yield* hashDirectory(destination),
           installedAt: "2026-08-01T00:00:00.000Z",
           name: PACKAGE_NAME,
           source: {
             kind: "directory",
             repositoryUrl: "https://github.com/example/monorepo",
             requestedRef: "main",
+            resolvedCommit: INSTALLED_COMMIT,
             resolvedTree: INSTALLED_TREE,
             subdirectory: PACKAGE_SUBDIRECTORY,
           },
+          update: { status: "unchecked" },
         },
-        resolution: { commit: REMOTE_COMMIT },
+        resolution: { commit: REMOTE_COMMIT, etag: "root-etag" },
         workspaceDir,
       });
       const { manager, state } = yield* harness.services;
@@ -1125,8 +1237,9 @@ describe("script package updates", () => {
           subdirectory: PACKAGE_SUBDIRECTORY,
         }),
       ]);
-      expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-        remoteRevision: { kind: "tree", sha: REMOTE_TREE },
+      const saved = yield* state.get(PACKAGE_NAME);
+      expect(saved).not.toHaveProperty("commitLookup");
+      expect(saved).toMatchObject({
         source: {
           kind: "directory",
           resolvedCommit: REMOTE_COMMIT,
@@ -1152,7 +1265,7 @@ describe("script package updates", () => {
   );
 });
 
-describe("script package replacement failures", () => {
+layer(desktopFileSystemLayer)("script package replacement failures", (it) => {
   it.effect("keeps the package in place when moving it aside fails", () =>
     Effect.gen(function* () {
       const { archivePath, destination, managed, workspaceDir } =
@@ -1176,7 +1289,7 @@ describe("script package replacement failures", () => {
       expect(failure.message).toBe(
         `Failed to move the previous package. Check ${destination}.`,
       );
-      expect((yield* state.get(PACKAGE_NAME))?.source.resolvedCommit).toBe(
+      expect(resolvedCommit(yield* state.get(PACKAGE_NAME))).toBe(
         INSTALLED_COMMIT,
       );
       expect(
@@ -1252,9 +1365,9 @@ describe("script package replacement failures", () => {
           findFiles(workspaceDir, OLD_SOURCE),
         );
         expect(copies).toHaveLength(1);
-        expect(
-          yield* Effect.promise(() => hashDirectory(dirname(copies[0] ?? ""))),
-        ).toEqual(managed.files);
+        expect(yield* hashDirectory(dirname(copies[0] ?? ""))).toEqual(
+          managed.files,
+        );
         expect(failure.message).toBe(
           `Failed to replace the package. The previous package remains at ${dirname(copies[0] ?? "")}. Check ${destination}.`,
         );
@@ -1268,7 +1381,7 @@ describe("script package replacement failures", () => {
       const harness = makeManagerHarness({
         archivePath,
         onSave: (value) =>
-          value.source.resolvedCommit === REMOTE_COMMIT
+          resolvedCommit(value) === REMOTE_COMMIT
             ? Effect.fail(
                 new ScriptPackageStateError({
                   operation: "save",
@@ -1287,7 +1400,7 @@ describe("script package replacement failures", () => {
       expect(failure.message).toBe(
         `Failed to replace the package. The previous package was restored at ${destination}.`,
       );
-      expect((yield* state.get(PACKAGE_NAME))?.source.resolvedCommit).toBe(
+      expect(resolvedCommit(yield* state.get(PACKAGE_NAME))).toBe(
         INSTALLED_COMMIT,
       );
       expect(
@@ -1373,7 +1486,7 @@ describe("script package replacement failures", () => {
           fs.readFile(join(destination, "index.js"), "utf8"),
         ),
       ).toBe("module.exports = 'editor changes';");
-      expect((yield* state.get(PACKAGE_NAME))?.source.resolvedCommit).toBe(
+      expect(resolvedCommit(yield* state.get(PACKAGE_NAME))).toBe(
         INSTALLED_COMMIT,
       );
       const copies = yield* Effect.promise(() =>
@@ -1414,7 +1527,7 @@ describe("script package replacement failures", () => {
         );
 
       expect(result.status).toBe("completed");
-      expect((yield* state.get(PACKAGE_NAME))?.source.resolvedCommit).toBe(
+      expect(resolvedCommit(yield* state.get(PACKAGE_NAME))).toBe(
         REMOTE_COMMIT,
       );
       expect(
@@ -1467,7 +1580,7 @@ describe("script package replacement failures", () => {
         fs.readFile(join(destination, "index.js"), "utf8").catch(() => null),
       );
       expect({
-        commit: (yield* state.get(PACKAGE_NAME))?.source.resolvedCommit,
+        commit: resolvedCommit(yield* state.get(PACKAGE_NAME)),
         installed,
       }).toEqual({ commit: REMOTE_COMMIT, installed: NEW_SOURCE });
       expect(yield* Effect.promise(() => fs.readdir(workspaceDir))).toEqual([
@@ -1555,7 +1668,7 @@ describe("script package replacement failures", () => {
         archivePath,
         managed,
         onSave: (value) =>
-          value.source.resolvedCommit === REMOTE_COMMIT
+          resolvedCommit(value) === REMOTE_COMMIT
             ? Deferred.succeed(saving, undefined).pipe(
                 Effect.andThen(Deferred.await(finishSave)),
                 Effect.onInterrupt(() =>
@@ -1583,7 +1696,7 @@ describe("script package replacement failures", () => {
       yield* Fiber.join(interrupting);
 
       expect({
-        commit: (yield* state.get(PACKAGE_NAME))?.source.resolvedCommit,
+        commit: resolvedCommit(yield* state.get(PACKAGE_NAME)),
         installed: yield* Effect.promise(() =>
           fs.readFile(join(destination, "index.js"), "utf8"),
         ),
@@ -1596,7 +1709,7 @@ describe("script package replacement failures", () => {
   );
 });
 
-describe("script package local modifications", () => {
+layer(desktopFileSystemLayer)("script package local modifications", (it) => {
   const EDITED_SOURCE = "module.exports = 'edited';";
   const localModifications = {
     status: "confirmation-required",
@@ -1693,7 +1806,7 @@ describe("script package local modifications", () => {
   );
 });
 
-describe("script package update check races", () => {
+layer(desktopFileSystemLayer)("script package update check races", (it) => {
   it.effect.each(["update", "remove"] as const)(
     "logs inspection and fallback scan failures during %s",
     (operation) =>
@@ -1934,6 +2047,99 @@ describe("script package update check races", () => {
       }),
   );
 
+  it.effect("saves a rate limit when an update cannot look up the commit", () =>
+    Effect.gen(function* () {
+      const { managed, workspaceDir } = yield* installedPackage;
+      const harness = makeManagerHarness({
+        managed,
+        resolution: Effect.fail(
+          new GitHubScriptPackageClientError({
+            kind: "rate-limited",
+            detail: "GitHub's request limit has been reached.",
+            retryAt: "2026-10-17T12:00:00.000Z",
+          }),
+        ),
+        workspaceDir,
+      });
+      const { manager, catalog, state } = yield* harness.services;
+
+      const error = yield* manager
+        .update({ packageName: PACKAGE_NAME })
+        .pipe(Effect.flip);
+
+      const rateLimited = {
+        status: "rate-limited",
+        retryAt: "2026-10-17T12:00:00.000Z",
+        message: "GitHub's request limit has been reached.",
+      };
+      expect(error).toMatchObject({
+        operation: "update",
+        message: "GitHub's request limit has been reached.",
+      });
+      expect(harness.downloadCount()).toBe(0);
+      expect((yield* state.get(PACKAGE_NAME))?.update).toEqual(rateLimited);
+      expect((yield* catalog.getOverview).packages[0]).toMatchObject({
+        name: PACKAGE_NAME,
+        update: rateLimited,
+      });
+    }),
+  );
+
+  it.effect("logs a rate limit that an update fails to save", () =>
+    Effect.gen(function* () {
+      const { managed, workspaceDir } = yield* installedPackage;
+      const harness = makeManagerHarness({
+        managed,
+        onSave: () =>
+          Effect.fail(
+            new ScriptPackageStateError({
+              operation: "save",
+              cause: new Error("disk full"),
+            }),
+          ),
+        resolution: Effect.fail(
+          new GitHubScriptPackageClientError({
+            kind: "rate-limited",
+            detail: "GitHub's request limit has been reached.",
+            retryAt: "2026-10-17T12:00:00.000Z",
+          }),
+        ),
+        workspaceDir,
+      });
+      const { manager, state } = yield* harness.services;
+      const logs: DesktopLogRecord[] = [];
+
+      const error = yield* manager
+        .update({ packageName: PACKAGE_NAME })
+        .pipe(
+          Effect.flip,
+          Effect.withLogger(
+            Logger.make((options) => logs.push(desktopLogRecord(options))),
+          ),
+        );
+
+      expect(error.message).toBe("GitHub's request limit has been reached.");
+      expect((yield* state.get(PACKAGE_NAME))?.update).toEqual({
+        status: "unchecked",
+      });
+      expect(
+        logs.map(({ level, component, message, data }) => ({
+          level,
+          component,
+          message,
+          data,
+        })),
+      ).toEqual([
+        {
+          level: "warn",
+          component: "script-packages",
+          message: "Failed to save the package rate limit",
+          data: { packageName: PACKAGE_NAME },
+        },
+      ]);
+    }),
+  );
+
   it.effect("keeps successful and interrupted update checks silent", () =>
     Effect.gen(function* () {
       const { managed, workspaceDir } = yield* installedPackage;
@@ -2088,7 +2294,7 @@ describe("script package update check races", () => {
 
       expect(updated.status).toBe("completed");
       expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-        files: yield* Effect.promise(() => hashDirectory(destination)),
+        files: yield* hashDirectory(destination),
         source: { resolvedCommit: REMOTE_COMMIT },
         update: { status: "current" },
       });
@@ -2106,14 +2312,15 @@ describe("script package update check races", () => {
       label: "installedAt",
       patch: { installedAt: "2026-10-17T00:00:00.000Z" },
     },
-    { label: "etag", patch: { etag: "changed-etag" } },
     {
-      label: "remote revision kind",
-      patch: { remoteRevision: { kind: "commit", sha: INSTALLED_TREE } },
+      label: "commit lookup etag",
+      patch: {
+        commitLookup: { etag: "changed-etag", commit: INSTALLED_COMMIT },
+      },
     },
     {
-      label: "remote revision sha",
-      patch: { remoteRevision: { kind: "tree", sha: REMOTE_TREE } },
+      label: "commit lookup commit",
+      patch: { commitLookup: { etag: "initial-etag", commit: REMOTE_COMMIT } },
     },
     {
       label: "repository URL",
@@ -2197,8 +2404,7 @@ describe("script package update check races", () => {
       const finishCheck = yield* Deferred.make<void>();
       const initial: ManagedScriptPackage = {
         ...managed,
-        etag: "initial-etag",
-        remoteRevision: { kind: "tree", sha: INSTALLED_TREE },
+        commitLookup: { etag: "initial-etag", commit: INSTALLED_COMMIT },
         source: {
           kind: "directory",
           repositoryUrl: "https://github.com/example/package",
@@ -2290,7 +2496,6 @@ describe("script package update check races", () => {
       };
       expect(second.packages[0]).toMatchObject({ update: available });
       expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-        remoteRevision: { kind: "commit", sha: REMOTE_COMMIT },
         update: available,
       });
       expect((yield* catalog.getOverview).packages[0]).toMatchObject({
@@ -2317,6 +2522,7 @@ describe("script package update check races", () => {
             source: {
               kind: "directory",
               repositoryUrl: "https://github.com/example/monorepo",
+              resolvedCommit: INSTALLED_COMMIT,
               resolvedTree: INSTALLED_TREE,
               subdirectory: PACKAGE_SUBDIRECTORY,
             },
@@ -2346,7 +2552,7 @@ describe("script package update check races", () => {
   );
 });
 
-describe("script package removal failures", () => {
+layer(desktopFileSystemLayer)("script package removal failures", (it) => {
   const failStateRemoval = () =>
     Effect.fail(
       new ScriptPackageStateError({
@@ -2467,7 +2673,7 @@ describe("script package removal failures", () => {
   );
 });
 
-describe("script package integrity rows", () => {
+layer(desktopFileSystemLayer)("script package integrity rows", (it) => {
   it.effect(
     "marks reverted edits verified on update without scanning packages again",
     () =>
@@ -2592,7 +2798,7 @@ describe("script package integrity rows", () => {
   );
 });
 
-describe("script package restore", () => {
+layer(desktopFileSystemLayer)("script package restore", (it) => {
   it.effect(
     "restores the installed commit after the tracked branch moves",
     () =>
@@ -2714,7 +2920,7 @@ describe("script package restore", () => {
           managed: {
             ...managed,
             source: {
-              kind: "directory",
+              kind: "bundled",
               repositoryUrl: "https://github.com/example/package",
               requestedRef: "main",
               subdirectory: PACKAGE_SUBDIRECTORY,
@@ -2813,7 +3019,7 @@ describe("script package restore", () => {
   );
 });
 
-describe("bundled package restore", () => {
+layer(desktopFileSystemLayer)("bundled package restore", (it) => {
   it.effect("restores the seeded bundled copy offline", () =>
     Effect.gen(function* () {
       const { manager, state, catalog, harness, destination, managed } =

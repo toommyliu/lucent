@@ -5,12 +5,12 @@ import * as Effect from "effect/Effect";
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
-import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
+import { FileSystem } from "effect/FileSystem";
 
 import {
   FileChangedWhileReading,
-  FileSystemLimitError,
-  isMissingFileError,
+  isFileNotFound,
+  nativeCause,
   readStableFile,
 } from "../filesystem/BoundedFileSystem";
 
@@ -53,10 +53,10 @@ const errorMessage = (error: unknown): string => {
     : "Script file processing failed.";
 };
 
-class ScriptFileValidationError extends Error {}
-
 export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
   path = resolvePath(path);
+  const fail = (detail: string, cause: unknown) =>
+    Effect.fail(new ScriptFilesError({ path, detail, cause }));
   return yield* Effect.gen(function* () {
     const stable = yield* readStableFile(path, SCRIPT_FILE_MAX_BYTES, {
       missingAfterReadIsChange: true,
@@ -65,25 +65,34 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
         schedule: Schedule.recurs(1),
         while: (cause) => cause instanceof FileChangedWhileReading,
       }),
-      Effect.mapError((cause) =>
-        cause instanceof FileSystemLimitError
-          ? new ScriptFileValidationError(
-              `Script file exceeds the ${formatBytes(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
-            )
-          : cause instanceof FileChangedWhileReading
-            ? new ScriptFileValidationError(
-                `Script file changed while it was being read: ${path}.`,
-              )
-            : cause,
-      ),
-      Effect.provide(NodeFileSystem.layer),
+      Effect.catchTags({
+        FileNotFound: (cause) =>
+          fail(`Script file was not found at ${path}.`, cause),
+        FileSystemLimitError: (cause) =>
+          fail(
+            `Script file exceeds the ${formatBytes(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
+            cause,
+          ),
+        FileChangedWhileReading: (cause) =>
+          fail(`Script file changed while it was being read: ${path}.`, cause),
+        NotRegularFile: (cause) => fail(cause.message, cause),
+        PlatformError: (error) => {
+          const cause = nativeCause(error);
+          return Effect.fail(
+            new ScriptFilesError({
+              path,
+              detail: errorMessage(cause),
+              cause,
+              failureCause: Cause.fail(cause),
+            }),
+          );
+        },
+      }),
     );
     const source = stable.contents.toString("utf8");
     const revision = createHash("sha256").update(stable.contents).digest("hex");
     const analysis = yield* analyzeScriptSource(source, path).pipe(
-      Effect.mapError(
-        (cause) => new ScriptFilesError({ path, detail: cause.message, cause }),
-      ),
+      Effect.catch((cause) => fail(cause.message, cause)),
     );
     return {
       file: {
@@ -100,17 +109,12 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
     Effect.catchCause((failureCause) => {
       const cause = Cause.squash(failureCause);
       if (cause instanceof ScriptFilesError) return Effect.fail(cause);
-      const missing = isMissingFileError(cause);
       return Effect.fail(
         new ScriptFilesError({
           path,
-          detail: missing
-            ? `Script file was not found at ${path}.`
-            : errorMessage(cause),
+          detail: errorMessage(cause),
           cause,
-          ...(missing || cause instanceof ScriptFileValidationError
-            ? {}
-            : { failureCause }),
+          failureCause,
         }),
       );
     }),
@@ -139,7 +143,7 @@ export const logScriptFileResolutionFailure = (
 
 export const resolveScriptFile = (
   path: string,
-): Effect.Effect<ScriptFileResolution> =>
+): Effect.Effect<ScriptFileResolution, never, FileSystem> =>
   analyzeScriptFile(path).pipe(
     Effect.map(
       (analysis): ScriptFileResolution => ({
@@ -148,7 +152,7 @@ export const resolveScriptFile = (
       }),
     ),
     Effect.catch((error): Effect.Effect<ScriptFileResolution> => {
-      if (isMissingFileError(error.cause)) {
+      if (isFileNotFound(error.cause)) {
         return Effect.succeed({
           status: "missing" as const,
           path: error.path,
@@ -173,5 +177,5 @@ export const resolveScriptFile = (
 
 export const readScriptFile = (
   path: string,
-): Effect.Effect<ScriptFile, ScriptFilesError> =>
+): Effect.Effect<ScriptFile, ScriptFilesError, FileSystem> =>
   analyzeScriptFile(path).pipe(Effect.map((analysis) => analysis.file));

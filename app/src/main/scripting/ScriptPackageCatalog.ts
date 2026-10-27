@@ -1,3 +1,4 @@
+import { nativeCause } from "../filesystem/BoundedFileSystem";
 import { basename, relative, resolve } from "node:path";
 
 import { FileSystem } from "effect/FileSystem";
@@ -9,12 +10,17 @@ import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 
 import type {
+  InvalidScriptPackage,
   ScriptCatalogChange,
   ScriptCatalogEntry,
   ScriptCatalogOverview,
   ScriptCatalogPage,
   ScriptCatalogPageRequest,
+  ScriptPackageDirectory,
+  ScriptPackageName,
+  ScriptPackageSummary,
   ScriptReference,
+  ValidScriptPackage,
 } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import type { Listener } from "../app/ListenerRegistry";
@@ -34,12 +40,12 @@ import { isPathInside, portablePath } from "./ScriptPackageFileSystem";
 import {
   resolveLooseScriptReference,
   logScriptPackageInspectionFailures,
-  type ScriptPackageInspectionFailure,
 } from "./ScriptPackageInspection";
 import {
   ScriptPackageState,
   type ManagedScriptPackage,
 } from "./ScriptPackageState";
+import { packageDirectoryPath } from "./ScriptPackageDirectories";
 import { resolveScriptWorkspacePaths } from "./ScriptWorkspacePaths";
 
 export class ScriptPackageCatalogError extends Schema.TaggedError<ScriptPackageCatalogError>()(
@@ -54,6 +60,27 @@ export class ScriptPackageCatalogError extends Schema.TaggedError<ScriptPackageC
   }
 }
 
+export type InstalledPackage =
+  | { readonly kind: "absent" }
+  | { readonly kind: "ambiguous"; readonly paths: readonly string[] }
+  | {
+      readonly kind: "invalid";
+      readonly root: string;
+      readonly summary: InvalidScriptPackage;
+    }
+  | {
+      readonly kind: "unmanaged";
+      readonly directory: ScriptPackageDirectory;
+      readonly root: string;
+      readonly summary: ValidScriptPackage;
+    }
+  | {
+      readonly kind: "managed";
+      readonly managed: ManagedScriptPackage;
+      readonly root: string;
+      readonly summary: ScriptPackageSummary | undefined;
+    };
+
 export interface ScriptPackageCatalogShape {
   readonly getOverview: Effect.Effect<
     ScriptCatalogOverview,
@@ -66,6 +93,9 @@ export interface ScriptPackageCatalogShape {
   readonly getPage: (
     request: ScriptCatalogPageRequest,
   ) => Effect.Effect<ScriptCatalogPage, ScriptPackageCatalogError>;
+  readonly locate: (
+    name: ScriptPackageName,
+  ) => Effect.Effect<InstalledPackage, ScriptPackageCatalogError>;
   readonly onChanged: (
     listener: Listener<ScriptCatalogChange>,
   ) => Effect.Effect<void, never, Scope.Scope>;
@@ -95,6 +125,12 @@ export class ScriptPackageCatalog extends Context.Service<
   ScriptPackageCatalogShape
 >()("lucent/desktop/scripting/ScriptPackageCatalog") {}
 
+const scanError = (cause: unknown) =>
+  new ScriptPackageCatalogError({
+    operation: "scan",
+    cause: nativeCause(cause),
+  });
+
 export const layer = Layer.effect(
   ScriptPackageCatalog,
   Effect.gen(function* () {
@@ -108,38 +144,22 @@ export const layer = Layer.effect(
     );
     const scan = Effect.gen(function* () {
       const managedPackages = yield* state.getAll;
-      const failures: ScriptPackageInspectionFailure[] = [];
       yield* Effect.all(
         [
           fileSystem.makeDirectory(scriptsDir, { recursive: true }),
           fileSystem.makeDirectory(packagesDir, { recursive: true }),
         ],
         { concurrency: "unbounded", discard: true },
-      ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new ScriptPackageCatalogError({
-              operation: "scan",
-              cause: cause.reason.cause ?? cause,
-            }),
-        ),
-      );
-      const discovery = yield* Effect.tryPromise({
-        try: () =>
-          discoverScriptCatalog({
-            currentVersion,
-            managedPackages,
-            packagesDir,
-            scriptsDir,
-            onInspectionFailure: (failure) => failures.push(failure),
-          }),
-        catch: (cause) =>
-          new ScriptPackageCatalogError({ operation: "scan", cause }),
-      });
-      if (failures.length > 0)
-        yield* logScriptPackageInspectionFailures(failures);
-      return discovery;
-    });
+      ).pipe(Effect.mapError(scanError));
+      const report = yield* discoverScriptCatalog({
+        currentVersion,
+        managedPackages,
+        packagesDir,
+        scriptsDir,
+      }).pipe(Effect.mapError(scanError));
+      yield* logScriptPackageInspectionFailures(report.failures);
+      return report.discovery;
+    }).pipe(Effect.provideService(FileSystem, fileSystem));
     const discovery = yield* makeCommittedState({
       load: () => scan,
     });
@@ -165,8 +185,9 @@ export const layer = Layer.effect(
         ScriptReference | undefined,
         ScriptPackageCatalogError
       > {
-        const looseReference = yield* Effect.promise(() =>
-          resolveLooseScriptReference(scriptsDir, path),
+        const looseReference = yield* resolveLooseScriptReference(
+          scriptsDir,
+          path,
         );
         if (looseReference !== undefined) {
           return looseReference;
@@ -210,6 +231,35 @@ export const layer = Layer.effect(
             } satisfies ScriptCatalogPage;
           }),
         ),
+      locate: Effect.fn("ScriptPackageCatalog.locate")(
+        function* (
+          name,
+        ): Effect.fn.Return<InstalledPackage, ScriptPackageCatalogError> {
+          const current = yield* discovery.get;
+          const matching = current.catalog.packages.filter(
+            (entry) => entry.name === name,
+          );
+          if (matching.length > 1) {
+            return {
+              kind: "ambiguous",
+              paths: matching.map((entry) => entry.path),
+            };
+          }
+          const summary = matching[0];
+          const managed = yield* state.get(name);
+          if (managed !== undefined) {
+            const root = packageDirectoryPath(packagesDir, managed.directory);
+            if (summary === undefined || resolve(summary.path) === root) {
+              return { kind: "managed", managed, root, summary };
+            }
+          }
+          if (summary === undefined) return { kind: "absent" };
+          const root = resolve(summary.path);
+          return summary.status === "invalid"
+            ? { kind: "invalid", root, summary }
+            : { kind: "unmanaged", directory: basename(root), root, summary };
+        },
+      ),
       onChanged: (listener) =>
         discovery.subscribe((value) =>
           listener({ revision: value.catalog.revision }),
@@ -231,8 +281,9 @@ export const layer = Layer.effect(
             if (portablePath(relative(scriptsDir, path)) !== reference.path) {
               return undefined;
             }
-            const resolved = yield* Effect.promise(() =>
-              resolveLooseScriptReference(scriptsDir, path),
+            const resolved = yield* resolveLooseScriptReference(
+              scriptsDir,
+              path,
             );
             if (resolved === undefined) {
               return undefined;

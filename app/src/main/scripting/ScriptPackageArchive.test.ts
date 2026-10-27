@@ -1,8 +1,10 @@
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
+import * as Effect from "effect/Effect";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 import { create as createTar } from "tar";
 
 import {
@@ -13,6 +15,7 @@ import {
 const directories: string[] = [];
 const PACKAGE_NAME = "example";
 const PACKAGE_SUBDIRECTORY = "packages/example";
+const PACKAGE_MANIFEST = JSON.stringify({ name: PACKAGE_NAME });
 
 const makeDirectory = async (): Promise<string> => {
   const path = await fs.mkdtemp(join(tmpdir(), "lucent-package-archive-"));
@@ -33,114 +36,171 @@ afterEach(async () => {
   );
 });
 
-describe("script package archives", () => {
-  it("validates and extracts a normal GitHub-style root", async () => {
-    const root = await makeDirectory();
-    const source = join(root, "source", "repository-commit");
-    await Promise.all([
-      write(join(source, "package.json"), '{"name":"tools"}'),
-      write(join(source, "scripts", "farm.js"), "module.exports = 1"),
-    ]);
-    const archive = join(root, "package.tgz");
-    await createTar({ cwd: join(root, "source"), file: archive, gzip: true }, [
-      "repository-commit",
-    ]);
+layer(NodeFileSystem.layer)("script package archives", (it) => {
+  it.effect("validates and extracts a normal GitHub-style root", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() => makeDirectory());
+      const source = join(root, "source", "repository-commit");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(join(source, "package.json"), '{"name":"tools"}'),
+          write(join(source, "scripts", "farm.js"), "module.exports = 1"),
+        ]),
+      );
+      const archive = join(root, "package.tgz");
+      yield* Effect.promise(() =>
+        createTar({ cwd: join(root, "source"), file: archive, gzip: true }, [
+          "repository-commit",
+        ]),
+      );
 
-    await expect(validateScriptPackageArchive(archive)).resolves.toEqual({
-      root: "repository-commit",
-    });
-    const extracted = join(root, "extracted");
-    await extractScriptPackageArchive(archive, extracted);
-    await expect(
-      fs.readFile(join(extracted, "package.json"), "utf8"),
-    ).resolves.toContain('"tools"');
-  });
+      expect(yield* validateScriptPackageArchive(archive)).toEqual({
+        root: "repository-commit",
+      });
+      const extracted = join(root, "extracted");
+      yield* extractScriptPackageArchive(archive, extracted);
+      yield* Effect.promise(() =>
+        expect(
+          fs.readFile(join(extracted, "package.json"), "utf8"),
+        ).resolves.toContain('"tools"'),
+      );
+    }),
+  );
 
-  it("extracts only the selected package directory", async () => {
-    const root = await makeDirectory();
-    const sourceRoot = join(root, "source");
-    const repository = join(sourceRoot, "repository-commit");
-    await Promise.all([
-      write(join(repository, "README.md"), "repository"),
-      write(
-        join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
-        JSON.stringify({ name: PACKAGE_NAME }),
-      ),
-      write(
-        join(repository, PACKAGE_SUBDIRECTORY, "index.js"),
-        "module.exports = 'selected';",
-      ),
-      write(join(repository, "packages", "other", "private.txt"), "other"),
-    ]);
-    const archive = join(root, "package.tgz");
-    await createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
-      "repository-commit",
-    ]);
+  it.effect("extracts only the selected package directory", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() => makeDirectory());
+      const sourceRoot = join(root, "source");
+      const repository = join(sourceRoot, "repository-commit");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(join(repository, "README.md"), "repository"),
+          write(
+            join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
+            PACKAGE_MANIFEST,
+          ),
+          write(
+            join(repository, PACKAGE_SUBDIRECTORY, "index.js"),
+            "module.exports = 'selected';",
+          ),
+          write(join(repository, "packages", "other", "private.txt"), "other"),
+        ]),
+      );
+      const archive = join(root, "package.tgz");
+      yield* Effect.promise(() =>
+        createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
+          "repository-commit",
+        ]),
+      );
 
-    await expect(
-      validateScriptPackageArchive(archive, {
-        subdirectory: PACKAGE_SUBDIRECTORY,
-      }),
-    ).resolves.toEqual({ root: "repository-commit" });
-    const extracted = join(root, "extracted");
-    await extractScriptPackageArchive(archive, extracted, PACKAGE_SUBDIRECTORY);
-
-    await expect(
-      fs.readFile(join(extracted, "index.js"), "utf8"),
-    ).resolves.toBe("module.exports = 'selected';");
-    await expect(fs.access(join(extracted, "README.md"))).rejects.toMatchObject(
-      { code: "ENOENT" },
-    );
-    await expect(fs.access(join(extracted, "other"))).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-    await expect(
-      validateScriptPackageArchive(archive, {
-        subdirectory: "packages/missing",
-      }),
-    ).rejects.toThrow('package directory "packages/missing"');
-  });
-
-  it("rejects unsafe entries outside the selected package directory", async () => {
-    const root = await makeDirectory();
-    const sourceRoot = join(root, "source");
-    const repository = join(sourceRoot, "repository-commit");
-    await write(
-      join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
-      JSON.stringify({ name: PACKAGE_NAME }),
-    );
-    await write(join(repository, "packages", "other", "target.txt"), "other");
-    await fs.symlink(
-      "target.txt",
-      join(repository, "packages", "other", "linked.txt"),
-    );
-    const archive = join(root, "package.tgz");
-    await createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
-      "repository-commit",
-    ]);
-
-    await expect(
-      extractScriptPackageArchive(
+      expect(
+        yield* validateScriptPackageArchive(archive, {
+          subdirectory: PACKAGE_SUBDIRECTORY,
+        }),
+      ).toEqual({ root: "repository-commit" });
+      const extracted = join(root, "extracted");
+      yield* extractScriptPackageArchive(
         archive,
-        join(root, "extracted"),
+        extracted,
         PACKAGE_SUBDIRECTORY,
-      ),
-    ).rejects.toThrow("unsupported type SymbolicLink");
-  });
+      );
 
-  it("rejects symbolic links before extraction", async () => {
-    const root = await makeDirectory();
-    const sourceRoot = join(root, "source");
-    const source = join(sourceRoot, "repository-commit");
-    await write(join(source, "package.json"), '{"name":"tools"}');
-    await fs.symlink("package.json", join(source, "linked.json"));
-    const archive = join(root, "package.tgz");
-    await createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
-      "repository-commit",
-    ]);
+      yield* Effect.promise(() =>
+        expect(fs.readFile(join(extracted, "index.js"), "utf8")).resolves.toBe(
+          "module.exports = 'selected';",
+        ),
+      );
+      yield* Effect.promise(() =>
+        expect(fs.access(join(extracted, "README.md"))).rejects.toMatchObject({
+          code: "ENOENT",
+        }),
+      );
+      yield* Effect.promise(() =>
+        expect(fs.access(join(extracted, "other"))).rejects.toMatchObject({
+          code: "ENOENT",
+        }),
+      );
+      expect(
+        (yield* validateScriptPackageArchive(archive, {
+          subdirectory: "packages/missing",
+        }).pipe(Effect.flip)).message,
+      ).toContain('package directory "packages/missing"');
+    }),
+  );
 
-    await expect(validateScriptPackageArchive(archive)).rejects.toThrow(
-      "unsupported type SymbolicLink",
-    );
-  });
+  it.effect(
+    "rejects unsafe entries outside the selected package directory",
+    () =>
+      Effect.gen(function* () {
+        const root = yield* Effect.promise(() => makeDirectory());
+        const sourceRoot = join(root, "source");
+        const repository = join(sourceRoot, "repository-commit");
+        yield* Effect.promise(() =>
+          write(
+            join(repository, PACKAGE_SUBDIRECTORY, "package.json"),
+            PACKAGE_MANIFEST,
+          ),
+        );
+        yield* Effect.promise(() =>
+          write(join(repository, "packages", "other", "target.txt"), "other"),
+        );
+        yield* Effect.promise(() =>
+          fs.symlink(
+            "target.txt",
+            join(repository, "packages", "other", "linked.txt"),
+          ),
+        );
+        const archive = join(root, "package.tgz");
+        yield* Effect.promise(() =>
+          createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
+            "repository-commit",
+          ]),
+        );
+
+        expect(
+          (yield* extractScriptPackageArchive(
+            archive,
+            join(root, "extracted"),
+            PACKAGE_SUBDIRECTORY,
+          ).pipe(Effect.flip)).message,
+        ).toContain("unsupported type SymbolicLink");
+      }),
+  );
+
+  it.effect("reports a missing archive as a file error", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() => makeDirectory());
+
+      const error = yield* validateScriptPackageArchive(
+        join(root, "missing.tgz"),
+      ).pipe(Effect.flip);
+
+      expect(error._tag).toBe("FileNotFound");
+    }),
+  );
+
+  it.effect("rejects symbolic links before extraction", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() => makeDirectory());
+      const sourceRoot = join(root, "source");
+      const source = join(sourceRoot, "repository-commit");
+      yield* Effect.promise(() =>
+        write(join(source, "package.json"), '{"name":"tools"}'),
+      );
+      yield* Effect.promise(() =>
+        fs.symlink("package.json", join(source, "linked.json")),
+      );
+      const archive = join(root, "package.tgz");
+      yield* Effect.promise(() =>
+        createTar({ cwd: sourceRoot, file: archive, gzip: true }, [
+          "repository-commit",
+        ]),
+      );
+
+      expect(
+        (yield* validateScriptPackageArchive(archive).pipe(Effect.flip))
+          .message,
+      ).toContain("unsupported type SymbolicLink");
+    }),
+  );
 });

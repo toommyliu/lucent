@@ -1,4 +1,5 @@
-import { promises as fs, type Dirent } from "node:fs";
+import * as Effect from "effect/Effect";
+import { isPlatformError } from "effect/PlatformError";
 import { basename, join, relative, resolve } from "node:path";
 
 import { satisfies, valid } from "semver";
@@ -17,18 +18,22 @@ import type {
 } from "@lucent/core/scriptPackages";
 import {
   isPathInside,
+  InvalidScriptPackage,
   listRegularFilePaths,
   portablePath,
   sha256Revision,
 } from "./ScriptPackageFileSystem";
-import { isMissingFileError } from "../filesystem/BoundedFileSystem";
+import {
+  isFileNotFound,
+  nativeCause,
+  readDirectoryEntries,
+} from "../filesystem/BoundedFileSystem";
 import {
   compatibilityFor,
   decodePackageDirectory,
   decodePackageName,
   inspectManagedPackageFolder,
   integrityFor,
-  isUnexpectedPackageFileError,
   isJavaScriptFile,
   readScriptPackageManifest,
   type InspectedScriptPackageDirectory,
@@ -288,9 +293,6 @@ export interface DiscoverScriptCatalogOptions {
   readonly managedPackages?: readonly ManagedScriptPackage[];
   readonly packagesDir: string;
   readonly scriptsDir: string;
-  readonly onInspectionFailure?: (
-    failure: ScriptPackageInspectionFailure,
-  ) => void;
 }
 
 type ValidPackageSummary = Extract<
@@ -391,137 +393,153 @@ const packageRow = ({
   return { status: "valid", name, packageEntry, scripts, summary };
 };
 
-export const discoverScriptCatalog = async (
-  options: DiscoverScriptCatalogOptions,
-): Promise<DiscoveredScriptCatalog> => {
-  const scripts: ScriptCatalogEntry[] = [];
-  const packages: ScriptPackageSummary[] = [];
-  const packageIndex = new Map<string, DiscoveredScriptPackage>();
-  const managedPackages = new Map(
-    (options.managedPackages ?? []).map((entry) => [entry.directory, entry]),
-  );
+export interface ScriptCatalogDiscoveryReport {
+  readonly discovery: DiscoveredScriptCatalog;
+  readonly failures: readonly ScriptPackageInspectionFailure[];
+}
 
-  const looseFiles = await listRegularFilePaths(options.scriptsDir);
-  for (const file of looseFiles) {
-    if (!isJavaScriptFile(file.relativePath)) continue;
-    const reference: ScriptReference = {
-      kind: "loose",
-      path: file.relativePath,
-    };
-    scripts.push({
-      name: basename(file.relativePath),
-      path: file.absolutePath,
-      reference,
-      relativePath: file.relativePath,
-    });
-  }
+export const discoverScriptCatalog = Effect.fn("discoverScriptCatalog")(
+  function* (options: DiscoverScriptCatalogOptions) {
+    const failures: ScriptPackageInspectionFailure[] = [];
+    const scripts: ScriptCatalogEntry[] = [];
+    const packages: ScriptPackageSummary[] = [];
+    const packageIndex = new Map<string, DiscoveredScriptPackage>();
+    const managedPackages = new Map(
+      (options.managedPackages ?? []).map((entry) => [entry.directory, entry]),
+    );
 
-  let packageDirectories: Dirent[];
-  try {
-    packageDirectories = await fs.readdir(options.packagesDir, {
-      encoding: "utf8",
-      withFileTypes: true,
-    });
-  } catch (cause) {
-    if (!isMissingFileError(cause)) throw cause;
-    packageDirectories = [];
-  }
-  packageDirectories.sort((left, right) =>
-    naturalCompare(left.name, right.name),
-  );
+    const looseFiles = yield* listRegularFilePaths(options.scriptsDir);
+    for (const file of looseFiles) {
+      if (!isJavaScriptFile(file.relativePath)) continue;
+      const reference: ScriptReference = {
+        kind: "loose",
+        path: file.relativePath,
+      };
+      scripts.push({
+        name: basename(file.relativePath),
+        path: file.absolutePath,
+        reference,
+        relativePath: file.relativePath,
+      });
+    }
 
-  const scannedPackages: ScannedPackage[] = [];
-  for (const entry of packageDirectories) {
-    if (!entry.isDirectory()) continue;
-    const directory = join(options.packagesDir, entry.name);
-    let parsedName: string | undefined;
-    let validatedName: string | undefined;
-    try {
-      const directoryName = decodePackageDirectory(entry.name);
-      const manifest = await readScriptPackageManifest(
-        join(directory, "package.json"),
-      );
-      parsedName = manifest.name;
-      validatedName = decodePackageName(parsedName);
-      const managed = managedPackages.get(directoryName);
-      const inspected = await inspectManagedPackageFolder(
-        options.packagesDir,
-        directory,
-        managed,
-        { ...manifest, name: validatedName },
-      );
-      const integrity = await integrityFor(
-        directory,
-        managed,
-        options.onInspectionFailure,
-      );
-      scannedPackages.push(
-        packageRow({
+    const packageDirectories = (yield* readDirectoryEntries(
+      options.packagesDir,
+    ).pipe(Effect.catchTag("FileNotFound", () => Effect.succeed([])))).toSorted(
+      (left, right) => naturalCompare(left.name, right.name),
+    );
+
+    const scannedPackages: ScannedPackage[] = [];
+    for (const entry of packageDirectories) {
+      if (entry.kind !== "directory") continue;
+      const directory = join(options.packagesDir, entry.name);
+      let parsedName: string | undefined;
+      let validatedName: string | undefined;
+      const invalidRow = (error: unknown): ScannedPackage => {
+        if (isPlatformError(error))
+          failures.push({
+            packageName:
+              validatedName ??
+              managedPackages.get(entry.name)?.name ??
+              entry.name,
+            error,
+          });
+        const cause = nativeCause(error);
+        return {
+          status: "invalid",
+          summary: {
+            status: "invalid",
+            diagnostic:
+              parsedName === undefined && isFileNotFound(error)
+                ? "This folder does not contain a package.json."
+                : cause instanceof Error && cause.message !== ""
+                  ? cause.message
+                  : "This folder isn't a valid package.",
+            ...(parsedName === undefined ? {} : { name: parsedName }),
+            path: directory,
+          },
+          ...(validatedName === undefined ? {} : { validatedName }),
+        };
+      };
+      const scanned = yield* Effect.gen(function* () {
+        const directoryName = yield* Effect.try({
+          try: () => decodePackageDirectory(entry.name),
+          catch: (cause) =>
+            InvalidScriptPackage.fromUnknown(
+              cause,
+              "This folder isn't a valid package.",
+            ),
+        });
+        const manifest = yield* readScriptPackageManifest(
+          join(directory, "package.json"),
+        );
+        parsedName = manifest.name;
+        const name = yield* Effect.try({
+          try: () => decodePackageName(manifest.name),
+          catch: (cause) =>
+            InvalidScriptPackage.fromUnknown(
+              cause,
+              "This folder isn't a valid package.",
+            ),
+        });
+        validatedName = name;
+        const managed = managedPackages.get(directoryName);
+        const inspected = yield* inspectManagedPackageFolder(
+          options.packagesDir,
+          directory,
+          managed,
+          { ...manifest, name },
+        );
+        const check = yield* integrityFor(directory, managed);
+        if (check.failure !== undefined) failures.push(check.failure);
+        return packageRow({
           rootPath: directory,
           directory: directoryName,
           inspected,
           managed,
-          integrity,
+          integrity: check.integrity,
           currentVersion: options.currentVersion,
-        }),
-      );
-    } catch (cause) {
-      if (isUnexpectedPackageFileError(cause)) {
-        options.onInspectionFailure?.({
-          packageName:
-            validatedName ??
-            managedPackages.get(entry.name)?.name ??
-            entry.name,
-          cause,
         });
+      }).pipe(
+        Effect.catch((error) => Effect.succeed(invalidRow(error))),
+        Effect.catchDefect((defect) => Effect.succeed(invalidRow(defect))),
+      );
+      scannedPackages.push(scanned);
+    }
+
+    const packageNameCounts = new Map<string, number>();
+    for (const scanned of scannedPackages) {
+      const name =
+        scanned.status === "valid" ? scanned.name : scanned.validatedName;
+      if (name !== undefined) {
+        packageNameCounts.set(name, (packageNameCounts.get(name) ?? 0) + 1);
       }
-      scannedPackages.push({
-        status: "invalid",
-        summary: {
+    }
+    for (const scanned of scannedPackages) {
+      const name =
+        scanned.status === "valid" ? scanned.name : scanned.validatedName;
+      if (name !== undefined && (packageNameCounts.get(name) ?? 0) > 1) {
+        packages.push({
           status: "invalid",
-          diagnostic:
-            parsedName === undefined && isMissingFileError(cause)
-              ? "This folder does not contain a package.json."
-              : cause instanceof Error && cause.message !== ""
-                ? cause.message
-                : "This folder isn't a valid package.",
-          ...(parsedName === undefined ? {} : { name: parsedName }),
-          path: directory,
-        },
-        ...(validatedName === undefined ? {} : { validatedName }),
-      });
+          diagnostic: `More than one package folder declares the name ${JSON.stringify(name)}.`,
+          name,
+          path: scanned.summary.path,
+        });
+        continue;
+      }
+      packages.push(scanned.summary);
+      if (scanned.status === "valid") {
+        packageIndex.set(scanned.name, scanned.packageEntry);
+        scripts.push(...scanned.scripts);
+      }
     }
-  }
 
-  const packageNameCounts = new Map<string, number>();
-  for (const scanned of scannedPackages) {
-    const name =
-      scanned.status === "valid" ? scanned.name : scanned.validatedName;
-    if (name !== undefined) {
-      packageNameCounts.set(name, (packageNameCounts.get(name) ?? 0) + 1);
-    }
-  }
-  for (const scanned of scannedPackages) {
-    const name =
-      scanned.status === "valid" ? scanned.name : scanned.validatedName;
-    if (name !== undefined && (packageNameCounts.get(name) ?? 0) > 1) {
-      packages.push({
-        status: "invalid",
-        diagnostic: `More than one package folder declares the name ${JSON.stringify(name)}.`,
-        name,
-        path: scanned.summary.path,
-      });
-      continue;
-    }
-    packages.push(scanned.summary);
-    if (scanned.status === "valid") {
-      packageIndex.set(scanned.name, scanned.packageEntry);
-      scripts.push(...scanned.scripts);
-    }
-  }
-
-  return makeDiscoveredScriptCatalog(packages, scripts, packageIndex);
-};
+    return {
+      discovery: makeDiscoveredScriptCatalog(packages, scripts, packageIndex),
+      failures,
+    } satisfies ScriptCatalogDiscoveryReport;
+  },
+);
 
 export const replaceDiscoveredPackage = (
   current: DiscoveredScriptCatalog,
@@ -601,7 +619,7 @@ export const updateDiscoveredManagedPackage = (
     return {
       ...entry,
       source: managed.source,
-      update: managed.update ?? { status: "unchecked" },
+      update: managed.update,
     } satisfies ScriptPackageSummary;
   });
   return changed

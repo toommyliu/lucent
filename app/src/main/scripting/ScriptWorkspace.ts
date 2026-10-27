@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { lstat, nativeCause } from "../filesystem/BoundedFileSystem";
 import { join } from "node:path";
 
 import * as Context from "effect/Context";
@@ -93,7 +93,7 @@ export const layer = Layer.effect(
         .makeDirectory(path, { recursive: true })
         .pipe(
           Effect.mapError((cause) =>
-            makeError("create-directory", path, cause.reason.cause ?? cause),
+            makeError("create-directory", path, nativeCause(cause)),
           ),
         );
 
@@ -101,11 +101,8 @@ export const layer = Layer.effect(
       function* (path: string) {
         yield* fileSystem
           .makeDirectory(path, { mode: 0o700, recursive: true })
-          .pipe(Effect.mapError((cause) => cause.reason.cause ?? cause));
-        const info = yield* Effect.tryPromise({
-          try: () => fs.lstat(path),
-          catch: (cause) => cause,
-        });
+          .pipe(Effect.mapError((cause) => nativeCause(cause)));
+        const info = yield* lstat(path).pipe(Effect.mapError(nativeCause));
         if (!info.isDirectory())
           return yield* Effect.fail(
             new Error(`Expected a directory at ${path}.`),
@@ -113,7 +110,7 @@ export const layer = Layer.effect(
         if (env.platform !== "win32")
           yield* fileSystem
             .chmod(path, 0o700)
-            .pipe(Effect.mapError((cause) => cause.reason.cause ?? cause));
+            .pipe(Effect.mapError((cause) => nativeCause(cause)));
       },
       (effect, path) =>
         effect.pipe(

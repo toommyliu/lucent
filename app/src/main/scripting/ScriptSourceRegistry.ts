@@ -3,8 +3,10 @@ import { extname, relative, resolve } from "node:path";
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import { FileSystem } from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import { isPlatformError } from "effect/PlatformError";
 
 import type {
   ScriptFile,
@@ -24,7 +26,11 @@ import {
   resolveRelativeScriptModulePath,
   scriptModulePathCandidates,
 } from "@lucent/core/scriptPackages";
-import { isMissingFileError } from "../filesystem/BoundedFileSystem";
+import {
+  isFileNotFound,
+  nativeCause,
+  regularFileFingerprint,
+} from "../filesystem/BoundedFileSystem";
 import {
   analyzeScriptFile,
   logScriptFileResolutionFailure,
@@ -38,11 +44,7 @@ import {
   ScriptPackageCatalog,
   ScriptPackageCatalogError,
 } from "./ScriptPackageCatalog";
-import {
-  portablePath,
-  regularFileFingerprint,
-  sha256Revision,
-} from "./ScriptPackageFileSystem";
+import { portablePath, sha256Revision } from "./ScriptPackageFileSystem";
 import {
   formatBytes,
   SCRIPT_SNAPSHOT_MAX_BYTES,
@@ -192,9 +194,10 @@ const resolutionFailureCause = (
           ? []
           : resolutionFailureCause(Cause.fail(error.cause)).reasons;
       }
-      if (isMissingFileError(error)) {
+      if (isFileNotFound(error)) {
         return [];
       }
+      if (isPlatformError(error)) return Cause.fail(nativeCause(error)).reasons;
       return [reason];
     }),
   );
@@ -204,13 +207,6 @@ const resolveFailure = (path: string, error: unknown) =>
     path,
     resolutionFailureCause(Cause.fail(error)),
   ).pipe(Effect.as(failedResolution(path, error)));
-
-const isMissingSource = (error: unknown, path: string): boolean =>
-  isScriptSourceRegistryError(error) &&
-  error.path === path &&
-  isMissingFileError(
-    isScriptFilesError(error.cause) ? error.cause.cause : error.cause,
-  );
 
 const moduleFromAnalysis = (
   target: ModuleTarget,
@@ -237,11 +233,15 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
     analyze: typeof analyzeScriptFile = analyzeScriptFile,
   ) {
     const catalog = yield* ScriptPackageCatalog;
+    const fileSystem = yield* FileSystem;
     const sourceCache = new Map<string, CachedSource>();
     let sourceCacheBytes = 0;
 
     const registryError = (cause: Error) =>
-      new ScriptSourceRegistryError({ detail: cause.message, cause });
+      new ScriptSourceRegistryError({
+        detail: cause.message,
+        cause,
+      });
     const getDiscovery = catalog.getDiscovery.pipe(
       Effect.mapError(registryError),
     );
@@ -275,15 +275,21 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
     const readModule = Effect.fn("ScriptSourceRegistry.readModule")(function* (
       target: ModuleTarget,
     ) {
-      const currentFingerprint = yield* Effect.tryPromise({
-        try: () => regularFileFingerprint(target.absolutePath),
-        catch: (cause) =>
-          new ScriptSourceRegistryError({
-            detail: errorMessage(cause, "Failed to inspect script source."),
-            path: target.absolutePath,
-            cause,
-          }),
-      });
+      const currentFingerprint = yield* regularFileFingerprint(
+        target.absolutePath,
+      ).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ScriptSourceRegistryError({
+              detail: errorMessage(
+                nativeCause(cause),
+                "Failed to inspect script source.",
+              ),
+              path: target.absolutePath,
+              cause,
+            }),
+        ),
+      );
       const cached = sourceCache.get(target.absolutePath);
       if (
         cached?.fingerprint === currentFingerprint &&
@@ -582,6 +588,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
           snapshot,
         } satisfies ScriptFile;
       },
+      Effect.provideService(FileSystem, fileSystem),
     );
 
     const readPath: ScriptSourceRegistryShape["readPath"] = (path) =>
@@ -608,6 +615,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
               )
             : readReference(reference),
         ),
+        Effect.provideService(FileSystem, fileSystem),
       );
 
     const resolveReference: ScriptSourceRegistryShape["resolveReference"] = (
@@ -632,7 +640,11 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
                   }),
                 ),
                 Effect.catchIf(
-                  (error) => isMissingSource(error, entry.path),
+                  (error) =>
+                    isScriptSourceRegistryError(error) &&
+                    error.path === entry.path &&
+                    isScriptFilesError(error.cause) &&
+                    isFileNotFound(error.cause.cause),
                   () =>
                     Effect.succeed<ScriptFileResolution>({
                       status: "missing",
@@ -653,6 +665,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
             : resolveReference(reference),
         ),
         Effect.catch((cause) => resolveFailure(resolve(path), cause)),
+        Effect.provideService(FileSystem, fileSystem),
       );
 
     return ScriptSourceRegistry.of({
