@@ -246,7 +246,7 @@ describe("Accounts", () => {
               .pipe(Effect.flip),
           ).toMatchObject({
             _tag: "AccountsError",
-            operation: "read",
+            cause: { _tag: "JsonFileError", operation: "read" },
           });
         } finally {
           unreadablePath = undefined;
@@ -663,13 +663,21 @@ describe("Accounts", () => {
       const layer = yield* makeHarness({
         beforeOpen: () =>
           Effect.fail(
-            new DesktopWindowError({ id: "game", detail: "Window unavailable" }),
+            new DesktopWindowError({
+              id: "game",
+              detail: "Window unavailable",
+            }),
           ),
       });
       return yield* Effect.gen(function* () {
         const accounts = yield* Accounts;
-        yield* accounts.createAccount({ username: "Alice", password: "secret" });
-        const error = yield* Effect.flip(accounts.launch({ username: "Alice" }));
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
+        const error = yield* Effect.flip(
+          accounts.launch({ username: "Alice" }),
+        );
         expect(error._tag).toBe("AccountsError");
         expect(error.message).toBe("Failed to launch account");
       }).pipe(Effect.provide(layer));
@@ -694,7 +702,10 @@ describe("Accounts", () => {
         const accounts = yield* Accounts;
         const sessions = yield* AccountSessions.AccountSessions;
         sessions.openWindow(77, 1, 1);
-        yield* accounts.createAccount({ username: "Alice", password: "secret" });
+        yield* accounts.createAccount({
+          username: "Alice",
+          password: "secret",
+        });
         const original = yield* accounts.launch({ username: "Alice" });
         yield* accounts.closeGameWindows([original.gameWindowId]);
         yield* accounts.deleteAccounts(["Alice"]);

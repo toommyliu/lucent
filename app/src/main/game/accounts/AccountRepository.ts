@@ -29,7 +29,6 @@ const isStoredArray = Schema.is(Schema.Array(Schema.Unknown));
 
 const wrapJsonError = (error: JsonFileError): AccountsError =>
   new AccountsError({
-    operation: error.operation,
     detail: error.message,
     cause: error,
   });

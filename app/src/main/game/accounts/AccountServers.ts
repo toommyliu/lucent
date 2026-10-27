@@ -130,7 +130,6 @@ export const layer = Layer.effect(
       ).pipe(
         Effect.mapError((cause) =>
           accountError(
-            "refresh-servers",
             cause._tag === "SchemaError"
               ? "Invalid login servers payload"
               : serverLoadErrorMessage(cause),
