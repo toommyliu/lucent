@@ -721,6 +721,42 @@ describe("script source dependency discovery", () => {
 });
 
 describe("terminal script resolution logging", () => {
+  it.effect("resolves deleted package scripts as missing", () =>
+    Effect.gen(function* () {
+      const workspace = yield* Effect.promise(makeWorkspace);
+      const root = join(workspace.packagesDir, "tools");
+      const path = join(root, "scripts", "run.js");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(join(root, "package.json"), '{"name":"tools"}'),
+          write(path, "module.exports = function* run() {};"),
+        ]),
+      );
+      const discovery = yield* Effect.promise(() =>
+        discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }),
+      );
+      const registry = yield* ScriptSourceRegistry.pipe(
+        Effect.provide(makeLayer(discovery)),
+      );
+      yield* Effect.promise(() => fs.rm(path));
+
+      const result = yield* registry.resolveReference({
+        kind: "package",
+        packageName: "tools",
+        path: "scripts/run.js",
+      });
+
+      expect(result).toEqual({
+        status: "missing",
+        path: "tools/scripts/run.js",
+      });
+    }),
+  );
+
   for (const method of ["resolvePath", "resolveReference"] as const) {
     it.effect(`logs one analyzer failure through ${method}`, () =>
       Effect.gen(function* () {
@@ -835,9 +871,9 @@ describe("terminal script resolution logging", () => {
           message:
             'entry.js can\'t import "./missing". The relative module was not found.',
         });
-        expect(missing).toMatchObject({
-          status: "failed",
-          message: `Script file was not found at ${path}.`,
+        expect(missing).toEqual({
+          status: "missing",
+          path: "entry.js",
         });
         expect(logs).toEqual([
           {
