@@ -757,6 +757,46 @@ describe("terminal script resolution logging", () => {
     }),
   );
 
+  it.effect("keeps a package script failed when its import is deleted", () =>
+    Effect.gen(function* () {
+      const workspace = yield* Effect.promise(makeWorkspace);
+      const root = join(workspace.packagesDir, "tools");
+      const lib = join(root, "scripts", "lib.js");
+      yield* Effect.promise(() =>
+        Promise.all([
+          write(join(root, "package.json"), '{"name":"tools"}'),
+          write(
+            join(root, "scripts", "run.js"),
+            'require("./lib.js"); module.exports = function* run() {};',
+          ),
+          write(lib, "module.exports = 1;"),
+        ]),
+      );
+      const discovery = yield* Effect.promise(() =>
+        discoverScriptCatalog({
+          currentVersion: "1.0.0",
+          packagesDir: workspace.packagesDir,
+          scriptsDir: workspace.scriptsDir,
+        }),
+      );
+      const registry = yield* ScriptSourceRegistry.pipe(
+        Effect.provide(makeLayer(discovery)),
+      );
+      yield* Effect.promise(() => fs.rm(lib));
+
+      const result = yield* registry.resolveReference({
+        kind: "package",
+        packageName: "tools",
+        path: "scripts/run.js",
+      });
+
+      expect(result).toMatchObject({
+        status: "failed",
+        path: "tools/scripts/run.js",
+      });
+    }),
+  );
+
   for (const method of ["resolvePath", "resolveReference"] as const) {
     it.effect(`logs one analyzer failure through ${method}`, () =>
       Effect.gen(function* () {
