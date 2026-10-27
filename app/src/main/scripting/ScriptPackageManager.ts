@@ -866,12 +866,20 @@ export const layer = Layer.effect(
                 const rateLimited = rateLimitedState(cause);
                 if (rateLimited !== undefined) {
                   const next = { ...managed, update: rateLimited };
-                  yield* state
-                    .save(next)
-                    .pipe(
-                      Effect.andThen(catalog.updateManagedPackage(next)),
-                      Effect.ignore,
-                    );
+                  yield* state.save(next).pipe(
+                    Effect.andThen(catalog.updateManagedPackage(next)),
+                    Effect.catch((error) =>
+                      Effect.logWarning(
+                        "Failed to save the package rate limit",
+                        Cause.fail(error),
+                      ).pipe(
+                        Effect.annotateLogs({
+                          component: "script-packages",
+                          data: { packageName: managed.name },
+                        }),
+                      ),
+                    ),
+                  );
                 }
                 return yield* managerError("update", cause.message, cause);
               }),
