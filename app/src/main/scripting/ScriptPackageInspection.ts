@@ -14,6 +14,7 @@ import { satisfies, valid, validRange } from "semver";
 
 import type {
   ScriptPackageCompatibility,
+  ScriptPackageIntegrity,
   ScriptPackageName,
   ScriptReference,
 } from "@lucent/core/scriptPackages";
@@ -444,8 +445,8 @@ export const inspectManagedPackageFolder = Effect.fn(
 });
 
 export interface IntegrityCheck {
-  readonly integrity: "modified" | "unmanaged" | "verified";
-  readonly failure?: PlatformError;
+  readonly integrity: ScriptPackageIntegrity;
+  readonly failure?: ScriptPackageInspectionFailure;
 }
 
 export const integrityFor = Effect.fn("integrityFor")(function* (
@@ -462,7 +463,9 @@ export const integrityFor = Effect.fn("integrityFor")(function* (
     Effect.catch((error) =>
       Effect.succeed<IntegrityCheck>({
         integrity: "modified",
-        ...(isPlatformError(error) ? { failure: error } : {}),
+        ...(isPlatformError(error)
+          ? { failure: { packageName: managed.name, error } }
+          : {}),
       }),
     ),
   );

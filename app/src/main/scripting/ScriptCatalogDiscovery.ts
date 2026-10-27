@@ -491,8 +491,7 @@ export const discoverScriptCatalog = Effect.fn("discoverScriptCatalog")(
           { ...manifest, name },
         );
         const check = yield* integrityFor(directory, managed);
-        if (check.failure !== undefined && managed !== undefined)
-          failures.push({ packageName: managed.name, error: check.failure });
+        if (check.failure !== undefined) failures.push(check.failure);
         return packageRow({
           rootPath: directory,
           directory: directoryName,

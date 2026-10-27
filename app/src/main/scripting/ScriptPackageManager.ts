@@ -208,10 +208,8 @@ export const layer = Layer.effect(
     const inspectIntegrity = Effect.fnUntraced(
       function* (rootPath: string, managed: ManagedScriptPackage | undefined) {
         const check = yield* integrityFor(rootPath, managed);
-        if (check.failure !== undefined && managed !== undefined)
-          yield* logScriptPackageInspectionFailures([
-            { packageName: managed.name, error: check.failure },
-          ]);
+        if (check.failure !== undefined)
+          yield* logScriptPackageInspectionFailures([check.failure]);
         return check.integrity;
       },
       Effect.provideService(FileSystem, fileSystem),
