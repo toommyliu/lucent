@@ -24,6 +24,18 @@ import {
   SCRIPT_PACKAGE_MAX_FILES,
 } from "./ScriptLimits";
 
+export class InvalidScriptPackage extends Schema.TaggedError<InvalidScriptPackage>()(
+  "InvalidScriptPackage",
+  {
+    detail: Schema.String,
+    cause: Schema.optionalKey(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
 export interface RegularFilePath {
   readonly absolutePath: string;
   readonly relativePath: string;

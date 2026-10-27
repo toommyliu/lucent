@@ -546,10 +546,12 @@ export const layer = Layer.effect(
                     ),
                   ),
                 );
-              yield* Effect.tryPromise({
-                try: () =>
-                  extractScriptPackageArchive(archive, staging, subdirectory),
-                catch: (cause) =>
+              yield* extractScriptPackageArchive(
+                archive,
+                staging,
+                subdirectory,
+              ).pipe(
+                Effect.mapError((cause) =>
                   managerError(
                     "extract",
                     subdirectory === undefined
@@ -557,7 +559,8 @@ export const layer = Layer.effect(
                       : "The selected package directory could not be safely extracted.",
                     cause,
                   ),
-              });
+                ),
+              );
 
               const inspected = yield* Effect.tryPromise({
                 try: () => inspectScriptPackageDirectory(staging),
@@ -735,6 +738,7 @@ export const layer = Layer.effect(
               .pipe(Effect.ignore),
         );
       },
+      Effect.provideService(FileSystem, fileSystem),
     );
 
     const install: ScriptPackageManagerShape["install"] = (input) =>
