@@ -526,6 +526,202 @@ describe("script package folders", () => {
     }),
   );
 
+  it.effect("removes a renamed package folder after confirmation", () =>
+    Effect.gen(function* () {
+      const { archivePath, destination, workspaceDir } =
+        yield* installedPackage;
+      yield* Effect.promise(() => fs.rm(destination, { recursive: true }));
+      const harness = makeManagerHarness({
+        archivePath,
+        resolution: { commit: REMOTE_COMMIT },
+        workspaceDir,
+      });
+      const { manager, catalog, state } = yield* harness.services;
+      expect(
+        (yield* manager.install({
+          repositoryUrl: "https://github.com/example/package",
+        })).status,
+      ).toBe("completed");
+      expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
+        directory: "example",
+      });
+
+      const moved = join(dirname(destination), "example-old");
+      yield* Effect.promise(() => fs.rename(destination, moved));
+      expect((yield* catalog.refresh).packages).toMatchObject([
+        {
+          status: "valid",
+          name: "example",
+          path: moved,
+          integrity: "unmanaged",
+        },
+      ]);
+      expect(yield* manager.remove({ packageName: PACKAGE_NAME })).toEqual({
+        status: "confirmation-required",
+        packageName: "example",
+        reason: "local-modifications",
+      });
+      expect(
+        yield* Effect.promise(() => fs.readdir(dirname(destination))),
+      ).toEqual(["example-old"]);
+      expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
+        directory: "example",
+      });
+
+      const result = yield* manager.remove({
+        packageName: PACKAGE_NAME,
+        confirmModified: true,
+      });
+      expect(result).toMatchObject({
+        status: "completed",
+        packageName: "example",
+        catalog: { packages: [] },
+      });
+      expect(
+        yield* Effect.promise(() => fs.readdir(dirname(destination))),
+      ).toEqual([]);
+      expect(yield* state.getAll).toEqual([]);
+    }),
+  );
+
+  it.effect.each(["missing", "reused"] as const)(
+    "reinstalls a renamed package when its saved folder is %s",
+    (savedFolder) =>
+      Effect.gen(function* () {
+        const { archivePath, destination, managed, workspaceDir } =
+          yield* installedPackage;
+        const harness = makeManagerHarness({
+          archivePath,
+          managed,
+          resolution: { commit: REMOTE_COMMIT },
+          workspaceDir,
+        });
+        const { manager, catalog, state } = yield* harness.services;
+        const moved = join(dirname(destination), "example-old");
+        yield* Effect.promise(() => fs.rename(destination, moved));
+        if (savedFolder === "reused") {
+          yield* Effect.promise(() =>
+            Promise.all([
+              write(join(destination, "package.json"), '{"name":"unrelated"}'),
+              write(join(destination, "index.js"), "unrelated files"),
+            ]),
+          );
+        }
+        yield* catalog.refresh;
+
+        const input = {
+          repositoryUrl: "https://github.com/example/package",
+        };
+        expect(yield* manager.install(input)).toEqual({
+          status: "confirmation-required",
+          packageName: "example",
+          reason: "existing-package",
+        });
+        expect(
+          yield* Effect.promise(() =>
+            fs.readFile(join(moved, "index.js"), "utf8"),
+          ),
+        ).toBe(OLD_SOURCE);
+        expect(
+          (yield* manager.install({ ...input, replaceExisting: true })).status,
+        ).toBe("completed");
+        expect(
+          yield* Effect.promise(() =>
+            fs.readFile(join(moved, "index.js"), "utf8"),
+          ),
+        ).toBe(NEW_SOURCE);
+        expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
+          directory: "example-old",
+        });
+        if (savedFolder === "reused") {
+          expect(
+            yield* Effect.promise(() =>
+              fs.readFile(join(destination, "index.js"), "utf8"),
+            ),
+          ).toBe("unrelated files");
+        } else {
+          expect(
+            yield* Effect.promise(() => fs.readdir(dirname(destination))),
+          ).toEqual(["example-old"]);
+        }
+      }),
+  );
+
+  it.effect.each([
+    {
+      operation: "update",
+      message: "This package is unmanaged and has no GitHub source to update.",
+    },
+    {
+      operation: "restore",
+      message: "This package has no saved GitHub installation to restore.",
+    },
+  ] as const)(
+    "rejects $operation for a renamed package as unmanaged",
+    ({ operation, message }) =>
+      Effect.gen(function* () {
+        const { destination, managed, workspaceDir } = yield* installedPackage;
+        const harness = makeManagerHarness({
+          managed,
+          resolution: { commit: REMOTE_COMMIT },
+          workspaceDir,
+        });
+        const { manager, catalog, state } = yield* harness.services;
+        const moved = join(dirname(destination), "example-old");
+        yield* Effect.promise(() => fs.rename(destination, moved));
+        yield* catalog.refresh;
+        const error = yield* manager[operation]({
+          packageName: PACKAGE_NAME,
+        }).pipe(Effect.flip);
+        expect(error.message).toBe(message);
+        expect(yield* state.get(PACKAGE_NAME)).toEqual(managed);
+        expect(
+          yield* Effect.promise(() =>
+            fs.readFile(join(moved, "index.js"), "utf8"),
+          ),
+        ).toBe(OLD_SOURCE);
+        expect(harness.requests).toEqual([]);
+        expect(harness.downloadCount()).toBe(0);
+      }),
+  );
+
+  it.effect.each(["install", "restore"] as const)(
+    "rejects duplicate package folders during %s",
+    (operation) =>
+      Effect.gen(function* () {
+        const { archivePath, destination, managed, workspaceDir } =
+          yield* installedPackage;
+        const harness = makeManagerHarness({
+          archivePath,
+          managed,
+          resolution: { commit: REMOTE_COMMIT },
+          workspaceDir,
+        });
+        const { manager, catalog, state } = yield* harness.services;
+        yield* Effect.promise(() =>
+          fs.cp(destination, join(dirname(destination), "example-old"), {
+            recursive: true,
+          }),
+        );
+        yield* catalog.refresh;
+        const error = yield* (
+          operation === "install"
+            ? manager.install({
+                repositoryUrl: "https://github.com/example/package",
+                replaceExisting: true,
+              })
+            : manager.restore({ packageName: PACKAGE_NAME })
+        ).pipe(Effect.flip);
+        expect(error.message).toBe(
+          'More than one package folder declares the name "example".',
+        );
+        expect(yield* state.get(PACKAGE_NAME)).toEqual(managed);
+        expect(
+          yield* Effect.promise(() => fs.readdir(dirname(destination))),
+        ).toEqual(["example", "example-old"]);
+      }),
+  );
+
   it.effect("removes a package from its saved folder", () =>
     Effect.gen(function* () {
       const root = yield* Effect.promise(makeDirectory);
@@ -2647,6 +2843,24 @@ describe("bundled package restore", () => {
     }),
   );
 
+  it.effect("restores a missing bundled package to its saved folder", () =>
+    Effect.gen(function* () {
+      const { manager, catalog, destination, state } =
+        yield* seededBundledPackage;
+      yield* Effect.promise(() => fs.rm(destination, { recursive: true }));
+      expect((yield* catalog.refresh).packages).toEqual([]);
+      expect(
+        (yield* manager.restore({ packageName: PACKAGE_NAME })).status,
+      ).toBe("completed");
+      expect(
+        yield* Effect.promise(() =>
+          fs.readFile(join(destination, "index.js"), "utf8"),
+        ),
+      ).toBe(OLD_SOURCE);
+      expect((yield* state.get(PACKAGE_NAME))?.directory).toBe("example");
+    }),
+  );
+
   it.effect.each(["changed", "missing"] as const)(
     "preserves edits when the app bundle is %s",
     (change) =>
@@ -2707,7 +2921,7 @@ describe("bundled package restore", () => {
           );
         expect(result).toEqual({
           status: "failed",
-          message: 'Package "example" is not in its saved folder.',
+          message: "This package has no saved GitHub installation to restore.",
         });
         expect(
           yield* Effect.promise(() =>

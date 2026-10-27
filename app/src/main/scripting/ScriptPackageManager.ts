@@ -199,6 +199,16 @@ export const layer = Layer.effect(
     const { packagesDir } = resolveScriptWorkspacePaths(env.workspaceDir);
     const mutationGate = yield* Semaphore.make(1);
 
+    const managedPackageForPath = (
+      managed: ManagedScriptPackage | undefined,
+      path: string | undefined,
+    ): ManagedScriptPackage | undefined =>
+      managed !== undefined &&
+      (path === undefined ||
+        resolve(path) === packageDirectoryPath(packagesDir, managed.directory))
+        ? managed
+        : undefined;
+
     const inspectIntegrity = Effect.fnUntraced(function* (
       rootPath: string,
       managed: ManagedScriptPackage | undefined,
@@ -593,8 +603,10 @@ export const layer = Layer.effect(
                 );
               }
               const matchingPackage = matchingPackages[0];
-              const savedPackage =
-                replacement?.installed ?? (yield* state.get(packageName));
+              const savedPackage = managedPackageForPath(
+                replacement?.installed ?? (yield* state.get(packageName)),
+                matchingPackage?.path,
+              );
               const reservedDirectories = new Set(
                 (yield* state.getAll).map((entry) => entry.directory),
               );
@@ -622,15 +634,6 @@ export const layer = Layer.effect(
                   ),
               });
               const destination = packageDirectoryPath(packagesDir, directory);
-              if (
-                matchingPackage !== undefined &&
-                resolve(matchingPackage.path) !== resolve(destination)
-              ) {
-                return yield* managerError(
-                  "validate",
-                  `Package ${JSON.stringify(packageName)} is not in its saved folder.`,
-                );
-              }
               const destinationExists = yield* Effect.tryPromise({
                 try: () => pathExists(destination),
                 catch: (cause) =>
@@ -762,7 +765,10 @@ export const layer = Layer.effect(
               `Package ${JSON.stringify(input.packageName)} is not installed.`,
             );
           }
-          const managed = yield* state.get(input.packageName);
+          const managed = managedPackageForPath(
+            yield* state.get(input.packageName),
+            summary.path,
+          );
           if (managed === undefined) {
             return yield* managerError(
               "update",
@@ -773,13 +779,6 @@ export const layer = Layer.effect(
             packagesDir,
             managed.directory,
           );
-          if (resolve(summary.path) !== resolve(savedRoot)) {
-            return yield* managerError(
-              "update",
-              `Package ${JSON.stringify(input.packageName)} is not in its saved folder.`,
-            );
-          }
-
           const resolution = yield* resolveSource({
             ...managed.source,
             ...(managed.source.requestedRef === undefined
@@ -849,7 +848,21 @@ export const layer = Layer.effect(
     const restore: ScriptPackageManagerShape["restore"] = (input) =>
       mutationGate.withPermits(1)(
         Effect.gen(function* () {
-          const managed = yield* state.get(input.packageName);
+          const overview = yield* catalog.getOverview.pipe(
+            Effect.mapError(mapCatalogError),
+          );
+          const matchingPackages = overview.packages.filter(
+            (entry) => entry.name === input.packageName,
+          );
+          if (matchingPackages.length > 1)
+            return yield* managerError(
+              "restore",
+              `More than one package folder declares the name ${JSON.stringify(input.packageName)}.`,
+            );
+          const managed = managedPackageForPath(
+            yield* state.get(input.packageName),
+            matchingPackages[0]?.path,
+          );
           if (managed === undefined) {
             return yield* managerError(
               "restore",
@@ -923,31 +936,10 @@ export const layer = Layer.effect(
                 });
                 if (inspected.manifest.name !== managed.name)
                   return yield* managerError("restore", unavailable);
-                const overview = yield* catalog.getOverview.pipe(
-                  Effect.mapError(mapCatalogError),
-                );
-                const matchingPackages = overview.packages.filter(
-                  (entry) => entry.name === managed.name,
-                );
-                if (matchingPackages.length > 1)
-                  return yield* managerError(
-                    "restore",
-                    `More than one package folder declares the name ${JSON.stringify(managed.name)}.`,
-                  );
                 const destination = packageDirectoryPath(
                   packagesDir,
                   managed.directory,
                 );
-                const matchingPackage = matchingPackages[0];
-                if (
-                  matchingPackage !== undefined &&
-                  resolve(matchingPackage.path) !== resolve(destination)
-                ) {
-                  return yield* managerError(
-                    "restore",
-                    `Package ${JSON.stringify(managed.name)} is not in its saved folder.`,
-                  );
-                }
                 return yield* replacePackage({
                   inspected,
                   managed: {
@@ -991,7 +983,10 @@ export const layer = Layer.effect(
               `Package ${JSON.stringify(input.packageName)} is not installed.`,
             );
           }
-          const managed = yield* state.get(input.packageName);
+          const managed = managedPackageForPath(
+            yield* state.get(input.packageName),
+            summary.path,
+          );
           const directory = yield* Effect.try({
             try: () =>
               managed?.directory ??
@@ -1004,12 +999,6 @@ export const layer = Layer.effect(
               ),
           });
           const root = packageDirectoryPath(packagesDir, directory);
-          if (resolve(summary.path) !== resolve(root)) {
-            return yield* managerError(
-              "remove",
-              `Package ${JSON.stringify(input.packageName)} is not in its saved folder.`,
-            );
-          }
           if (input.confirmModified !== true && managed === undefined) {
             return localModifications(input.packageName);
           }
