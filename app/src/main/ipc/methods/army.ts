@@ -30,7 +30,7 @@ export const start = makeDesktopIpcMethod({
     const configName = normalizeArmyConfigName(payload.configName);
     return yield* coordinator.join(
       configName,
-      configs.read(configName),
+      configs.read(payload.configName),
       payload.playerName,
       sender.lifetime,
     );
