@@ -15,7 +15,7 @@ import type {
   ArmyLoopTauntTerminalResult,
 } from "@lucent/core/army";
 import { ArmyCoordinator } from "./ArmyCoordinator";
-import type { ArmyCoordinatorError } from "./ArmySession";
+import type { ArmySessionError, ArmyParticipantError } from "./ArmySession";
 import {
   ArmyLoopTauntError,
   type ArmyLoopTauntCommandEvent,
@@ -38,7 +38,8 @@ import {
 import { terminalReadinessError } from "./ArmyLoopTauntAssignments";
 
 export type ArmyLoopTauntOrchestratorError =
-  | ArmyCoordinatorError
+  | ArmySessionError
+  | ArmyParticipantError
   | ArmyLoopTauntError;
 
 export interface ArmyLoopTauntOrchestratorShape {
@@ -52,7 +53,7 @@ export interface ArmyLoopTauntOrchestratorShape {
   readonly leave: (
     payload: ArmyLoopTauntLeavePayload,
     senderId: ArmyParticipantId,
-  ) => Effect.Effect<void, ArmyLoopTauntOrchestratorError>;
+  ) => Effect.Effect<void>;
   readonly onCommand: (
     listener: (
       event: ArmyLoopTauntCommandEvent,
@@ -234,7 +235,7 @@ export const makeArmyLoopTauntOrchestrator = Effect.fnUntraced(
       function* (payload, senderId) {
         const run = yield* requireRun(payload, senderId);
         if (run.status === "terminal") {
-          return yield* terminalReadinessError(run, run.terminal);
+          return yield* terminalReadinessError(run.terminal);
         }
         yield* Deferred.await(run.readinessGate);
       },

@@ -18,35 +18,21 @@ import {
 export const ARMY_START_TIMEOUT_MS = 120_000;
 export const ARMY_SYNC_TIMEOUT_MS = 10 * 60_000;
 
-const SessionReasons = Schema.Literals(["inactive", "not-started", "aborted"]);
-
 export class ArmySessionError extends Schema.TaggedError<ArmySessionError>()(
   "ArmySessionError",
   {
-    reason: SessionReasons,
     detail: Schema.String,
-    sessionId: Schema.optionalKey(Schema.String),
   },
 ) {
   override get message(): string {
     return this.detail;
   }
 }
-
-const ParticipantReasons = Schema.Literals([
-  "not-configured",
-  "already-joined",
-  "sender-mismatch",
-  "unavailable",
-]);
 
 export class ArmyParticipantError extends Schema.TaggedError<ArmyParticipantError>()(
   "ArmyParticipantError",
   {
-    reason: ParticipantReasons,
     detail: Schema.String,
-    playerName: Schema.optionalKey(Schema.String),
-    sessionId: Schema.optionalKey(Schema.String),
   },
 ) {
   override get message(): string {
@@ -54,21 +40,11 @@ export class ArmyParticipantError extends Schema.TaggedError<ArmyParticipantErro
   }
 }
 
-const SynchronizationReasons = Schema.Literals([
-  "duplicate-arrival",
-  "signature-mismatch",
-  "completed-step",
-  "invalid-step",
-]);
-
 export class ArmySynchronizationError extends Schema.TaggedError<ArmySynchronizationError>()(
   "ArmySynchronizationError",
   {
-    reason: SynchronizationReasons,
     detail: Schema.String,
-    label: Schema.optionalKey(Schema.String),
     sessionId: Schema.String,
-    step: Schema.Int,
   },
 ) {
   override get message(): string {
@@ -108,7 +84,7 @@ export interface ArmySessionEndedEvent {
   readonly sessionId: string;
 }
 
-export type StartWaiter = Deferred.Deferred<void, ArmyCoordinatorError>;
+export type StartWaiter = Deferred.Deferred<void, ArmySessionError>;
 export type StepWaiter = Deferred.Deferred<
   ArmyProgressResult,
   ArmyCoordinatorError
@@ -195,32 +171,14 @@ export const normalizeTimeout = (value: number | undefined): number =>
 export const normalizeLabel = (label: string | undefined): string =>
   label === undefined ? "sync" : label;
 
-export const sessionError = (
-  reason: typeof SessionReasons.Type,
-  detail: string,
-  sessionId: string,
-) => new ArmySessionError({ reason, detail, sessionId });
+export const sessionError = (detail: string) =>
+  new ArmySessionError({ detail });
 
-const participantError = (
-  reason: typeof ParticipantReasons.Type,
-  detail: string,
-  sessionId: string,
-  playerName?: string,
-) =>
-  new ArmyParticipantError({
-    reason,
-    detail,
-    sessionId,
-    ...(playerName === undefined ? {} : { playerName }),
-  });
+const participantError = (detail: string) =>
+  new ArmyParticipantError({ detail });
 
-const syncError = (
-  reason: typeof SynchronizationReasons.Type,
-  detail: string,
-  sessionId: string,
-  step: number,
-  label: string,
-) => new ArmySynchronizationError({ reason, detail, label, sessionId, step });
+const syncError = (detail: string, sessionId: string) =>
+  new ArmySynchronizationError({ detail, sessionId });
 
 export const canonicalPlayerName = (
   config: ArmyConfigPayload,
@@ -347,7 +305,7 @@ const rejectAndEnd = (
   state: ArmyCoordinatorState,
   error: ArmySynchronizationError,
   nowMs: number,
-): ArmyTransition<Result.Result<void, ArmyCoordinatorError>> => ({
+): ArmyTransition<Result.Result<void, ArmySynchronizationError>> => ({
   ...endSession(
     state,
     error.sessionId,
@@ -397,7 +355,7 @@ export const joinSession = (
 ): ArmyTransition<
   Result.Result<
     { readonly config: ArmyConfigPayload; readonly sessionId: string },
-    ArmyCoordinatorError
+    ArmyParticipantError
   >
 > => {
   const playerKey = normalizeArmyPlayerKey(args.playerName);
@@ -412,7 +370,7 @@ export const joinSession = (
     sessionId: `${args.nowMs.toString(36)}-${state.nextSessionId}`,
     waiters: [],
   };
-  const reject = (error: ArmyCoordinatorError) =>
+  const reject = (error: ArmyParticipantError) =>
     unchanged(state, Result.fail(error));
 
   if (
@@ -421,12 +379,7 @@ export const joinSession = (
     )
   ) {
     return reject(
-      participantError(
-        "not-configured",
-        `Player is not in army config: ${args.playerName}`,
-        session.sessionId,
-        args.playerName,
-      ),
+      participantError(`Player is not in army config: ${args.playerName}`),
     );
   }
   const seat = findSeat(state, args.participantId);
@@ -436,12 +389,7 @@ export const joinSession = (
       seat.playerKey !== playerKey)
   ) {
     return reject(
-      participantError(
-        "already-joined",
-        "Army window is already attached to another session",
-        seat.session.sessionId,
-        args.playerName,
-      ),
+      participantError("Army window is already attached to another session"),
     );
   }
   const holder = session.participants.get(playerKey);
@@ -450,12 +398,7 @@ export const joinSession = (
     (holder !== undefined && holder !== args.participantId)
   ) {
     return reject(
-      participantError(
-        "already-joined",
-        `Army player already joined: ${args.playerName}`,
-        session.sessionId,
-        args.playerName,
-      ),
+      participantError(`Army player already joined: ${args.playerName}`),
     );
   }
 
@@ -526,28 +469,20 @@ export const identify = (
   participantId: ArmyParticipantId,
 ): Result.Result<
   { readonly playerKey: string; readonly session: ActiveSession },
-  ArmyCoordinatorError
+  ArmySessionError | ArmyParticipantError
 > => {
   const session = state.sessions.get(sessionId);
   if (session === undefined) {
-    return Result.fail(
-      sessionError("inactive", "Army session is not active", sessionId),
-    );
+    return Result.fail(sessionError("Army session is not active"));
   }
   if (session.phase !== "active") {
-    return Result.fail(
-      sessionError("not-started", "Army session has not started", sessionId),
-    );
+    return Result.fail(sessionError("Army session has not started"));
   }
   for (const [playerKey, id] of session.participants) {
     if (id === participantId) return Result.succeed({ playerKey, session });
   }
   return Result.fail(
-    participantError(
-      "sender-mismatch",
-      "Army sender is not attached to this session",
-      sessionId,
-    ),
+    participantError("Army sender is not attached to this session"),
   );
 };
 
@@ -568,13 +503,7 @@ export const arriveAtStep = (
     return unchanged(
       state,
       Result.fail(
-        syncError(
-          "invalid-step",
-          "Army step must be a non-negative safe integer",
-          sessionId,
-          step,
-          signature.label,
-        ),
+        syncError("Army step must be a non-negative safe integer", sessionId),
       ),
     );
   }
@@ -610,13 +539,7 @@ export const arriveAtStep = (
     }
     return rejectAndEnd(
       state,
-      syncError(
-        "completed-step",
-        `Army step ${step} has already completed`,
-        sessionId,
-        step,
-        signature.label,
-      ),
+      syncError(`Army step ${step} has already completed`, sessionId),
       args.nowMs,
     );
   }
@@ -624,11 +547,8 @@ export const arriveAtStep = (
     return rejectAndEnd(
       state,
       syncError(
-        "signature-mismatch",
         `Army step mismatch: expected step ${session.nextStep}, received step ${step}`,
         sessionId,
-        step,
-        signature.label,
       ),
       args.nowMs,
     );
@@ -638,11 +558,8 @@ export const arriveAtStep = (
     return rejectAndEnd(
       state,
       syncError(
-        "signature-mismatch",
         `Army step mismatch for step ${step}: expected ${signatureDescription(existing.signature)}, got ${signatureDescription(signature)}`,
         sessionId,
-        step,
-        signature.label,
       ),
       args.nowMs,
     );
@@ -651,11 +568,8 @@ export const arriveAtStep = (
     return rejectAndEnd(
       state,
       syncError(
-        "duplicate-arrival",
         `Army player already reached sync ${step}: ${canonicalPlayerName(config, playerKey)}`,
         sessionId,
-        step,
-        signature.label,
       ),
       args.nowMs,
     );
@@ -728,7 +642,9 @@ export const failSession = (
     readonly reason: string;
     readonly sessionId: string;
   },
-): ArmyTransition<Result.Result<void, ArmyCoordinatorError>> => {
+): ArmyTransition<
+  Result.Result<void, ArmySessionError | ArmyParticipantError>
+> => {
   const seat = identify(state, args.sessionId, args.participantId);
   if (Result.isFailure(seat))
     return unchanged(state, Result.fail(seat.failure));
