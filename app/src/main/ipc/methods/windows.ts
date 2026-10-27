@@ -1,7 +1,11 @@
 import * as Effect from "effect/Effect";
 
 import { WindowsIpc } from "../../../shared/ipc";
-import { getDesktopWindowDefinition } from "../../window/DesktopWindowCatalog";
+import {
+  getDesktopWindowDefinition,
+  type DesktopRendererKind,
+  type DesktopWindowKind,
+} from "../../window/DesktopWindowCatalog";
 import {
   DesktopWindowError,
   DesktopWindows,
@@ -9,14 +13,28 @@ import {
 import { makeDesktopIpcMethod } from "../DesktopIpc";
 import { resolveGameRendererId } from "../DesktopIpcSenders";
 
+const openableWindowKinds: Partial<
+  Record<DesktopRendererKind, readonly DesktopWindowKind[]>
+> = {
+  game: [
+    "environment",
+    "loader-grabber",
+    "follower",
+    "packets",
+    "account-manager",
+    "combat-profiles",
+  ],
+  follower: ["combat-profiles"],
+};
+
 export const open = makeDesktopIpcMethod({
   descriptor: WindowsIpc.open,
   allowedSenders: ["game", "follower"],
   handler: Effect.fn("desktop.ipc.windows.open")(function* (payload, sender) {
     const windows = yield* DesktopWindows;
-    if (sender.kind === "follower" && payload.kind !== "combat-profiles") {
+    if (!openableWindowKinds[sender.kind]?.includes(payload.kind)) {
       return yield* new DesktopWindowError({
-        detail: "Follower windows may only open combat profiles.",
+        detail: `${sender.kind} windows may not open ${payload.kind}.`,
         id: payload.kind,
       });
     }
