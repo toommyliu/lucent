@@ -15,8 +15,10 @@ import type {
   ScriptCatalogOverview,
   ScriptPackageDirectory,
   ScriptPackageMutationResult,
+  ScriptPackageName,
   ScriptPackageIntegrity,
   ScriptPackageRevision,
+  ScriptPackageUpdateState,
 } from "@lucent/core/scriptPackages";
 import { ScriptPackageDirectorySchema } from "@lucent/core/scriptPackages";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
@@ -112,26 +114,95 @@ export class ScriptPackageManager extends Context.Service<
 interface ResolvedPackageRevision {
   readonly checkedAt: string;
   readonly revision: ScriptPackageRevision;
-  readonly etag?: string;
+  readonly commitLookup?: ManagedScriptPackage["commitLookup"];
 }
 
 interface ResolvedInstallSource extends ResolvedPackageRevision {
   readonly commit: string;
 }
 
-type ManagedPackageReplacement = {
-  readonly installed: ManagedScriptPackage;
-} & (
+type PackageOperation = "install" | "update" | "restore";
+
+interface GitHubOrigin {
+  readonly repositoryUrl: string;
+  readonly credentialId?: string;
+  readonly requestedRef?: string;
+  readonly subdirectory?: string;
+}
+
+type PackageSource =
   | {
-      readonly kind: "update";
-      readonly replaceModified: boolean;
-      readonly source: ResolvedInstallSource;
+      readonly kind: "github";
+      readonly repositoryUrl: string;
+      readonly commit: string;
+      readonly credentialId?: string;
+      readonly subdirectory?: string;
     }
   | {
-      readonly kind: "restore";
-      readonly source: Pick<ResolvedInstallSource, "commit" | "revision">;
-    }
-);
+      readonly kind: "bundled";
+      readonly path: string;
+      readonly tree: string;
+    };
+
+type PackageTarget =
+  | { readonly kind: "new"; readonly replaceExisting: boolean }
+  | {
+      readonly kind: "replace";
+      readonly installed: ManagedScriptPackage;
+      readonly root: string;
+      readonly requireUnmodified: boolean;
+    };
+
+type PackageDetails = Pick<
+  ManagedScriptPackage,
+  "commitLookup" | "source" | "update"
+>;
+
+const BUNDLED_COPY_UNAVAILABLE =
+  "The installed bundled copy is not available in this app. Check for updates, then use Update to install the latest version.";
+
+const githubSource = (origin: GitHubOrigin, commit: string): PackageSource => ({
+  kind: "github",
+  repositoryUrl: origin.repositoryUrl,
+  commit,
+  ...(origin.credentialId === undefined
+    ? {}
+    : { credentialId: origin.credentialId }),
+  ...(origin.subdirectory === undefined
+    ? {}
+    : { subdirectory: origin.subdirectory }),
+});
+
+const remoteDetails = (
+  origin: GitHubOrigin,
+  resolution: ResolvedInstallSource,
+): PackageDetails => {
+  const shared = {
+    repositoryUrl: origin.repositoryUrl,
+    resolvedCommit: resolution.commit,
+    ...(origin.credentialId === undefined
+      ? {}
+      : { credentialId: origin.credentialId }),
+    ...(origin.requestedRef === undefined
+      ? {}
+      : { requestedRef: origin.requestedRef }),
+  };
+  return {
+    source:
+      origin.subdirectory === undefined
+        ? { kind: "repository", ...shared }
+        : {
+            kind: "directory",
+            ...shared,
+            resolvedTree: resolution.revision.sha,
+            subdirectory: origin.subdirectory,
+          },
+    update: { status: "current", checkedAt: resolution.checkedAt },
+    ...(resolution.commitLookup === undefined
+      ? {}
+      : { commitLookup: resolution.commitLookup }),
+  };
+};
 
 const installedRevision = (
   managed: ManagedScriptPackage,
@@ -153,7 +224,6 @@ const recordRemoteResolution = (
   files: managed.files,
   installedAt: managed.installedAt,
   name: managed.name,
-  remoteRevision: resolution.revision,
   source: managed.source,
   update: revisionsMatch(resolution.revision, installedRevision(managed))
     ? { status: "current", checkedAt: resolution.checkedAt }
@@ -162,8 +232,21 @@ const recordRemoteResolution = (
         checkedAt: resolution.checkedAt,
         revision: resolution.revision,
       },
-  ...(resolution.etag === undefined ? {} : { etag: resolution.etag }),
+  ...(resolution.commitLookup === undefined
+    ? {}
+    : { commitLookup: resolution.commitLookup }),
 });
+
+const rateLimitedState = (
+  error: GitHubScriptPackageClientError,
+): ScriptPackageUpdateState | undefined =>
+  error.kind === "rate-limited" && error.retryAt !== undefined
+    ? {
+        status: "rate-limited",
+        message: "GitHub's request limit has been reached.",
+        retryAt: error.retryAt,
+      }
+    : undefined;
 
 const managerError = (
   operation: typeof packageManagerOperationSchema.Type,
@@ -240,7 +323,7 @@ export const layer = Layer.effect(
         readonly credentialId?: string;
         readonly ref?: string;
         readonly subdirectory?: string;
-        readonly known?: Pick<ManagedScriptPackage, "etag" | "remoteRevision">;
+        readonly known?: ManagedScriptPackage["commitLookup"];
       }) {
         const commit = yield* client.resolveCommit({
           repositoryUrl: input.repositoryUrl,
@@ -248,23 +331,16 @@ export const layer = Layer.effect(
             ? {}
             : { credentialId: input.credentialId }),
           ...(input.ref === undefined ? {} : { ref: input.ref }),
-          ...(input.subdirectory === undefined &&
-          input.known?.remoteRevision?.kind === "commit" &&
-          input.known.etag !== undefined
-            ? {
-                known: {
-                  etag: input.known.etag,
-                  commit: input.known.remoteRevision.sha,
-                },
-              }
-            : {}),
+          ...(input.known === undefined ? {} : { known: input.known }),
         });
         if (input.subdirectory === undefined) {
           return {
             checkedAt: (yield* DateTime.nowAsDate).toISOString(),
             commit: commit.commit,
             revision: { kind: "commit", sha: commit.commit },
-            ...(commit.etag === undefined ? {} : { etag: commit.etag }),
+            ...(commit.etag === undefined
+              ? {}
+              : { commitLookup: { etag: commit.etag, commit: commit.commit } }),
           } satisfies ResolvedInstallSource;
         }
         const directory = yield* client.resolveDirectory({
@@ -448,56 +524,165 @@ export const layer = Layer.effect(
       Effect.uninterruptible,
     );
 
-    const installInternal = Effect.fn("ScriptPackageManager.installInternal")(
+    const stagePackage = Effect.fn("ScriptPackageManager.stagePackage")(
       function* (
-        input: Parameters<ScriptPackageManagerShape["install"]>[0],
-        replacement?: ManagedPackageReplacement,
+        operation: PackageOperation,
+        source: PackageSource,
+        temporaryRoot: string,
       ) {
-        const repository = yield* Effect.try({
-          try: () => normalizeGitHubRepositoryUrl(input.repositoryUrl),
-          catch: (cause) =>
-            managerError(
-              "install",
-              "Enter a valid GitHub.com repository URL.",
-              cause,
+        const staging = join(temporaryRoot, "package");
+        if (source.kind === "bundled") {
+          const snapshot = yield* copyBundledScriptPackage(
+            source.path,
+            staging,
+          ).pipe(
+            Effect.mapError((cause) =>
+              managerError(operation, BUNDLED_COPY_UNAVAILABLE, cause),
             ),
-        });
-        const subdirectory = input.subdirectory;
-        const resolvedSource =
-          replacement?.kind === "restore"
-            ? {
-                ...replacement.source,
-                kind: "restore" as const,
-                installed: replacement.installed,
-              }
-            : {
-                ...(replacement?.source ??
-                  (yield* resolveSource({
-                    repositoryUrl: repository.url,
-                    ...(input.credentialId === undefined
-                      ? {}
-                      : { credentialId: input.credentialId }),
-                    ...(input.ref === undefined ? {} : { ref: input.ref }),
-                    ...(subdirectory === undefined ? {} : { subdirectory }),
-                  }).pipe(
-                    Effect.mapError((cause) =>
-                      managerError("install", cause.message, cause),
-                    ),
-                  ))),
-                kind: "remote" as const,
-              };
-
-        yield* fileSystem
-          .makeDirectory(packagesDir, { recursive: true })
-          .pipe(
+          );
+          if (snapshot.tree !== source.tree)
+            return yield* managerError(operation, BUNDLED_COPY_UNAVAILABLE);
+          const inspected = yield* inspectScriptPackageDirectory(staging).pipe(
             Effect.mapError((cause) =>
               managerError(
-                "install",
-                "Failed to create the package directory.",
+                operation,
+                "The bundled copy is not a valid script package.",
                 cause,
               ),
             ),
           );
+          return { staging, inspected, files: snapshot.files };
+        }
+
+        const { subdirectory } = source;
+        const archive = join(temporaryRoot, "repository.tgz");
+        yield* client
+          .downloadArchive({
+            repositoryUrl: source.repositoryUrl,
+            ref: source.commit,
+            targetPath: archive,
+            ...(source.credentialId === undefined
+              ? {}
+              : { credentialId: source.credentialId }),
+          })
+          .pipe(
+            Effect.mapError((cause) =>
+              managerError(
+                operation,
+                operation === "restore" && cause.kind === "not-found"
+                  ? "GitHub could not provide the installed commit. Check repository access. Check for updates, then use Update to install the latest version."
+                  : cause.message,
+                cause,
+              ),
+            ),
+          );
+        yield* extractScriptPackageArchive(archive, staging, subdirectory).pipe(
+          Effect.mapError((cause) =>
+            managerError(
+              "extract",
+              subdirectory === undefined
+                ? "The GitHub archive is not a safe script package."
+                : "The selected package directory could not be safely extracted.",
+              cause,
+            ),
+          ),
+        );
+        const inspected = yield* inspectScriptPackageDirectory(staging).pipe(
+          Effect.mapError((cause) =>
+            managerError(
+              "validate",
+              subdirectory === undefined
+                ? "The repository root is not a valid script package."
+                : "The selected package directory is not a valid script package.",
+              cause,
+            ),
+          ),
+        );
+        const files = yield* hashDirectory(staging).pipe(
+          Effect.mapError((cause) =>
+            managerError(
+              "validate",
+              "Failed to hash the staged package.",
+              cause,
+            ),
+          ),
+        );
+        return { staging, inspected, files };
+      },
+      Effect.provideService(FileSystem, fileSystem),
+    );
+
+    const newPackageDirectory = Effect.fn(
+      "ScriptPackageManager.newPackageDirectory",
+    )(
+      function* (packageName: ScriptPackageName) {
+        const installed = yield* catalog
+          .locate(packageName)
+          .pipe(
+            Effect.mapError((cause) =>
+              managerError(
+                "validate",
+                "Failed to inspect installed packages.",
+                cause,
+              ),
+            ),
+          );
+        const folderError = (cause: unknown) =>
+          managerError("validate", "Failed to choose a package folder.", cause);
+        switch (installed.kind) {
+          case "ambiguous":
+            return yield* managerError(
+              "validate",
+              `More than one package folder declares the name ${JSON.stringify(packageName)}.`,
+            );
+          case "managed":
+            return { directory: installed.managed.directory, absent: false };
+          case "unmanaged":
+            return { directory: installed.directory, absent: false };
+          case "invalid":
+            return {
+              directory: yield* Effect.try({
+                try: () => decodePackageDirectory(basename(installed.root)),
+                catch: folderError,
+              }),
+              absent: false,
+            };
+          case "absent":
+            return {
+              directory: yield* allocatePackageDirectory(
+                packagesDir,
+                packageName,
+                new Set((yield* state.getAll).map((entry) => entry.directory)),
+              ).pipe(Effect.mapError(folderError)),
+              absent: true,
+            };
+          default:
+            return installed satisfies never;
+        }
+      },
+      Effect.provideService(FileSystem, fileSystem),
+    );
+
+    const installPackage = Effect.fn("ScriptPackageManager.installPackage")(
+      function* (
+        operation: PackageOperation,
+        source: PackageSource,
+        target: PackageTarget,
+        details: PackageDetails,
+      ) {
+        if (target.kind === "new") {
+          yield* fileSystem
+            .makeDirectory(packagesDir, { recursive: true })
+            .pipe(
+              Effect.mapError((cause) =>
+                managerError(
+                  operation,
+                  "Failed to create the package directory.",
+                  cause,
+                ),
+              ),
+            );
+        }
         return yield* Effect.acquireUseRelease(
           fileSystem
             .makeTempDirectory({
@@ -507,7 +692,7 @@ export const layer = Layer.effect(
             .pipe(
               Effect.mapError((cause) =>
                 managerError(
-                  "install",
+                  operation,
                   "Failed to create package staging.",
                   cause,
                 ),
@@ -515,215 +700,71 @@ export const layer = Layer.effect(
             ),
           (temporaryRoot) =>
             Effect.gen(function* () {
-              const archive = join(temporaryRoot, "repository.tgz");
-              const staging = join(temporaryRoot, "package");
-              yield* client
-                .downloadArchive({
-                  repositoryUrl: repository.url,
-                  ref: resolvedSource.commit,
-                  targetPath: archive,
-                  ...(input.credentialId === undefined
-                    ? {}
-                    : { credentialId: input.credentialId }),
-                })
-                .pipe(
-                  Effect.mapError((cause) =>
-                    managerError(
-                      replacement?.kind === "restore" ? "restore" : "install",
-                      replacement?.kind === "restore" &&
-                        cause.kind === "not-found"
-                        ? "GitHub could not provide the installed commit. Check repository access. Check for updates, then use Update to install the latest version."
-                        : cause.message,
-                      cause,
-                    ),
-                  ),
-                );
-              yield* extractScriptPackageArchive(
-                archive,
-                staging,
-                subdirectory,
-              ).pipe(
-                Effect.mapError((cause) =>
-                  managerError(
-                    "extract",
-                    subdirectory === undefined
-                      ? "The GitHub archive is not a safe script package."
-                      : "The selected package directory could not be safely extracted.",
-                    cause,
-                  ),
-                ),
+              const { staging, inspected, files } = yield* stagePackage(
+                operation,
+                source,
+                temporaryRoot,
               );
-
-              const inspected = yield* inspectScriptPackageDirectory(
-                staging,
-              ).pipe(
-                Effect.mapError((cause) =>
-                  managerError(
-                    "validate",
-                    subdirectory === undefined
-                      ? "The repository root is not a valid script package."
-                      : "The selected package directory is not a valid script package.",
-                    cause,
-                  ),
-                ),
-              );
-              const packageName = inspected.manifest.name;
-              if (
-                replacement !== undefined &&
-                packageName !== replacement.installed.name
-              ) {
-                return yield* managerError(
-                  replacement.kind,
-                  `The downloaded package declares ${JSON.stringify(packageName)} instead of ${JSON.stringify(replacement.installed.name)}.`,
-                );
-              }
-
-              const installed = yield* catalog
-                .locate(packageName)
-                .pipe(
+              const name = inspected.manifest.name;
+              let directory: ScriptPackageDirectory;
+              let destination: string;
+              if (target.kind === "replace") {
+                if (name !== target.installed.name) {
+                  return yield* managerError(
+                    operation,
+                    `The downloaded package declares ${JSON.stringify(name)} instead of ${JSON.stringify(target.installed.name)}.`,
+                  );
+                }
+                directory = target.installed.directory;
+                destination = target.root;
+              } else {
+                const chosen = yield* newPackageDirectory(name);
+                directory = chosen.directory;
+                destination = packageDirectoryPath(packagesDir, directory);
+                const destinationExists = yield* pathExists(destination).pipe(
                   Effect.mapError((cause) =>
                     managerError(
                       "validate",
-                      "Failed to inspect installed packages.",
+                      "Failed to inspect the package destination.",
                       cause,
                     ),
                   ),
                 );
-              const folderError = (cause: unknown) =>
-                managerError(
-                  "validate",
-                  "Failed to choose a package folder.",
-                  cause,
-                );
-              let directory: ScriptPackageDirectory;
-              switch (installed.kind) {
-                case "ambiguous":
+                if (destinationExists && chosen.absent) {
                   return yield* managerError(
                     "validate",
-                    `More than one package folder declares the name ${JSON.stringify(packageName)}.`,
+                    `Package folder ${JSON.stringify(directory)} is already in use.`,
                   );
-                case "managed":
-                  directory = installed.managed.directory;
-                  break;
-                case "unmanaged":
-                  directory = installed.directory;
-                  break;
-                case "invalid":
-                  directory = yield* Effect.try({
-                    try: () => decodePackageDirectory(basename(installed.root)),
-                    catch: folderError,
-                  });
-                  break;
-                case "absent":
-                  directory = yield* allocatePackageDirectory(
-                    packagesDir,
-                    packageName,
-                    new Set(
-                      (yield* state.getAll).map((entry) => entry.directory),
-                    ),
-                  ).pipe(Effect.mapError(folderError));
-                  break;
-                default:
-                  return installed satisfies never;
+                }
+                if (destinationExists && !target.replaceExisting) {
+                  return {
+                    status: "confirmation-required",
+                    packageName: name,
+                    reason: "existing-package",
+                  } satisfies ScriptPackageMutationResult;
+                }
               }
-              const destination = packageDirectoryPath(packagesDir, directory);
-              const destinationExists = yield* pathExists(destination).pipe(
-                Effect.mapError((cause) =>
-                  managerError(
-                    "validate",
-                    "Failed to inspect the package destination.",
-                    cause,
-                  ),
-                ),
-              );
-              if (destinationExists && installed.kind === "absent") {
-                return yield* managerError(
-                  "validate",
-                  `Package folder ${JSON.stringify(directory)} is already in use.`,
-                );
-              }
-              if (destinationExists && input.replaceExisting !== true) {
-                return {
-                  status: "confirmation-required",
-                  packageName,
-                  reason: "existing-package",
-                } satisfies ScriptPackageMutationResult;
-              }
-
-              const files = yield* hashDirectory(staging).pipe(
-                Effect.mapError((cause) =>
-                  managerError(
-                    "validate",
-                    "Failed to hash the staged package.",
-                    cause,
-                  ),
-                ),
-              );
-              const installedAt = (yield* DateTime.nowAsDate).toISOString();
-              const managed: ManagedScriptPackage =
-                resolvedSource.kind === "restore"
-                  ? {
-                      ...resolvedSource.installed,
-                      files,
-                      installedAt,
-                    }
-                  : {
-                      directory,
-                      files,
-                      installedAt,
-                      name: packageName,
-                      remoteRevision: resolvedSource.revision,
-                      source:
-                        subdirectory === undefined
-                          ? {
-                              kind: "repository",
-                              repositoryUrl: repository.url,
-                              resolvedCommit: resolvedSource.commit,
-                              ...(input.credentialId === undefined
-                                ? {}
-                                : { credentialId: input.credentialId }),
-                              ...(input.ref?.trim()
-                                ? { requestedRef: input.ref.trim() }
-                                : {}),
-                            }
-                          : {
-                              kind: "directory",
-                              repositoryUrl: repository.url,
-                              resolvedCommit: resolvedSource.commit,
-                              resolvedTree: resolvedSource.revision.sha,
-                              subdirectory,
-                              ...(input.credentialId === undefined
-                                ? {}
-                                : { credentialId: input.credentialId }),
-                              ...(input.ref?.trim()
-                                ? { requestedRef: input.ref.trim() }
-                                : {}),
-                            },
-                      update: {
-                        status: "current",
-                        checkedAt: resolvedSource.checkedAt,
-                      },
-                      ...(resolvedSource.etag === undefined
-                        ? {}
-                        : { etag: resolvedSource.etag }),
-                    };
               return yield* replacePackage(
                 {
                   inspected,
-                  managed,
+                  managed: {
+                    ...details,
+                    name,
+                    directory,
+                    files,
+                    installedAt: (yield* DateTime.nowAsDate).toISOString(),
+                  },
                   rootPath: destination,
                   sourceRoot: staging,
                 },
-                replacement !== undefined &&
-                  replacement.kind === "update" &&
-                  !replacement.replaceModified
-                  ? replacement.installed
+                target.kind === "replace" && target.requireUnmodified
+                  ? target.installed
                   : undefined,
               );
             }),
           (temporaryRoot) =>
             fileSystem
-              .remove(temporaryRoot, { recursive: true })
+              .remove(temporaryRoot, { recursive: true, force: true })
               .pipe(Effect.ignore),
         );
       },
@@ -731,7 +772,44 @@ export const layer = Layer.effect(
     );
 
     const install: ScriptPackageManagerShape["install"] = (input) =>
-      mutationGate.withPermits(1)(installInternal(input));
+      mutationGate.withPermits(1)(
+        Effect.gen(function* () {
+          const repository = yield* Effect.try({
+            try: () => normalizeGitHubRepositoryUrl(input.repositoryUrl),
+            catch: (cause) =>
+              managerError(
+                "install",
+                "Enter a valid GitHub.com repository URL.",
+                cause,
+              ),
+          });
+          const requestedRef = input.ref?.trim();
+          const origin: GitHubOrigin = {
+            repositoryUrl: repository.url,
+            ...(input.credentialId === undefined
+              ? {}
+              : { credentialId: input.credentialId }),
+            ...(requestedRef ? { requestedRef } : {}),
+            ...(input.subdirectory === undefined
+              ? {}
+              : { subdirectory: input.subdirectory }),
+          };
+          const resolution = yield* resolveSource({
+            ...origin,
+            ...(input.ref === undefined ? {} : { ref: input.ref }),
+          }).pipe(
+            Effect.mapError((cause) =>
+              managerError("install", cause.message, cause),
+            ),
+          );
+          return yield* installPackage(
+            "install",
+            githubSource(origin, resolution.commit),
+            { kind: "new", replaceExisting: input.replaceExisting === true },
+            remoteDetails(origin, resolution),
+          );
+        }),
+      );
 
     const update: ScriptPackageManagerShape["update"] = (input) =>
       mutationGate.withPermits(1)(
@@ -781,10 +859,30 @@ export const layer = Layer.effect(
             ...(managed.source.requestedRef === undefined
               ? {}
               : { ref: managed.source.requestedRef }),
-            known: managed,
+            known: managed.commitLookup,
           }).pipe(
-            Effect.mapError((cause) =>
-              managerError("update", cause.message, cause),
+            Effect.catch(
+              Effect.fnUntraced(function* (cause) {
+                const rateLimited = rateLimitedState(cause);
+                if (rateLimited !== undefined) {
+                  const next = { ...managed, update: rateLimited };
+                  yield* state.save(next).pipe(
+                    Effect.andThen(catalog.updateManagedPackage(next)),
+                    Effect.catch((error) =>
+                      Effect.logWarning(
+                        "Failed to save the package rate limit",
+                        Cause.fail(error),
+                      ).pipe(
+                        Effect.annotateLogs({
+                          component: "script-packages",
+                          data: { packageName: managed.name },
+                        }),
+                      ),
+                    ),
+                  );
+                }
+                return yield* managerError("update", cause.message, cause);
+              }),
             ),
           );
           const observed = recordRemoteResolution(managed, resolution);
@@ -818,26 +916,16 @@ export const layer = Layer.effect(
               packageName: input.packageName,
             } satisfies ScriptPackageMutationResult;
           }
-          return yield* installInternal(
+          return yield* installPackage(
+            "update",
+            githubSource(managed.source, resolution.commit),
             {
-              repositoryUrl: managed.source.repositoryUrl,
-              replaceExisting: true,
-              ...(managed.source.credentialId === undefined
-                ? {}
-                : { credentialId: managed.source.credentialId }),
-              ...(managed.source.requestedRef === undefined
-                ? {}
-                : { ref: managed.source.requestedRef }),
-              ...(managed.source.kind === "repository"
-                ? {}
-                : { subdirectory: managed.source.subdirectory }),
-            },
-            {
-              kind: "update",
+              kind: "replace",
               installed: managed,
-              source: resolution,
-              replaceModified: input.replaceModified === true,
+              root: savedRoot,
+              requireUnmodified: input.replaceModified !== true,
             },
+            remoteDetails(managed.source, resolution),
           );
         }),
       );
@@ -868,97 +956,32 @@ export const layer = Layer.effect(
           }
           const { managed } = installed;
           const source = managed.source;
-          const restoreCommit = (commit: string) =>
-            installInternal(
+          const restoreFrom = (packageSource: PackageSource) =>
+            installPackage(
+              "restore",
+              packageSource,
               {
-                repositoryUrl: managed.source.repositoryUrl,
-                replaceExisting: true,
-                ...(managed.source.credentialId === undefined
-                  ? {}
-                  : { credentialId: managed.source.credentialId }),
-                ...(managed.source.kind === "repository"
-                  ? {}
-                  : { subdirectory: managed.source.subdirectory }),
-              },
-              {
-                kind: "restore",
+                kind: "replace",
                 installed: managed,
-                source: {
-                  commit,
-                  revision: installedRevision(managed),
-                },
+                root: installed.root,
+                requireUnmodified: false,
               },
+              managed,
             );
-          if (source.kind === "repository")
-            return yield* restoreCommit(source.resolvedCommit);
-          if (source.resolvedCommit !== undefined)
-            return yield* restoreCommit(source.resolvedCommit);
-          const unavailable =
-            "The installed bundled copy is not available in this app. Check for updates, then use Update to install the latest version.";
+          if (source.kind !== "bundled")
+            return yield* restoreFrom(
+              githubSource(source, source.resolvedCommit),
+            );
           const bundledRoot = join(env.assetsDir, "..", "script-packages");
           const bundledPath = join(env.assetsDir, "..", source.subdirectory);
           if (!isPathInside(bundledRoot, bundledPath))
-            return yield* managerError("restore", unavailable);
-          return yield* Effect.acquireUseRelease(
-            fileSystem
-              .makeTempDirectory({
-                directory: env.workspaceDir,
-                prefix: ".lucent-package-install-",
-              })
-              .pipe(
-                Effect.mapError((cause) =>
-                  managerError(
-                    "restore",
-                    "Failed to create package staging.",
-                    cause,
-                  ),
-                ),
-              ),
-            (temporaryRoot) =>
-              Effect.gen(function* () {
-                const staging = join(temporaryRoot, "package");
-                const snapshot = yield* copyBundledScriptPackage(
-                  bundledPath,
-                  staging,
-                ).pipe(
-                  Effect.mapError((cause) =>
-                    managerError("restore", unavailable, cause),
-                  ),
-                );
-                if (snapshot.tree !== source.resolvedTree)
-                  return yield* managerError("restore", unavailable);
-                const inspected = yield* inspectScriptPackageDirectory(
-                  staging,
-                ).pipe(
-                  Effect.mapError((cause) =>
-                    managerError(
-                      "restore",
-                      "The bundled copy is not a valid script package.",
-                      cause,
-                    ),
-                  ),
-                );
-                if (inspected.manifest.name !== managed.name)
-                  return yield* managerError("restore", unavailable);
-                return yield* replacePackage({
-                  inspected,
-                  managed: {
-                    ...managed,
-                    files: snapshot.files,
-                    installedAt: yield* DateTime.now.pipe(
-                      Effect.map(DateTime.formatIso),
-                    ),
-                  },
-                  rootPath: installed.root,
-                  sourceRoot: staging,
-                });
-              }),
-            (temporaryRoot) =>
-              fileSystem
-                .remove(temporaryRoot, { recursive: true, force: true })
-                .pipe(Effect.ignore),
-          );
-        }).pipe(Effect.provideService(FileSystem, fileSystem)),
+            return yield* managerError("restore", BUNDLED_COPY_UNAVAILABLE);
+          return yield* restoreFrom({
+            kind: "bundled",
+            path: bundledPath,
+            tree: source.resolvedTree,
+          });
+        }),
       );
 
     const remove: ScriptPackageManagerShape["remove"] = (input) =>
@@ -1067,7 +1090,7 @@ export const layer = Layer.effect(
           ResolvedPackageRevision,
           GitHubScriptPackageClientError
         > =
-          source.kind === "directory"
+          source.kind !== "repository"
             ? client
                 .resolveDirectory({
                   repositoryUrl: source.repositoryUrl,
@@ -1096,7 +1119,7 @@ export const layer = Layer.effect(
                 ...(source.requestedRef === undefined
                   ? {}
                   : { ref: source.requestedRef }),
-                known: managed,
+                known: managed.commitLookup,
               });
         const result = yield* resolution.pipe(
           Effect.matchEffect({
@@ -1125,9 +1148,9 @@ export const layer = Layer.effect(
         );
 
         const lastSuccessfulCheckAt =
-          managed.update?.status === "current" ||
-          managed.update?.status === "available" ||
-          managed.update?.status === "unknown"
+          managed.update.status === "current" ||
+          managed.update.status === "available" ||
+          managed.update.status === "unknown"
             ? managed.update.checkedAt
             : undefined;
         const next: ManagedScriptPackage =
@@ -1135,21 +1158,13 @@ export const layer = Layer.effect(
             ? recordRemoteResolution(managed, result.value)
             : {
                 ...managed,
-                update:
-                  result.error.kind === "rate-limited" &&
-                  result.error.retryAt !== undefined
-                    ? {
-                        status: "rate-limited",
-                        message: "GitHub's request limit has been reached.",
-                        retryAt: result.error.retryAt,
-                      }
-                    : {
-                        status: "unknown",
-                        message: result.error.message,
-                        ...(lastSuccessfulCheckAt === undefined
-                          ? {}
-                          : { checkedAt: lastSuccessfulCheckAt }),
-                      },
+                update: rateLimitedState(result.error) ?? {
+                  status: "unknown",
+                  message: result.error.message,
+                  ...(lastSuccessfulCheckAt === undefined
+                    ? {}
+                    : { checkedAt: lastSuccessfulCheckAt }),
+                },
               };
         return yield* mutationGate.withPermits(1)(
           Effect.gen(function* () {

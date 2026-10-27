@@ -3455,9 +3455,9 @@ export function ScriptsDialog(props: ScriptsDialogProps): JSX.Element {
                                       </div>
                                       <Show
                                         when={
-                                          source.kind === "directory"
-                                            ? source.subdirectory
-                                            : undefined
+                                          source.kind === "repository"
+                                            ? undefined
+                                            : source.subdirectory
                                         }
                                         keyed
                                       >

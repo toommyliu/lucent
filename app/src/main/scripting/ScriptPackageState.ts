@@ -11,12 +11,12 @@ import * as Schema from "effect/Schema";
 import {
   ScriptPackageDirectorySchema,
   ScriptPackageNameSchema,
+  ScriptPackageRepositorySubdirectorySchema,
   ScriptPackageRevisionSchema,
   ScriptPackageSourceSchema,
   ScriptPackageUpdateStateSchema,
   type ScriptPackageDirectory,
   type ScriptPackageName,
-  type ScriptPackageRevision,
   type ScriptPackageSource,
   type ScriptPackageUpdateState,
 } from "@lucent/core/scriptPackages";
@@ -26,25 +26,76 @@ import { makeJsonFile } from "../filesystem/JsonFile";
 
 const FileHashesSchema = Schema.Record(Schema.String, Schema.String);
 
+const CommitLookupSchema = Schema.Struct({
+  etag: Schema.String,
+  commit: Schema.String,
+});
+
 export const ManagedScriptPackageSchema = Schema.Struct({
   name: ScriptPackageNameSchema,
   directory: ScriptPackageDirectorySchema,
   installedAt: Schema.String,
   files: FileHashesSchema,
   source: ScriptPackageSourceSchema,
+  commitLookup: Schema.optionalKey(CommitLookupSchema),
+  update: ScriptPackageUpdateStateSchema,
+});
+
+const LegacyScriptPackageSourceSchema = Schema.Union([
+  ScriptPackageSourceSchema,
+  Schema.Struct({
+    kind: Schema.Literal("directory"),
+    repositoryUrl: Schema.String,
+    requestedRef: Schema.optionalKey(Schema.String),
+    credentialId: Schema.optionalKey(Schema.String),
+    resolvedTree: Schema.String,
+    subdirectory: ScriptPackageRepositorySubdirectorySchema,
+  }),
+]);
+
+const LegacyManagedScriptPackageSchema = Schema.Struct({
+  name: ScriptPackageNameSchema,
+  directory: ScriptPackageDirectorySchema,
+  installedAt: Schema.String,
+  files: FileHashesSchema,
+  source: LegacyScriptPackageSourceSchema,
   etag: Schema.optionalKey(Schema.String),
   remoteRevision: Schema.optionalKey(ScriptPackageRevisionSchema),
   update: Schema.optionalKey(ScriptPackageUpdateStateSchema),
 });
 
-const ScriptPackageStateFileSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  packages: Schema.Array(ManagedScriptPackageSchema),
-});
+const ScriptPackageStateFileSchema = Schema.Union([
+  Schema.Struct({
+    version: Schema.Literal(2),
+    packages: Schema.Array(ManagedScriptPackageSchema),
+  }),
+  Schema.Struct({
+    version: Schema.Literal(1),
+    packages: Schema.Array(LegacyManagedScriptPackageSchema),
+  }),
+]);
 
 const decodeStateFile = Schema.decodeUnknownOption(
   ScriptPackageStateFileSchema,
 );
+
+const fromLegacy = ({
+  etag,
+  remoteRevision,
+  source,
+  update,
+  ...entry
+}: typeof LegacyManagedScriptPackageSchema.Type): ManagedScriptPackage => ({
+  ...entry,
+  source:
+    source.kind === "directory" && !("resolvedCommit" in source)
+      ? { ...source, kind: "bundled" }
+      : source,
+  ...(etag !== undefined && remoteRevision?.kind === "commit"
+    ? { commitLookup: { etag, commit: remoteRevision.sha } }
+    : {}),
+  update: update ?? { status: "unchecked" },
+});
 
 export interface ManagedScriptPackage {
   readonly name: ScriptPackageName;
@@ -52,11 +103,8 @@ export interface ManagedScriptPackage {
   readonly installedAt: string;
   readonly files: Readonly<Record<string, string>>;
   readonly source: ScriptPackageSource;
-  /** ETag for a repository-root commit lookup. */
-  readonly etag?: string;
-  /** Revision returned by the most recent successful update lookup. */
-  readonly remoteRevision?: ScriptPackageRevision;
-  readonly update?: ScriptPackageUpdateState;
+  readonly commitLookup?: { readonly etag: string; readonly commit: string };
+  readonly update: ScriptPackageUpdateState;
 }
 
 type ScriptPackageLoadState =
@@ -125,22 +173,24 @@ const stateFromUnknown = (value: unknown): ScriptPackageLoadState => {
   if (Option.isNone(decoded)) {
     return invalidState("Script package state has an invalid format.");
   }
-  if (hasDuplicateMappings(decoded.value.packages)) {
+  const packages =
+    decoded.value.version === 2
+      ? decoded.value.packages
+      : decoded.value.packages.map(fromLegacy);
+  if (hasDuplicateMappings(packages)) {
     return invalidState("Script package state contains duplicate mappings.");
   }
 
   return {
     status: "loaded",
-    packages: new Map(
-      decoded.value.packages.map((entry) => [entry.name, entry]),
-    ),
+    packages: new Map(packages.map((entry) => [entry.name, entry])),
   };
 };
 
 const serializeState = (
   values: ReadonlyMap<string, ManagedScriptPackage>,
 ): unknown => ({
-  version: 1,
+  version: 2,
   packages: [...values.values()].sort((left, right) =>
     left.name.localeCompare(right.name),
   ),
