@@ -43,7 +43,10 @@ it.effect.each([
       );
 
     expect(result).toBeInstanceOf(DesktopWindowError);
-    expect(result).toMatchObject({ _tag: "DesktopWindowError", id: kind });
+    expect(result).toMatchObject({
+      _tag: "DesktopWindowError",
+      message: `${senderKind} windows may not open ${kind}.`,
+    });
     expect(opened).toEqual([]);
   }),
 );

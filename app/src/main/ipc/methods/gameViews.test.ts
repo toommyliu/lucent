@@ -262,7 +262,6 @@ describe("game view host command IPC", () => {
           [100, { type: "tab-bar-layout" }],
         ]);
         const error = new DesktopWindowError({
-          id: "100",
           detail: "Failed to update the tab menu.",
         });
         expect(

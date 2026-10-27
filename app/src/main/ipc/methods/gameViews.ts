@@ -92,7 +92,6 @@ export const reopen = makeDesktopIpcMethod({
     const state = yield* windows.getGameViewHostState(sender.rendererId);
     if (state.sessions.length >= state.capacity) {
       return yield* new DesktopWindowError({
-        id: String(sender.rendererId),
         detail: "Close a tab before reopening another.",
       });
     }
@@ -151,7 +150,6 @@ export const close = makeDesktopIpcMethod({
       const state = yield* windows.getGameViewHostState(sender.rendererId);
       if (!state.sessions.some((session) => session.id === payload.id)) {
         return yield* new DesktopWindowError({
-          id: payload.id,
           detail: "This tab no longer belongs to this window.",
         });
       }
@@ -243,7 +241,6 @@ export const dispatchGroupCommand = makeDesktopIpcMethod({
         return yield* new DesktopWindowError({
           detail:
             "Group command targets must be unique tabs in this game window.",
-          id: String(sender.rendererId),
         });
       }
       let { readySessions, skippedCount } = resolveGameViewGroupTargets(
