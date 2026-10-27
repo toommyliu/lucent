@@ -13,12 +13,22 @@ export class FileSystemLimitError extends Schema.TaggedError<FileSystemLimitErro
     limit: Schema.Number,
     kind: Schema.Literals(["bytes", "entries"]),
   },
-) {}
+) {
+  override get message(): string {
+    return this.kind === "bytes"
+      ? `File is larger than ${this.limit} bytes: ${this.path}.`
+      : `Directory has more than ${this.limit} entries: ${this.path}.`;
+  }
+}
 
 export class FileChangedWhileReading extends Schema.TaggedError<FileChangedWhileReading>()(
   "FileChangedWhileReading",
   { path: Schema.String },
-) {}
+) {
+  override get message(): string {
+    return `File changed while it was being read: ${this.path}.`;
+  }
+}
 
 export class FileNotFound extends Schema.TaggedError<FileNotFound>()(
   "FileNotFound",
