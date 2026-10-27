@@ -366,9 +366,7 @@ const resolveMainPath = Effect.fnUntraced(function* (
   return null;
 });
 
-export const inspectScriptPackageDirectory = Effect.fn(
-  "inspectScriptPackageDirectory",
-)(function* (
+export const inspectScriptPackageDirectory = Effect.fnUntraced(function* (
   rootPath: string,
   validatedManifest?: InspectedScriptPackageDirectory["manifest"],
 ): Effect.fn.Return<
@@ -449,7 +447,7 @@ export interface IntegrityCheck {
   readonly failure?: ScriptPackageInspectionFailure;
 }
 
-export const integrityFor = Effect.fn("integrityFor")(function* (
+export const integrityFor = Effect.fnUntraced(function* (
   rootPath: string,
   managed: ManagedScriptPackage | undefined,
 ): Effect.fn.Return<IntegrityCheck, never, FileSystem> {

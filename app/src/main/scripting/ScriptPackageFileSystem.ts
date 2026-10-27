@@ -107,55 +107,56 @@ const packageFileHash = (contents: Buffer): string =>
 export const sha256Revision = (contents: Buffer | string): string =>
   createHash("sha256").update(contents).digest("hex");
 
-export const listRegularFilePaths = Effect.fn("listRegularFilePaths")(
-  function* (root: string, options: ListRegularFilesOptions = {}) {
-    const files: RegularFilePath[] = [];
+export const listRegularFilePaths = Effect.fnUntraced(function* (
+  root: string,
+  options: ListRegularFilesOptions = {},
+) {
+  const files: RegularFilePath[] = [];
 
-    const visit = Effect.fnUntraced(function* (
-      directory: string,
-    ): Effect.fn.Return<void, FileReadError | InvalidScriptPackage> {
-      const entries = (yield* readDirectoryEntries(directory)).toSorted(
-        (left, right) =>
-          left.name.localeCompare(right.name, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          }),
-      );
+  const visit = Effect.fnUntraced(function* (
+    directory: string,
+  ): Effect.fn.Return<void, FileReadError | InvalidScriptPackage> {
+    const entries = (yield* readDirectoryEntries(directory)).sort(
+      (left, right) =>
+        left.name.localeCompare(right.name, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
+    );
 
-      for (const entry of entries) {
-        const path = resolve(directory, entry.name);
-        if (entry.kind === "symbolic-link") {
-          if (options.rejectSymlinks === true) {
-            return yield* new InvalidScriptPackage({
-              detail: `Symbolic links are not supported: ${path}.`,
-            });
-          }
-          continue;
-        }
-        if (entry.kind === "directory") {
-          yield* visit(path);
-          continue;
-        }
-        if (entry.kind !== "file") continue;
-        if (isSystemMetadataFile(entry.name)) continue;
-
-        const relativePath = portablePath(relative(root, path));
-        files.push({ absolutePath: path, relativePath });
-        if (options.maxFiles !== undefined && files.length > options.maxFiles) {
+    for (const entry of entries) {
+      const path = resolve(directory, entry.name);
+      if (entry.kind === "symbolic-link") {
+        if (options.rejectSymlinks === true) {
           return yield* new InvalidScriptPackage({
-            detail: `Directory contains more than ${options.maxFiles} files: ${root}.`,
+            detail: `Symbolic links are not supported: ${path}.`,
           });
         }
+        continue;
       }
-      return undefined;
-    });
+      if (entry.kind === "directory") {
+        yield* visit(path);
+        continue;
+      }
+      if (entry.kind !== "file") continue;
+      if (isSystemMetadataFile(entry.name)) continue;
 
-    return yield* visit(root).pipe(
-      Effect.as(files),
-      Effect.catchTag("FileNotFound", () => Effect.succeed([])),
-    );
-  },
-);
+      const relativePath = portablePath(relative(root, path));
+      files.push({ absolutePath: path, relativePath });
+      if (options.maxFiles !== undefined && files.length > options.maxFiles) {
+        return yield* new InvalidScriptPackage({
+          detail: `Directory contains more than ${options.maxFiles} files: ${root}.`,
+        });
+      }
+    }
+    return undefined;
+  });
+
+  return yield* visit(root).pipe(
+    Effect.as(files),
+    Effect.catchTag("FileNotFound", () => Effect.succeed([])),
+  );
+});
 
 export const hashDirectory = Effect.fn("hashDirectory")(function* (
   root: string,
