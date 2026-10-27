@@ -116,7 +116,10 @@ describe("scripting.openPath IPC", () => {
   it.effect.each([
     ["/Applications/Calculator.app", "/Applications/Calculator.app"],
     ["/outside/picked.js", "/outside/picked.js"],
-    ["/workspace/scripts/uncatalogued.js", "/workspace/scripts/uncatalogued.js"],
+    [
+      "/workspace/scripts/uncatalogued.js",
+      "/workspace/scripts/uncatalogued.js",
+    ],
     [
       "/workspace/packages/tools/Terminal.app",
       "/workspace/packages/tools/Terminal.app",
@@ -171,7 +174,9 @@ describe("scripting.openPath IPC", () => {
       yield* openPath.handler({ path: "/workspace/scripts/run.js" }, sender);
       yield* openPath.handler({ path: "/workspace/packages/tools" }, sender);
 
-      expect(shell.openPath.mock.calls).toEqual([["/workspace/scripts/run.js"]]);
+      expect(shell.openPath.mock.calls).toEqual([
+        ["/workspace/scripts/run.js"],
+      ]);
       expect(shell.showItemInFolder.mock.calls).toEqual([
         ["/workspace/scripts/run.js"],
         ["/workspace/packages/tools"],
