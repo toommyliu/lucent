@@ -167,9 +167,9 @@ const runStartIpc = <A, E>(
 };
 
 describe("army start IPC", () => {
-  it.effect(
-    "joins an existing session after its config becomes unreadable",
-    () => {
+  it.effect.each(["farm", "farm.yaml"])(
+    "joins an existing session after its config becomes unreadable as %s",
+    (joinName) => {
       let broken = false;
       let reads = 0;
       const read = (configName: string) =>
@@ -202,7 +202,7 @@ describe("army start IPC", () => {
           ]);
           broken = true;
 
-          const bob = yield* invokeStart("farm", "Bob", 8);
+          const bob = yield* invokeStart(joinName, "Bob", 8);
           expect(yield* Fiber.join(bob)).toMatchObject({
             ok: true,
             value: {
