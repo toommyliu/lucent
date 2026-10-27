@@ -1,5 +1,10 @@
 import * as Effect from "effect/Effect";
 import { FileSystem } from "effect/FileSystem";
+import {
+  fileReadError,
+  nativeFileError,
+  type FileReadError,
+} from "../filesystem/BoundedFileSystem";
 import { InvalidScriptPackage } from "./ScriptPackageFileSystem";
 
 import { list as listTar, extract as extractTar } from "tar";
@@ -59,6 +64,13 @@ const invalidArchive = (cause: unknown): InvalidScriptPackage =>
     cause,
   });
 
+const tarError =
+  (method: string, path: string) =>
+  (cause: unknown): InvalidScriptPackage | FileReadError =>
+    cause instanceof Error && "syscall" in cause
+      ? fileReadError(path)(nativeFileError(method, path, cause))
+      : invalidArchive(cause);
+
 const missingPackageDirectory = (subdirectory: string | undefined) =>
   new InvalidScriptPackage({
     detail: `Archive does not contain package directory ${JSON.stringify(subdirectory)}.`,
@@ -69,7 +81,7 @@ export const validateScriptPackageArchive = Effect.fn(
 )(function* (
   path: string,
   options: ArchiveValidationOptions = {},
-): Effect.fn.Return<ArchiveInventory, InvalidScriptPackage> {
+): Effect.fn.Return<ArchiveInventory, InvalidScriptPackage | FileReadError> {
   const caseInsensitivePaths =
     process.platform === "darwin" || process.platform === "win32";
   const subdirectory = options.subdirectory;
@@ -160,7 +172,7 @@ export const validateScriptPackageArchive = Effect.fn(
           }
         },
       }),
-    catch: invalidArchive,
+    catch: tarError("read", path),
   });
   if (validationError !== undefined)
     return yield* invalidArchive(validationError);
@@ -201,6 +213,6 @@ export const extractScriptPackageArchive = Effect.fn(
           subdirectory === undefined ? 1 : subdirectory.split("/").length + 1,
         unlink: true,
       }),
-    catch: invalidArchive,
+    catch: tarError("write", targetPath),
   });
 });
