@@ -313,7 +313,7 @@ describe("CombatProfiles", () => {
           _tag: "Failure",
           failure: {
             _tag: "CombatProfilesError",
-            operation: "read",
+            message: `JSON file read failed at ${path}.`,
             detail: `JSON file read failed at ${path}.`,
             cause: { _tag: "JsonFileError", operation: "read", path },
           },

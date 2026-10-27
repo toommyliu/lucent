@@ -24,22 +24,10 @@ import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 
 import { makeSavedDocument } from "../../filesystem/SavedDocument";
 
-const combatProfilesOperationSchema = Schema.Literals([
-  "delete-profile",
-  "mkdir",
-  "parse",
-  "read",
-  "rename",
-  "save-profile",
-  "unlink",
-  "write",
-]);
-
 export class CombatProfilesError extends Schema.TaggedError<CombatProfilesError>()(
   "CombatProfilesError",
   {
     detail: Schema.String,
-    operation: combatProfilesOperationSchema,
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
@@ -68,17 +56,12 @@ export class CombatProfiles extends Context.Service<
 
 const wrapDataError = (error: JsonFileError): CombatProfilesError =>
   new CombatProfilesError({
-    operation: error.operation,
     detail: error.message,
     cause: error,
   });
 
-const validationError = (
-  operation: typeof combatProfilesOperationSchema.Type,
-  detail: string,
-): CombatProfilesError =>
+const validationError = (detail: string): CombatProfilesError =>
   new CombatProfilesError({
-    operation,
     detail,
   });
 
@@ -269,7 +252,6 @@ const deleteProfileFromLibrary = (
   Effect.gen(function* () {
     if (profileId === DEFAULT_COMBAT_PROFILE_ID) {
       return yield* validationError(
-        "delete-profile",
         "The generic combat profile cannot be deleted.",
       );
     }
@@ -278,10 +260,7 @@ const deleteProfileFromLibrary = (
       (profile) => profile.id !== profileId,
     );
     if (profiles.length === current.profiles.length) {
-      return yield* validationError(
-        "delete-profile",
-        "Combat profile does not exist.",
-      );
+      return yield* validationError("Combat profile does not exist.");
     }
 
     return normalizeCombatProfileLibrary({
