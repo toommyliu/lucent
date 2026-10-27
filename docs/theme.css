@@ -1029,3 +1029,15 @@ html:has(.type-peek-dialog[open]) {
 .changelog-release-label:hover .changelog-release-arrow {
   color: currentColor;
 }
+
+[data-blume-update] li > :is(ul, ol) {
+  padding-inline-start: 1.25rem;
+}
+
+[data-blume-update] li > ul {
+  list-style: disc;
+}
+
+[data-blume-update] li > ol {
+  list-style: decimal;
+}
