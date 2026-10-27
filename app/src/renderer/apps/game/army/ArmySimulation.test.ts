@@ -76,10 +76,15 @@ const makeClientBridge = (
       run(coordinator.progress(payload.sessionId, participantId, payload)),
     start: (payload) =>
       run(
-        coordinator.join(config, payload.playerName, {
-          rendererId: participantId,
-          isCurrent: () => true,
-        }),
+        coordinator.join(
+          config.configName,
+          Effect.succeed(config),
+          payload.playerName,
+          {
+            rendererId: participantId,
+            isCurrent: () => true,
+          },
+        ),
       ),
     sync: (payload) =>
       run(coordinator.sync(payload.sessionId, participantId, payload)),
@@ -490,7 +495,7 @@ describe("army session lifecycle", () => {
           Effect.sync(() => ended.push(event)),
         );
         const alice = yield* Effect.forkChild(
-          coordinator.join(config, "Alice", {
+          coordinator.join(config.configName, Effect.succeed(config), "Alice", {
             rendererId: 1,
             isCurrent: () => true,
           }),
