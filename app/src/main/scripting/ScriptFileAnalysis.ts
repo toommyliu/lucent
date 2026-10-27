@@ -55,6 +55,8 @@ const errorMessage = (error: unknown): string => {
 
 export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
   path = resolvePath(path);
+  const fail = (detail: string, cause: unknown) =>
+    Effect.fail(new ScriptFilesError({ path, detail, cause }));
   return yield* Effect.gen(function* () {
     const stable = yield* readStableFile(path, SCRIPT_FILE_MAX_BYTES, {
       missingAfterReadIsChange: true,
@@ -65,37 +67,15 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
       }),
       Effect.catchTags({
         FileNotFound: (cause) =>
-          Effect.fail(
-            new ScriptFilesError({
-              path,
-              detail: `Script file was not found at ${path}.`,
-              cause,
-            }),
-          ),
+          fail(`Script file was not found at ${path}.`, cause),
         FileSystemLimitError: (cause) =>
-          Effect.fail(
-            new ScriptFilesError({
-              path,
-              detail: `Script file exceeds the ${formatBytes(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
-              cause,
-            }),
+          fail(
+            `Script file exceeds the ${formatBytes(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
+            cause,
           ),
         FileChangedWhileReading: (cause) =>
-          Effect.fail(
-            new ScriptFilesError({
-              path,
-              detail: `Script file changed while it was being read: ${path}.`,
-              cause,
-            }),
-          ),
-        NotRegularFile: (cause) =>
-          Effect.fail(
-            new ScriptFilesError({
-              path,
-              detail: cause.message,
-              cause,
-            }),
-          ),
+          fail(`Script file changed while it was being read: ${path}.`, cause),
+        NotRegularFile: (cause) => fail(cause.message, cause),
         PlatformError: (error) => {
           const cause = nativeCause(error);
           return Effect.fail(
@@ -112,14 +92,7 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
     const source = stable.contents.toString("utf8");
     const revision = createHash("sha256").update(stable.contents).digest("hex");
     const analysis = yield* analyzeScriptSource(source, path).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ScriptFilesError({
-            path,
-            detail: cause.message,
-            cause,
-          }),
-      ),
+      Effect.catch((cause) => fail(cause.message, cause)),
     );
     return {
       file: {

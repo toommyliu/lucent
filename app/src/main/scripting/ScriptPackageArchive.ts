@@ -57,24 +57,12 @@ const archivePath = (rawPath: string): readonly string[] => {
   return parts;
 };
 
-const invalidArchive = (cause: unknown): InvalidScriptPackage =>
-  new InvalidScriptPackage({
-    detail:
-      cause instanceof Error ? cause.message : "Archive validation failed.",
-    cause,
-  });
-
 const tarError =
   (method: string, path: string) =>
   (cause: unknown): InvalidScriptPackage | FileReadError =>
     cause instanceof Error && "syscall" in cause
       ? fileReadError(path)(nativeFileError(method, path, cause))
-      : invalidArchive(cause);
-
-const missingPackageDirectory = (subdirectory: string | undefined) =>
-  new InvalidScriptPackage({
-    detail: `Archive does not contain package directory ${JSON.stringify(subdirectory)}.`,
-  });
+      : InvalidScriptPackage.fromUnknown(cause, "Archive validation failed.");
 
 export const validateScriptPackageArchive = Effect.fn(
   "validateScriptPackageArchive",
@@ -175,11 +163,16 @@ export const validateScriptPackageArchive = Effect.fn(
     catch: tarError("read", path),
   });
   if (validationError !== undefined)
-    return yield* invalidArchive(validationError);
+    return yield* InvalidScriptPackage.fromUnknown(
+      validationError,
+      "Archive validation failed.",
+    );
   if (root === undefined)
     return yield* new InvalidScriptPackage({ detail: "Archive is empty." });
   if (!selectedDirectoryFound) {
-    return yield* missingPackageDirectory(subdirectory);
+    return yield* new InvalidScriptPackage({
+      detail: `Archive does not contain package directory ${JSON.stringify(subdirectory)}.`,
+    });
   }
   return { root };
 });

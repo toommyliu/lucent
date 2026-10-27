@@ -143,17 +143,6 @@ export interface InspectedScriptPackageDirectory {
 const optionalString = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
 
-const isInvalidScriptPackage = Schema.is(InvalidScriptPackage);
-
-const invalidPackage = (cause: unknown): InvalidScriptPackage =>
-  new InvalidScriptPackage({
-    detail:
-      cause instanceof Error
-        ? cause.message
-        : "This folder isn't a valid package.",
-    cause,
-  });
-
 const parseManifest = (bytes: Uint8Array): ScriptPackageManifest => {
   const record = parseManifestJson(
     Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString(
@@ -227,16 +216,19 @@ export const readScriptPackageManifest = Effect.fn("readScriptPackageManifest")(
       path,
       SCRIPT_PACKAGE_MANIFEST_MAX_BYTES,
     ).pipe(
-      Effect.catchTag("FileSystemLimitError", () =>
-        Effect.fail(manifestLimitExceeded()),
-      ),
       Effect.mapError((error) =>
-        isInvalidScriptPackage(error) ? error : fileReadError(path)(error),
+        error._tag === "FileSystemLimitError"
+          ? manifestLimitExceeded()
+          : fileReadError(path)(error),
       ),
     );
     return yield* Effect.try({
       try: () => parseManifest(bytes),
-      catch: invalidPackage,
+      catch: (cause) =>
+        InvalidScriptPackage.fromUnknown(
+          cause,
+          "This folder isn't a valid package.",
+        ),
     });
   },
 );
@@ -390,7 +382,11 @@ export const inspectScriptPackageDirectory = Effect.fn(
     validatedManifest?.name ??
     (yield* Effect.try({
       try: () => parsePackageName(manifest.name),
-      catch: invalidPackage,
+      catch: (cause) =>
+        InvalidScriptPackage.fromUnknown(
+          cause,
+          "This folder isn't a valid package.",
+        ),
     }));
   const [mainPath, inventory] = yield* Effect.all(
     [
@@ -420,11 +416,6 @@ const hashesMatch = (
   );
 };
 
-const packageNameMismatch = (installed: string, declared: string) =>
-  new InvalidScriptPackage({
-    detail: `The installed package name is ${JSON.stringify(installed)}, but package.json declares ${JSON.stringify(declared)}.`,
-  });
-
 export const inspectManagedPackageFolder = Effect.fn(
   "inspectManagedPackageFolder",
 )(function* (
@@ -442,7 +433,9 @@ export const inspectManagedPackageFolder = Effect.fn(
     validatedManifest,
   );
   if (managed !== undefined && managed.name !== inspected.manifest.name)
-    return yield* packageNameMismatch(managed.name, inspected.manifest.name);
+    return yield* new InvalidScriptPackage({
+      detail: `The installed package name is ${JSON.stringify(managed.name)}, but package.json declares ${JSON.stringify(inspected.manifest.name)}.`,
+    });
   if (!isPathInside(yield* realPath(packagesDir), yield* realPath(rootPath)))
     return yield* new InvalidScriptPackage({
       detail: "The package points outside Lucent's packages folder.",

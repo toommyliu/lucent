@@ -80,11 +80,13 @@ export const fileReadError =
       : error;
   };
 
-const statPath = (path: string) =>
+const tryNodeFs = <A>(method: string, path: string, run: () => Promise<A>) =>
   Effect.tryPromise({
-    try: () => fs.stat(path),
-    catch: (cause) => fileReadError(path)(nativeFileError("stat", path, cause)),
+    try: run,
+    catch: (cause) => fileReadError(path)(nativeFileError(method, path, cause)),
   });
+
+const statPath = (path: string) => tryNodeFs("stat", path, () => fs.stat(path));
 
 export const regularFileFingerprint = Effect.fnUntraced(function* (
   path: string,
@@ -193,7 +195,7 @@ export interface PathInfo {
 }
 
 export const lstatPath = Effect.fnUntraced(function* (path: string) {
-  const info = yield* lstat(path).pipe(Effect.mapError(fileReadError(path)));
+  const info = yield* tryNodeFs("lstat", path, () => fs.lstat(path));
   return {
     kind: fileKind(info),
     size: info.size,
@@ -201,13 +203,8 @@ export const lstatPath = Effect.fnUntraced(function* (path: string) {
   } satisfies PathInfo;
 });
 
-export const realPath = Effect.fnUntraced(function* (path: string) {
-  return yield* Effect.tryPromise({
-    try: () => fs.realpath(path),
-    catch: (cause) =>
-      fileReadError(path)(nativeFileError("realpath", path, cause)),
-  });
-});
+export const realPath = (path: string) =>
+  tryNodeFs("realpath", path, () => fs.realpath(path));
 
 export interface DirectoryEntry {
   readonly name: string;
@@ -215,22 +212,19 @@ export interface DirectoryEntry {
 }
 
 export const readDirectoryEntries = Effect.fnUntraced(function* (path: string) {
-  const entries = yield* Effect.tryPromise({
-    try: () => fs.readdir(path, { withFileTypes: true }),
-    catch: (cause) =>
-      fileReadError(path)(nativeFileError("readdir", path, cause)),
-  });
+  const entries = yield* tryNodeFs("readdir", path, () =>
+    fs.readdir(path, { withFileTypes: true }),
+  );
   return entries.map(
     (entry): DirectoryEntry => ({ name: entry.name, kind: fileKind(entry) }),
   );
 });
 
-export const pathExists = Effect.fnUntraced(function* (path: string) {
-  return yield* lstatPath(path).pipe(
+export const pathExists = (path: string) =>
+  lstatPath(path).pipe(
     Effect.as(true),
     Effect.catchTag("FileNotFound", () => Effect.succeed(false)),
   );
-});
 
 export const lstat = (path: string) =>
   Effect.tryPromise({
@@ -238,9 +232,7 @@ export const lstat = (path: string) =>
     catch: (cause) => nativeFileError("lstat", path, cause),
   });
 
-export const fileKind = (
-  info: Stats | Dirent,
-): "file" | "directory" | "symbolic-link" | "other" =>
+export const fileKind = (info: Stats | Dirent): DirectoryEntry["kind"] =>
   info.isFile()
     ? "file"
     : info.isDirectory()
@@ -263,10 +255,7 @@ export const readDirectoryBounded = Effect.fn("readDirectoryBounded")(
         catch: (cause) => nativeFileError("opendir", path, cause),
       }),
       Effect.fn(function* (directory) {
-        const entries: {
-          readonly name: string;
-          readonly kind: ReturnType<typeof fileKind>;
-        }[] = [];
+        const entries: DirectoryEntry[] = [];
         while (true) {
           const entry = yield* Effect.tryPromise({
             try: () => directory.read(),

@@ -29,6 +29,13 @@ export class InvalidScriptPackage extends Schema.TaggedError<InvalidScriptPackag
     cause: Schema.optionalKey(Schema.Defect()),
   },
 ) {
+  static fromUnknown(cause: unknown, fallback: string): InvalidScriptPackage {
+    return new InvalidScriptPackage({
+      detail: cause instanceof Error ? cause.message : fallback,
+      cause,
+    });
+  }
+
   override get message(): string {
     return this.detail;
   }
@@ -65,6 +72,8 @@ export const isPathInside = (root: string, candidate: string): boolean => {
 export type PackageFileError = FileReadError | InvalidScriptPackage;
 export type PackageFileHashes = Readonly<Record<string, string>>;
 
+const isFileChangedWhileReading = Schema.is(FileChangedWhileReading);
+
 export const readPackageFile = Effect.fnUntraced(function* (
   path: string,
   maxBytes: number,
@@ -74,11 +83,9 @@ export const readPackageFile = Effect.fnUntraced(function* (
   }).pipe(
     Effect.retry({
       schedule: Schedule.recurs(2),
-      while: Schema.is(FileChangedWhileReading),
+      while: isFileChangedWhileReading,
     }),
     Effect.catchTags({
-      NotRegularFile: (cause) =>
-        Effect.fail(new InvalidScriptPackage({ detail: cause.message, cause })),
       FileSystemLimitError: (cause) =>
         Effect.fail(
           new InvalidScriptPackage({
@@ -86,14 +93,10 @@ export const readPackageFile = Effect.fnUntraced(function* (
             cause,
           }),
         ),
-      FileChangedWhileReading: (cause) =>
-        Effect.fail(
-          new InvalidScriptPackage({
-            detail: `File changed while it was being read: ${path}.`,
-            cause,
-          }),
-        ),
     }),
+    Effect.catchTag(["NotRegularFile", "FileChangedWhileReading"], (cause) =>
+      Effect.fail(new InvalidScriptPackage({ detail: cause.message, cause })),
+    ),
   );
   return stable.contents;
 });

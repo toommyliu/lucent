@@ -95,6 +95,12 @@ export class ScriptPackageCatalog extends Context.Service<
   ScriptPackageCatalogShape
 >()("lucent/desktop/scripting/ScriptPackageCatalog") {}
 
+const scanError = (cause: unknown) =>
+  new ScriptPackageCatalogError({
+    operation: "scan",
+    cause: nativeCause(cause),
+  });
+
 export const layer = Layer.effect(
   ScriptPackageCatalog,
   Effect.gen(function* () {
@@ -114,29 +120,13 @@ export const layer = Layer.effect(
           fileSystem.makeDirectory(packagesDir, { recursive: true }),
         ],
         { concurrency: "unbounded", discard: true },
-      ).pipe(
-        Effect.mapError(
-          (cause) =>
-            new ScriptPackageCatalogError({
-              operation: "scan",
-              cause: nativeCause(cause),
-            }),
-        ),
-      );
+      ).pipe(Effect.mapError(scanError));
       const report = yield* discoverScriptCatalog({
         currentVersion,
         managedPackages,
         packagesDir,
         scriptsDir,
-      }).pipe(
-        Effect.mapError(
-          (cause) =>
-            new ScriptPackageCatalogError({
-              operation: "scan",
-              cause: nativeCause(cause),
-            }),
-        ),
-      );
+      }).pipe(Effect.mapError(scanError));
       yield* logScriptPackageInspectionFailures(report.failures);
       return report.discovery;
     }).pipe(Effect.provideService(FileSystem, fileSystem));

@@ -398,17 +398,6 @@ export interface ScriptCatalogDiscoveryReport {
   readonly failures: readonly ScriptPackageInspectionFailure[];
 }
 
-const invalidPackage = (cause: unknown) =>
-  new InvalidScriptPackage({
-    detail:
-      cause instanceof Error
-        ? cause.message
-        : "This folder isn't a valid package.",
-    cause,
-  });
-const duplicatePackageDiagnostic = (name: string) =>
-  `More than one package folder declares the name ${JSON.stringify(name)}.`;
-
 export const discoverScriptCatalog = Effect.fn("discoverScriptCatalog")(
   function* (options: DiscoverScriptCatalogOptions) {
     const failures: ScriptPackageInspectionFailure[] = [];
@@ -475,7 +464,11 @@ export const discoverScriptCatalog = Effect.fn("discoverScriptCatalog")(
       const scanned = yield* Effect.gen(function* () {
         const directoryName = yield* Effect.try({
           try: () => decodePackageDirectory(entry.name),
-          catch: invalidPackage,
+          catch: (cause) =>
+            InvalidScriptPackage.fromUnknown(
+              cause,
+              "This folder isn't a valid package.",
+            ),
         });
         const manifest = yield* readScriptPackageManifest(
           join(directory, "package.json"),
@@ -483,7 +476,11 @@ export const discoverScriptCatalog = Effect.fn("discoverScriptCatalog")(
         parsedName = manifest.name;
         const name = yield* Effect.try({
           try: () => decodePackageName(manifest.name),
-          catch: invalidPackage,
+          catch: (cause) =>
+            InvalidScriptPackage.fromUnknown(
+              cause,
+              "This folder isn't a valid package.",
+            ),
         });
         validatedName = name;
         const managed = managedPackages.get(directoryName);
@@ -525,7 +522,7 @@ export const discoverScriptCatalog = Effect.fn("discoverScriptCatalog")(
       if (name !== undefined && (packageNameCounts.get(name) ?? 0) > 1) {
         packages.push({
           status: "invalid",
-          diagnostic: duplicatePackageDiagnostic(name),
+          diagnostic: `More than one package folder declares the name ${JSON.stringify(name)}.`,
           name,
           path: scanned.summary.path,
         });
