@@ -99,17 +99,19 @@ describe("GitHubApiClient", () => {
         const server = yield* Effect.acquireRelease(
           Effect.promise(
             () =>
-              new Promise<ReturnType<typeof createServer>>((resolve, reject) => {
-                const server = createServer((_request, response) => {
-                  requests += 1;
-                  response.writeHead(301, {
-                    Location: "https://api.github.com/repos/example/renamed",
+              new Promise<ReturnType<typeof createServer>>(
+                (resolve, reject) => {
+                  const server = createServer((_request, response) => {
+                    requests += 1;
+                    response.writeHead(301, {
+                      Location: "https://api.github.com/repos/example/renamed",
+                    });
+                    response.end();
                   });
-                  response.end();
-                });
-                server.once("error", reject);
-                server.listen(0, "127.0.0.1", () => resolve(server));
-              }),
+                  server.once("error", reject);
+                  server.listen(0, "127.0.0.1", () => resolve(server));
+                },
+              ),
           ),
           (server) =>
             Effect.promise(
@@ -153,7 +155,11 @@ describe("GitHubApiClient", () => {
 
   it.effect.each([
     { kind: "invalid-url", expectedKind: "unexpected-response", requests: 1 },
-    { kind: "redirect-failed", expectedKind: "unexpected-response", requests: 1 },
+    {
+      kind: "redirect-failed",
+      expectedKind: "unexpected-response",
+      requests: 1,
+    },
     {
       kind: "response-too-large",
       expectedKind: "response-too-large",
