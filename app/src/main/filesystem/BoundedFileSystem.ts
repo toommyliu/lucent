@@ -196,6 +196,14 @@ export const lstatPath = Effect.fnUntraced(function* (path: string) {
   } satisfies PathInfo;
 });
 
+export const realPath = Effect.fnUntraced(function* (path: string) {
+  return yield* Effect.tryPromise({
+    try: () => fs.realpath(path),
+    catch: (cause) =>
+      fileReadError(path)(nativeFileError("realpath", path, cause)),
+  });
+});
+
 export const pathExists = Effect.fnUntraced(function* (path: string) {
   return yield* lstatPath(path).pipe(
     Effect.as(true),

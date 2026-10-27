@@ -166,8 +166,9 @@ export const layer = Layer.effect(
         ScriptReference | undefined,
         ScriptPackageCatalogError
       > {
-        const looseReference = yield* Effect.promise(() =>
-          resolveLooseScriptReference(scriptsDir, path),
+        const looseReference = yield* resolveLooseScriptReference(
+          scriptsDir,
+          path,
         );
         if (looseReference !== undefined) {
           return looseReference;
@@ -232,8 +233,9 @@ export const layer = Layer.effect(
             if (portablePath(relative(scriptsDir, path)) !== reference.path) {
               return undefined;
             }
-            const resolved = yield* Effect.promise(() =>
-              resolveLooseScriptReference(scriptsDir, path),
+            const resolved = yield* resolveLooseScriptReference(
+              scriptsDir,
+              path,
             );
             if (resolved === undefined) {
               return undefined;

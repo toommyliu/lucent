@@ -1,4 +1,8 @@
-import { nativeCause } from "../filesystem/BoundedFileSystem";
+import {
+  lstatPath,
+  nativeCause,
+  realPath,
+} from "../filesystem/BoundedFileSystem";
 import { promises as fs } from "node:fs";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 
@@ -266,13 +270,14 @@ export const isJavaScriptFile = (path: string): boolean => {
   return extension === ".js" || extension === ".cjs";
 };
 
-/** Resolves a selected loose script without enumerating the script library. */
-export const resolveLooseScriptReference = async (
+export const resolveLooseScriptReference = Effect.fn(
+  "resolveLooseScriptReference",
+)(function* (
   scriptsDir: string,
   path: string,
-): Promise<
+): Effect.fn.Return<
   Extract<ScriptReference, { readonly kind: "loose" }> | undefined
-> => {
+> {
   const rootPath = resolve(scriptsDir);
   const selectedPath = resolve(path);
   const selectedName = basename(selectedPath);
@@ -288,30 +293,28 @@ export const resolveLooseScriptReference = async (
   const nativeRelativePath = relative(rootPath, selectedPath);
   const segments = nativeRelativePath.split(sep);
   let currentPath = rootPath;
-  try {
+  return yield* Effect.gen(function* () {
     for (const [index, segment] of segments.entries()) {
       currentPath = join(currentPath, segment);
-      const stat = await fs.lstat(currentPath);
-      if (stat.isSymbolicLink()) return undefined;
+      const stat = yield* lstatPath(currentPath);
+      if (stat.kind === "symbolic-link") return undefined;
 
       const isSelectedFile = index === segments.length - 1;
-      if (isSelectedFile ? !stat.isFile() : !stat.isDirectory()) {
+      if (isSelectedFile ? stat.kind !== "file" : stat.kind !== "directory") {
         return undefined;
       }
     }
-    const [realRootPath, realSelectedPath] = await Promise.all([
-      fs.realpath(rootPath),
-      fs.realpath(selectedPath),
-    ]);
+    const [realRootPath, realSelectedPath] = yield* Effect.all(
+      [realPath(rootPath), realPath(selectedPath)],
+      { concurrency: 2 },
+    );
     if (!isPathInside(realRootPath, realSelectedPath)) return undefined;
     return {
       kind: "loose",
       path: portablePath(relative(realRootPath, realSelectedPath)),
-    };
-  } catch {
-    return undefined;
-  }
-};
+    } satisfies ScriptReference;
+  }).pipe(Effect.orElseSucceed(() => undefined));
+});
 
 const resolveMainPath = async (
   packageRoot: string,
