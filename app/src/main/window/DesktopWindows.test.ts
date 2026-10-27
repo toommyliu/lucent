@@ -19,6 +19,7 @@ import {
 import {
   DEFAULT_APP_SETTINGS,
   normalizeAppSettings,
+  type AppSettings,
 } from "@lucent/core/settings";
 import { DesktopWindowKindSchema } from "../../shared/ipc/windows";
 import {
@@ -31,9 +32,13 @@ import {
   layer as desktopLifecycleLayer,
 } from "../app/DesktopLifecycle";
 import { installDesktopRendererObservability } from "../app/observability/DesktopRendererObservability";
+import { makeListenerRegistry } from "../app/ListenerRegistry";
 import { ElectronApp } from "../electron/ElectronApp";
 import { listen } from "../electron/NativeListener";
-import { GameSessions } from "../game/session/GameSessions";
+import {
+  ElectronGamePartitionError,
+  GameSessions,
+} from "../game/session/GameSessions";
 import { ElectronShell } from "../electron/ElectronShell";
 import { ElectronTheme } from "../electron/ElectronTheme";
 import {
@@ -72,6 +77,7 @@ const singleInstanceKinds = DesktopWindowKindSchema.literals.filter(
 
 const makeWindow = (id: number, devToolsFailure?: Error) => {
   let visible = false;
+  let title = "";
   return Object.assign(new EventEmitter(), {
     id,
     hide: () => {
@@ -88,7 +94,10 @@ const makeWindow = (id: number, devToolsFailure?: Error) => {
     getContentBounds: () => ({ x: 0, y: 0, width: 1200, height: 800 }),
     isDestroyed: () => false,
     isFocused: () => false,
-    setTitle: () => {},
+    getTitle: () => title,
+    setTitle: (value: string) => {
+      title = value;
+    },
     webContents: Object.assign(new EventEmitter(), {
       id,
       openDevTools: () => {
@@ -114,9 +123,12 @@ const makeHarness = (
     readonly devToolsFailure?: Error;
     readonly openExternal?: Effect.Effect<boolean>;
     readonly relayUrl?: Effect.Effect<string, RuffleSocketProxyError>;
+    readonly acquireGamePartition?: GameSessions["Service"]["acquireGamePartition"];
   } = {},
 ) => {
   let settingsRead: Effect.Effect<void> = Effect.void;
+  let currentSettings = normalizeAppSettings({ preferences: { useGameTabs } });
+  const settingsChanged = makeListenerRegistry<AppSettings>();
   let nextLoad: Effect.Effect<void, ElectronWindowLoadError> | undefined;
   let nextRendererId = 101;
   const created = new Map<number, ReturnType<typeof makeWindow>>();
@@ -180,14 +192,22 @@ const makeHarness = (
       DesktopSettings,
       DesktopSettings.of({
         get: Effect.suspend(() => settingsRead).pipe(
-          Effect.as(normalizeAppSettings({ preferences: { useGameTabs } })),
+          Effect.andThen(Effect.sync(() => currentSettings)),
         ),
-        onChanged: () => Effect.void,
+        onChanged: settingsChanged.subscribe,
         resetAppearance: Effect.succeed(DEFAULT_APP_SETTINGS),
         resetHotkeys: Effect.succeed(DEFAULT_APP_SETTINGS),
         updateAppearance: () => Effect.succeed(DEFAULT_APP_SETTINGS),
         updateHotkeys: () => Effect.succeed(DEFAULT_APP_SETTINGS),
-        updatePreferences: () => Effect.succeed(DEFAULT_APP_SETTINGS),
+        updatePreferences: (patch) =>
+          Effect.gen(function* () {
+            currentSettings = normalizeAppSettings({
+              ...currentSettings,
+              preferences: { ...currentSettings.preferences, ...patch },
+            });
+            yield* settingsChanged.publish(currentSettings);
+            return currentSettings;
+          }),
       }),
     ),
     Layer.succeed(
@@ -205,7 +225,9 @@ const makeHarness = (
     Layer.succeed(
       GameSessions,
       GameSessions.of({
-        acquireGamePartition: () => Effect.succeed("persist:game"),
+        acquireGamePartition:
+          options.acquireGamePartition ??
+          (() => Effect.succeed("persist:game")),
         clearAppData: Effect.void,
         prepareGameNetworking: Effect.void,
         retireManagedGameProfile: () => Effect.void,
@@ -294,6 +316,99 @@ const startOpen = (
   );
 
 describe("DesktopWindows.open", () => {
+  it.effect("refreshes titles while a host waits for its first tab", () =>
+    Effect.gen(function* () {
+      const acquiringPartition = yield* Deferred.make<void>();
+      const releasePartition = yield* Deferred.make<void>();
+      const harness = makeHarness(true, {
+        acquireGamePartition: (owner) =>
+          owner.kind === "managed-account"
+            ? Deferred.succeed(acquiringPartition, undefined).pipe(
+                Effect.andThen(Deferred.await(releasePartition)),
+                Effect.as("persist:managed"),
+              )
+            : Effect.succeed("persist:game"),
+      });
+      yield* Effect.gen(function* () {
+        const windows = yield* DesktopWindows;
+        const settings = yield* DesktopSettings;
+        const opening = yield* startOpen("game", {
+          managedGameProfileKey: "pending-account",
+        });
+        yield* Deferred.await(acquiringPartition);
+
+        expect(yield* windows.open("game")).toBe(107);
+        yield* windows.setGameViewName(107, "Alice");
+        const laterWindow = harness.created.get(104)!;
+        expect(laterWindow.getTitle()).toBe("Lucent (Dev)");
+
+        yield* settings.updatePreferences({
+          showGameUsernameInWindowTitle: true,
+        });
+        expect(laterWindow.getTitle()).toBe("Lucent (Dev) - Alice");
+        expect(yield* windows.describe(102)).toBeUndefined();
+        expect(yield* windows.describe(103)).toBeUndefined();
+
+        yield* Deferred.succeed(releasePartition, undefined);
+        expect(yield* Fiber.join(opening)).toBe(108);
+        expect(yield* windows.getRendererIds("game")).toEqual([107, 108]);
+        expect((yield* windows.getGameViewHostState(103)).selectedId).toBe(
+          "108",
+        );
+        const pendingWindow = harness.created.get(101)!;
+        expect(pendingWindow.getTitle()).toBe("Lucent (Dev)");
+        yield* windows.setGameViewName(108, "Bob");
+        expect(pendingWindow.getTitle()).toBe("Lucent (Dev) - Bob");
+
+        yield* settings.updatePreferences({
+          showGameUsernameInWindowTitle: false,
+        });
+        expect(laterWindow.getTitle()).toBe("Lucent (Dev)");
+        expect(pendingWindow.getTitle()).toBe("Lucent (Dev)");
+        expect(
+          harness.records.filter((record) => record.level === "error"),
+        ).toEqual([]);
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect(
+    "leaves no registered host when first-tab preparation fails",
+    () => {
+      const harness = makeHarness(true, {
+        acquireGamePartition: () =>
+          Effect.fail(
+            new ElectronGamePartitionError({
+              cause: "partition unavailable",
+              partition: "persist:managed",
+            }),
+          ),
+      });
+      return Effect.gen(function* () {
+        const windows = yield* DesktopWindows;
+        const settings = yield* DesktopSettings;
+        const error = yield* Effect.flip(
+          windows.open("game", { managedGameProfileKey: "failed-account" }),
+        );
+        expect(error.detail).toBe("Failed to open desktop window: game");
+        expect(error.cause).toMatchObject({
+          detail: "Failed to prepare an isolated Flash session.",
+        });
+        expect(yield* windows.getRendererIds("game")).toEqual([]);
+        expect(yield* windows.describe(102)).toBeUndefined();
+        expect(yield* windows.describe(103)).toBeUndefined();
+        yield* settings.updatePreferences({
+          showGameUsernameInWindowTitle: true,
+        });
+        expect(
+          harness.records.filter(
+            (record) => record.level === "warn" || record.level === "error",
+          ),
+        ).toEqual([]);
+      }).pipe(Effect.provide(harness.layer));
+    },
+  );
+
   it.effect(
     "keeps an opening top-level window alive after the last window closes",
     () => {
