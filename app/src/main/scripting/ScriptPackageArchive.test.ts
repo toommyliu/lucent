@@ -167,6 +167,18 @@ layer(NodeFileSystem.layer)("script package archives", (it) => {
       }),
   );
 
+  it.effect("reports a missing archive as a file error", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() => makeDirectory());
+
+      const error = yield* validateScriptPackageArchive(
+        join(root, "missing.tgz"),
+      ).pipe(Effect.flip);
+
+      expect(error._tag).toBe("FileNotFound");
+    }),
+  );
+
   it.effect("rejects symbolic links before extraction", () =>
     Effect.gen(function* () {
       const root = yield* Effect.promise(() => makeDirectory());
