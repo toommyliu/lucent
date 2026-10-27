@@ -241,7 +241,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
       }
       return Effect.gen(function* () {
         const { cause, session } = effect;
-        const error = sessionError("aborted", cause.reason, session.sessionId);
+        const error = sessionError(cause.reason);
         if (session.phase === "collecting") {
           yield* Effect.forEach(
             session.waiters,
@@ -377,9 +377,7 @@ export const makeArmyCoordinator = (): Effect.Effect<
                   state,
                   Result.fail(
                     new ArmyParticipantError({
-                      reason: "unavailable",
                       detail: "Army window is no longer available",
-                      playerName,
                     }),
                   ),
                 ),

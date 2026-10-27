@@ -235,7 +235,7 @@ export const makeArmyLoopTauntOrchestrator = Effect.fnUntraced(
       function* (payload, senderId) {
         const run = yield* requireRun(payload, senderId);
         if (run.status === "terminal") {
-          return yield* terminalReadinessError(run, run.terminal);
+          return yield* terminalReadinessError(run.terminal);
         }
         yield* Deferred.await(run.readinessGate);
       },

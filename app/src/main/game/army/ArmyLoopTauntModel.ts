@@ -26,23 +26,10 @@ export const MESSAGE_DEDUPE_MS = 500;
 export const REGISTRATION_TIMEOUT_MS = 30_000;
 export const SWEEP_RETRY_MS = 1_000;
 
-const LoopTauntReasons = Schema.Literals([
-  "inactive-run",
-  "already-registered",
-  "registration-failed",
-  "registration-mismatch",
-  "invalid-registration",
-  "invalid-report",
-  "sender-mismatch",
-]);
-
 export class ArmyLoopTauntError extends Schema.TaggedError<ArmyLoopTauntError>()(
   "ArmyLoopTauntError",
   {
-    reason: LoopTauntReasons,
     detail: Schema.String,
-    runId: Schema.optionalKey(Schema.String),
-    sessionId: Schema.String,
   },
 ) {
   override get message(): string {
@@ -220,15 +207,4 @@ export const mergeMutationEffects = (
   warnings: [...left.warnings, ...right.warnings],
 });
 
-export const loopError = (
-  reason: typeof LoopTauntReasons.Type,
-  detail: string,
-  sessionId: string,
-  runId?: string,
-) =>
-  new ArmyLoopTauntError({
-    reason,
-    detail,
-    sessionId,
-    ...(runId === undefined ? {} : { runId }),
-  });
+export const loopError = (detail: string) => new ArmyLoopTauntError({ detail });

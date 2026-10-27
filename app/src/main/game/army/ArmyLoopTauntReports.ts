@@ -28,7 +28,6 @@ import {
 } from "./ArmyLoopTauntModel";
 
 const validateTargetReport = (
-  run: RunState,
   participant: RunParticipant,
   report: Extract<
     ArmyLoopTauntReport,
@@ -46,10 +45,7 @@ const validateTargetReport = (
     target.lifeRevision !== report.lifeRevision
   ) {
     return loopError(
-      "invalid-report",
       `Loop taunt report does not match the sender target life for assignment ${report.assignmentId}`,
-      run.sessionId,
-      run.runId,
     );
   }
   return undefined;
@@ -155,10 +151,7 @@ const applyTargetState = (
   const existingTarget = participant.targets.get(report.assignmentId);
   if (existingTarget === undefined) {
     return loopError(
-      "invalid-report",
       `Loop taunt target state does not match sender assignment ${report.assignmentId}`,
-      inputRun.sessionId,
-      inputRun.runId,
     );
   }
   if (report.lifeRevision < existingTarget.lifeRevision) {
@@ -169,10 +162,7 @@ const applyTargetState = (
     report.monsterMapId !== existingTarget.monsterMapId
   ) {
     return loopError(
-      "invalid-report",
       `Loop taunt target map changed without a new life revision for assignment ${report.assignmentId}`,
-      inputRun.sessionId,
-      inputRun.runId,
     );
   }
   const rebound = existingTarget.monsterMapId !== report.monsterMapId;
@@ -213,7 +203,7 @@ const applyFocusState = (
   report: Extract<ArmyLoopTauntReport, { readonly type: "focus-state" }>,
   now: number,
 ): RunMutation | ArmyLoopTauntError => {
-  const invalid = validateTargetReport(inputRun, participant, report);
+  const invalid = validateTargetReport(participant, report);
   if (invalid !== undefined) return invalid;
   const current = inputRun.assignments.get(report.assignmentId)!;
   if (
@@ -262,7 +252,7 @@ const applyMessage = (
   report: Extract<ArmyLoopTauntReport, { readonly type: "message" }>,
   now: number,
 ): RunMutation | ArmyLoopTauntError => {
-  const invalid = validateTargetReport(inputRun, participant, report);
+  const invalid = validateTargetReport(participant, report);
   if (invalid !== undefined) return invalid;
   const current = inputRun.assignments.get(report.assignmentId)!;
   if (

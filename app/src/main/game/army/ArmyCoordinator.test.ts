@@ -119,9 +119,7 @@ describe("ArmyCoordinator", () => {
 
         expect(error).toMatchObject({
           _tag: "ArmyParticipantError",
-          reason: "unavailable",
           message: "Army window is no longer available",
-          playerName: "Alice",
         });
         expect(yield* coordinator.getSessions()).toEqual([]);
       }),
@@ -807,7 +805,6 @@ describe("army checkpoint cursor", () => {
         coordinator.sync(session.sessionId, 1, { step: 1 }),
       );
       expect(error).toMatchObject({
-        reason: "signature-mismatch",
         message: "Army step mismatch: expected step 0, received step 1",
       });
       expect(events).toEqual([
@@ -846,7 +843,6 @@ describe("army checkpoint cursor", () => {
       expect(yield* report(1)).toEqual(done);
       expect(yield* report(1)).toEqual(done);
       expect(yield* Effect.flip(report(0))).toMatchObject({
-        reason: "completed-step",
         message: "Army step 0 has already completed",
       });
       expect(yield* coordinator.getSessions()).toEqual([]);
@@ -877,7 +873,6 @@ describe("army checkpoint cursor", () => {
               : coordinator.progress(session.sessionId, 1, payload),
           );
           expect(error).toMatchObject({
-            reason: "completed-step",
             message: "Army step 0 has already completed",
           });
           expect(yield* coordinator.getSessions()).toEqual([]);

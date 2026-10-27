@@ -200,20 +200,10 @@ export const runForPayload = (
 ): RunState | ArmyLoopTauntError => {
   const run = state.runs.get(payload.runId);
   if (run === undefined) {
-    return loopError(
-      "inactive-run",
-      "Loop taunt run is not active",
-      payload.sessionId,
-      payload.runId,
-    );
+    return loopError("Loop taunt run is not active");
   }
   if (!run.participants.has(senderId)) {
-    return loopError(
-      "sender-mismatch",
-      "Loop taunt sender is not registered for this run",
-      payload.sessionId,
-      payload.runId,
-    );
+    return loopError("Loop taunt sender is not registered for this run");
   }
   return run;
 };
@@ -378,9 +368,7 @@ export const registerRun = (
   if (invalid !== undefined) {
     return {
       effects: noEffects(),
-      result: Result.fail(
-        loopError("invalid-registration", invalid, payload.sessionId),
-      ),
+      result: Result.fail(loopError(invalid)),
       slot,
     };
   }
@@ -419,14 +407,7 @@ export const registerRun = (
     if (mismatch !== undefined) {
       return {
         effects: noEffects(),
-        result: Result.fail(
-          loopError(
-            "registration-mismatch",
-            mismatch,
-            payload.sessionId,
-            run.runId,
-          ),
-        ),
+        result: Result.fail(loopError(mismatch)),
         slot,
       };
     }
@@ -434,14 +415,7 @@ export const registerRun = (
   if (run.participants.has(participant.id)) {
     return {
       effects: noEffects(),
-      result: Result.fail(
-        loopError(
-          "already-registered",
-          "Loop taunt sender is already registered",
-          payload.sessionId,
-          run.runId,
-        ),
-      ),
+      result: Result.fail(loopError("Loop taunt sender is already registered")),
       slot,
     };
   }

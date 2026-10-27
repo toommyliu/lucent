@@ -600,16 +600,12 @@ export const matchesMessage = (actual: string, configured: string): boolean => {
 };
 
 export const terminalReadinessError = (
-  run: Pick<RunState, "sessionId" | "runId">,
   result: ArmyLoopTauntTerminalResult | undefined,
 ): ArmyLoopTauntError =>
   loopError(
-    "registration-failed",
     result?.status === "failed"
       ? result.reason
       : "Loop taunt registration was superseded",
-    run.sessionId,
-    run.runId,
   );
 
 interface RunGateSettlement {
@@ -622,7 +618,7 @@ const runGateSettlement = (
   result: ArmyLoopTauntTerminalResult,
 ): RunGateSettlement => ({
   readiness: {
-    error: terminalReadinessError(run, result),
+    error: terminalReadinessError(result),
     gate: run.readinessGate,
     type: "fail",
   },
