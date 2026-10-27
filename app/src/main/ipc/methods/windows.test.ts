@@ -50,33 +50,39 @@ it.effect.each([
 
 it.effect.each([
   { senderKind: "game", kind: "environment", options: { ownerRendererId: 42 } },
-  { senderKind: "game", kind: "loader-grabber", options: { ownerRendererId: 42 } },
+  {
+    senderKind: "game",
+    kind: "loader-grabber",
+    options: { ownerRendererId: 42 },
+  },
   { senderKind: "game", kind: "follower", options: { ownerRendererId: 42 } },
   { senderKind: "game", kind: "packets", options: { ownerRendererId: 42 } },
   { senderKind: "game", kind: "account-manager", options: undefined },
   { senderKind: "game", kind: "combat-profiles", options: undefined },
   { senderKind: "follower", kind: "combat-profiles", options: undefined },
-] as const)("allows $senderKind opening $kind", ({ senderKind, kind, options }) =>
-  Effect.gen(function* () {
-    const opened: unknown[] = [];
-    const result = yield* open
-      .handler(
-        { kind },
-        { kind: senderKind, rendererId: 42, lifetime: makeLifetime(42) },
-      )
-      .pipe(
-        Effect.provide(
-          Layer.mock(DesktopWindows, {
-            open: (windowKind, windowOptions) =>
-              Effect.sync(() => {
-                opened.push({ kind: windowKind, options: windowOptions });
-                return 142;
-              }),
-          }),
-        ),
-      );
+] as const)(
+  "allows $senderKind opening $kind",
+  ({ senderKind, kind, options }) =>
+    Effect.gen(function* () {
+      const opened: unknown[] = [];
+      const result = yield* open
+        .handler(
+          { kind },
+          { kind: senderKind, rendererId: 42, lifetime: makeLifetime(42) },
+        )
+        .pipe(
+          Effect.provide(
+            Layer.mock(DesktopWindows, {
+              open: (windowKind, windowOptions) =>
+                Effect.sync(() => {
+                  opened.push({ kind: windowKind, options: windowOptions });
+                  return 142;
+                }),
+            }),
+          ),
+        );
 
-    expect(result).toBe("142");
-    expect(opened).toEqual([{ kind, options }]);
-  }),
+      expect(result).toBe("142");
+      expect(opened).toEqual([{ kind, options }]);
+    }),
 );
