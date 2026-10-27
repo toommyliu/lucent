@@ -1,5 +1,8 @@
-import { pathExists } from "../filesystem/BoundedFileSystem";
-import { promises as fs } from "node:fs";
+import {
+  lstatPath,
+  pathExists,
+  readDirectoryEntries,
+} from "../filesystem/BoundedFileSystem";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
@@ -81,9 +84,9 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
     yield* jsonFile.write(historyPath, next);
     history = next;
   }, Effect.uninterruptible);
-  yield* Effect.tryPromise(() => fs.mkdir(packagesDir, { recursive: true }));
-  const packagesStat = yield* Effect.tryPromise(() => fs.lstat(packagesDir));
-  if (!packagesStat.isDirectory() || packagesStat.isSymbolicLink()) {
+  yield* fileSystem.makeDirectory(packagesDir, { recursive: true });
+  const packagesStat = yield* lstatPath(packagesDir);
+  if (packagesStat.kind !== "directory") {
     return yield* new BundledScriptPackageSetupError({
       detail: "Automatic package setup requires a regular packages directory.",
     });
@@ -110,9 +113,10 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
       }
 
       yield* Effect.acquireUseRelease(
-        Effect.tryPromise(() =>
-          fs.mkdtemp(join(env.workspaceDir, ".lucent-package-seed-")),
-        ),
+        fileSystem.makeTempDirectory({
+          directory: env.workspaceDir,
+          prefix: ".lucent-package-seed-",
+        }),
         (stagingRoot) =>
           Effect.gen(function* () {
             const staged = join(stagingRoot, "package");
@@ -150,8 +154,9 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
               update: { status: "unchecked" },
             };
             if (existing === undefined) {
-              yield* Effect.tryPromise(() =>
-                fs.rename(staged, packageDirectoryPath(packagesDir, directory)),
+              yield* fileSystem.rename(
+                staged,
+                packageDirectoryPath(packagesDir, directory),
               );
               packagesChanged = true;
             }
@@ -160,18 +165,18 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
             yield* finish(name);
           }),
         (stagingRoot) =>
-          Effect.tryPromise(() =>
-            fs.rm(stagingRoot, { recursive: true, force: true }),
-          ).pipe(
-            Effect.catch((cause) =>
-              Effect.logWarning(
-                "Failed to clean bundled package staging.",
-                Cause.fail(cause),
-              ).pipe(
-                Effect.annotateLogs({ component: "bundled-script-packages" }),
+          fileSystem
+            .remove(stagingRoot, { recursive: true, force: true })
+            .pipe(
+              Effect.catch((cause) =>
+                Effect.logWarning(
+                  "Failed to clean bundled package staging.",
+                  Cause.fail(cause),
+                ).pipe(
+                  Effect.annotateLogs({ component: "bundled-script-packages" }),
+                ),
               ),
             ),
-          ),
       );
     },
     Effect.uninterruptible,
@@ -179,12 +184,11 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
   );
 
   if (yield* pathExists(sourceRoot)) {
-    const entries = yield* Effect.tryPromise(() =>
-      fs.readdir(sourceRoot, { withFileTypes: true }),
+    const entries = (yield* readDirectoryEntries(sourceRoot)).toSorted(
+      (left, right) => left.name.localeCompare(right.name),
     );
-    entries.sort((left, right) => left.name.localeCompare(right.name));
     for (const entry of entries) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      if (entry.kind !== "directory") continue;
       yield* install(entry.name).pipe(
         Effect.catch((cause) =>
           Effect.logWarning(

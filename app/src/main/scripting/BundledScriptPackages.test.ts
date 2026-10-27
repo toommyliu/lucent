@@ -25,7 +25,7 @@ import {
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
 import { hashDirectory } from "./ScriptPackageFileSystem";
-import { pathExists } from "../filesystem/BoundedFileSystem";
+import { nativeFileError, pathExists } from "../filesystem/BoundedFileSystem";
 import {
   layer as stateLayer,
   ScriptPackageState,
@@ -35,8 +35,8 @@ import {
 vi.mock("electron", () => ({ app: {} }));
 
 const directories: string[] = [];
-const decodeSetupState = Schema.decodeUnknownSync(
-  BundledScriptPackageSetupSchema,
+const decodeSetupStateJson = Schema.decodeUnknownSync(
+  Schema.fromJsonString(BundledScriptPackageSetupSchema),
 );
 
 const write = async (path: string, contents: string): Promise<void> => {
@@ -704,24 +704,26 @@ layer(desktopFileSystemLayer)("bundled script packages", (it) => {
       Effect.gen(function* () {
         const fixture = yield* Effect.promise(makeFixture);
         yield* Effect.promise(() => fixture.addPackage("a"));
-        const rename = fs.rename;
-        const failure = vi
-          .spyOn(fs, "rename")
-          .mockImplementation(async (source, target) => {
-            if (String(target) === fixture.historyPath) {
-              const contents = await fs.readFile(source, "utf8");
-              if (
-                decodeSetupState(
-                  JSON.parse(contents) as unknown,
-                ).completed.includes("a")
-              ) {
-                throw new Error("Simulated failure recording completed setup");
-              }
-            }
-            return rename(source, target);
-          });
-        const initial = yield* fixture.start();
-        failure.mockRestore();
+        let historyFailures = 0;
+        const failingHistory = fileSystemLayer((real) => ({
+          rename: (source, target) =>
+            target === fixture.historyPath
+              ? Effect.gen(function* () {
+                  const contents = yield* real.readFileString(source);
+                  if (decodeSetupStateJson(contents).completed.includes("a")) {
+                    historyFailures += 1;
+                    return yield* nativeFileError(
+                      "rename",
+                      source,
+                      new Error("Simulated failure recording completed setup"),
+                    );
+                  }
+                  return yield* real.rename(source, target);
+                })
+              : real.rename(source, target),
+        }));
+        const initial = yield* fixture.start(false, failingHistory);
+        expect(historyFailures).toBe(1);
         const installed = initial.managed[0];
         if (installed === undefined)
           throw new Error("Package was not installed");
@@ -777,20 +779,24 @@ layer(desktopFileSystemLayer)("bundled script packages", (it) => {
     Effect.gen(function* () {
       const fixture = yield* Effect.promise(makeFixture);
       yield* Effect.promise(() => fixture.addPackage("a"));
-      const rename = fs.rename;
-      const failure = vi
-        .spyOn(fs, "rename")
-        .mockImplementation(async (source, target) => {
-          if (
-            String(source).endsWith("/package") &&
-            String(target).endsWith("/packages/a")
-          ) {
-            throw new Error("Simulated interruption before publication");
+      let publicationFailures = 0;
+      const failingPublication = fileSystemLayer((real) => ({
+        rename: (source, target) => {
+          if (source.endsWith("/package") && target.endsWith("/packages/a")) {
+            publicationFailures += 1;
+            return Effect.fail(
+              nativeFileError(
+                "rename",
+                source,
+                new Error("Simulated interruption before publication"),
+              ),
+            );
           }
-          return rename(source, target);
-        });
-      yield* fixture.start();
-      failure.mockRestore();
+          return real.rename(source, target);
+        },
+      }));
+      yield* fixture.start(false, failingPublication);
+      expect(publicationFailures).toBe(1);
       expect(yield* pathExists(fixture.historyPath)).toBe(false);
       expect(
         (yield* Effect.promise(() => fs.readdir(fixture.workspace))).filter(
