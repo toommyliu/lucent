@@ -175,9 +175,9 @@ export const layer = Layer.effect(
       Effect.map(toResult),
     );
 
-    const getPings: AccountServersShape["getPings"] = getCachedServers(false).pipe(
-      Effect.flatMap((servers) => Cache.get(pingCache, servers)),
-    );
+    const getPings: AccountServersShape["getPings"] = getCachedServers(
+      false,
+    ).pipe(Effect.flatMap((servers) => Cache.get(pingCache, servers)));
 
     const refresh: AccountServersShape["refresh"] = Effect.gen(function* () {
       const timestamp = yield* Clock.currentTimeMillis;
