@@ -828,7 +828,7 @@ describe("terminal script resolution logging", () => {
         });
         expect(malformed).toMatchObject({
           status: "failed",
-          message: "Script source could not be parsed.",
+          message: "Script source could not be parsed: Unexpected token (1:28)",
         });
         expect(invalidImport).toMatchObject({
           status: "failed",
