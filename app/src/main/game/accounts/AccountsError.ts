@@ -1,7 +1,6 @@
 import * as Schema from "effect/Schema";
 
 export const AccountOperationSchema = Schema.Literals([
-  "close-game-window",
   "create-account",
   "create-group",
   "delete-account",

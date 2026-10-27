@@ -30,6 +30,7 @@ import {
 } from "./AccountGameWindows";
 import * as AccountRepository from "./AccountRepository";
 import { retireManagedGamePartitionProfile } from "../session/GamePartitions";
+import { ElectronGamePartitionError } from "../session/GameSessions";
 import { Accounts, layer as accountsLayer } from "./Accounts";
 import { AccountsError } from "./AccountsError";
 import * as AccountSessions from "./AccountSessions";
@@ -45,11 +46,14 @@ afterEach(async () => {
 
 interface HarnessOptions {
   readonly wrapFileSystem?: (fs: FileSystem) => FileSystem;
-  readonly beforeSetName?: () => Effect.Effect<void, unknown>;
-  readonly beforeOpen?: () => Effect.Effect<void, unknown>;
+  readonly beforeSetName?: () => Effect.Effect<void, DesktopWindowError>;
+  readonly beforeOpen?: () => Effect.Effect<void, DesktopWindowError>;
   readonly onManagedProfileKey?: (key: string | undefined) => void;
   readonly onRetireProfile?: (key: string) => void;
-  readonly beforeRetireProfile?: () => Effect.Effect<void, unknown>;
+  readonly beforeRetireProfile?: () => Effect.Effect<
+    void,
+    ElectronGamePartitionError
+  >;
   readonly onSetName?: (gameWindowId: number, name: string) => void;
   readonly onWindowTarget?: (
     windowTarget: AccountLaunchWindowTarget | undefined,
@@ -70,13 +74,13 @@ const makeHarness = (harnessOptions: HarnessOptions = {}) =>
       workspaceDir: join(appDataDir, "workspace"),
     });
     const closedListeners = new Set<
-      (gameWindowId: number) => Effect.Effect<void, unknown>
+      (gameWindowId: number) => Effect.Effect<void>
     >();
     const createdListeners = new Set<
-      (event: AccountGameWindowEvent) => Effect.Effect<void, unknown>
+      (event: AccountGameWindowEvent) => Effect.Effect<void>
     >();
     const reloadedListeners = new Set<
-      (event: AccountGameWindowEvent) => Effect.Effect<void, unknown>
+      (event: AccountGameWindowEvent) => Effect.Effect<void>
     >();
     let nextWindowId = 1;
     const gameWindows = AccountGameWindows.of({
@@ -522,7 +526,14 @@ describe("Accounts", () => {
       let failOpen = false;
       const layer = yield* makeHarness({
         beforeOpen: () =>
-          failOpen ? Effect.fail(new Error("Window unavailable")) : Effect.void,
+          failOpen
+            ? Effect.fail(
+                new DesktopWindowError({
+                  id: "game",
+                  detail: "Window unavailable",
+                }),
+              )
+            : Effect.void,
       });
       return yield* Effect.gen(function* () {
         const accounts = yield* Accounts;
@@ -960,7 +971,12 @@ describe("account profile retirement logging", () => {
         const layer = yield* makeHarness({
           beforeRetireProfile: () =>
             fail
-              ? Effect.fail(new Error("profile cleanup failed"))
+              ? Effect.fail(
+                  new ElectronGamePartitionError({
+                    cause: new Error("profile cleanup failed"),
+                    partition: "test-partition",
+                  }),
+                )
               : Effect.void,
         });
         yield* Effect.gen(function* () {
@@ -979,8 +995,14 @@ describe("account profile retirement logging", () => {
               component: "accounts",
               data: { count: 2 },
               error: [
-                { message: "profile cleanup failed" },
-                { message: "profile cleanup failed" },
+                {
+                  message:
+                    "Failed to prepare isolated game partition: test-partition.",
+                },
+                {
+                  message:
+                    "Failed to prepare isolated game partition: test-partition.",
+                },
               ],
             },
           ]);
@@ -1026,7 +1048,7 @@ it.effect("keeps missing game profiles silent after account removal", () =>
               fileSystem,
             ),
           ).toBe(false);
-        }),
+        }).pipe(Effect.orDie),
     });
     yield* Effect.gen(function* () {
       const accounts = yield* Accounts;

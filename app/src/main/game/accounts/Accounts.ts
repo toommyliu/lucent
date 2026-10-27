@@ -397,15 +397,6 @@ const makeAccounts = Effect.gen(function* () {
         Effect.forEach(uniqueIds, closeWindowSession, { discard: true }),
       ),
       Effect.andThen(getState),
-      Effect.mapError((cause) =>
-        cause instanceof AccountsError
-          ? cause
-          : accountError(
-              "close-game-window",
-              "Failed to close game windows",
-              cause,
-            ),
-      ),
     );
   };
 
@@ -595,10 +586,8 @@ const makeAccounts = Effect.gen(function* () {
       }
       return { gameWindowId: resolvedGameWindowId };
     }).pipe(
-      Effect.mapError((cause) =>
-        cause instanceof AccountsError
-          ? cause
-          : accountError("launch", "Failed to launch account", cause),
+      Effect.catchTag("DesktopWindowError", (cause) =>
+        Effect.fail(accountError("launch", "Failed to launch account", cause)),
       ),
     );
 
@@ -634,14 +623,14 @@ const makeAccounts = Effect.gen(function* () {
         return result;
       }).pipe(Effect.ensuring(Effect.sync(() => reopening.delete(id))));
     },
-    Effect.mapError((cause) =>
-      cause instanceof AccountsError
-        ? cause
-        : accountError(
-            "reopen-game-window",
-            "Unable to reopen the tab. Try again.",
-            cause,
-          ),
+    Effect.catchTag("DesktopWindowError", (cause) =>
+      Effect.fail(
+        accountError(
+          "reopen-game-window",
+          "Unable to reopen the tab. Try again.",
+          cause,
+        ),
+      ),
     ),
   );
 
