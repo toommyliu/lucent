@@ -261,6 +261,87 @@ describe("army start IPC", () => {
     ),
   );
 
+  it.effect.each(["succeeds", "fails"] as const)(
+    "joins the session created while another first joiner's load %s",
+    (outcome) =>
+      Effect.gen(function* () {
+        const reading = yield* Deferred.make<void>();
+        const released = yield* Deferred.make<
+          ArmyConfigPayload,
+          ArmyConfigRepositoryError
+        >();
+        let reads = 0;
+        const read = () =>
+          Effect.suspend(() => {
+            reads += 1;
+            return reads === 1
+              ? Deferred.succeed(reading, undefined).pipe(
+                  Effect.andThen(Deferred.await(released)),
+                )
+              : Effect.succeed(farmConfig);
+          });
+
+        yield* runStartIpc(read, (_windows, invokeStart) =>
+          Effect.gen(function* () {
+            const bob = yield* invokeStart("farm", "Bob", 8);
+            yield* Deferred.await(reading);
+            const alice = yield* invokeStart("farm");
+            const coordinator = yield* ArmyCoordinator;
+            const sessions = yield* coordinator.getSessions().pipe(
+              Effect.tap(() => Effect.yieldNow),
+              Effect.repeat({
+                until: (sessions) => sessions.length > 0,
+                times: 10,
+              }),
+            );
+            expect(sessions.map((session) => session.phase)).toEqual([
+              "collecting",
+            ]);
+
+            if (outcome === "succeeds") {
+              yield* Deferred.succeed(released, {
+                ...farmConfig,
+                players: ["Bob"],
+                raw: { players: ["Bob"], room: "9876" },
+                room: 9876,
+              });
+            } else {
+              yield* Deferred.fail(
+                released,
+                new ArmyConfigRepositoryError({
+                  operation: "parse",
+                  configName: "farm",
+                  cause: new Error("Broken edit"),
+                }),
+              );
+            }
+
+            expect(yield* Fiber.join(bob)).toMatchObject({
+              ok: true,
+              value: {
+                configName: "farm",
+                playerName: "Bob",
+                playerNumber: 2,
+                players: ["Alice", "Bob"],
+                role: "member",
+                room: 1234,
+              },
+            });
+            expect(yield* Fiber.join(alice)).toMatchObject({
+              ok: true,
+              value: { playerName: "Alice", role: "leader", room: 1234 },
+            });
+            expect(
+              (yield* coordinator.getSessions()).map((session) => ({
+                configName: session.config.configName,
+                phase: session.phase,
+              })),
+            ).toEqual([{ configName: "farm", phase: "active" }]);
+          }),
+        );
+      }),
+  );
+
   for (const lifecycle of ["closed", "reloaded", "crashed"] as const) {
     it.effect(
       `does not seat a game renderer ${lifecycle} while its army config loads`,

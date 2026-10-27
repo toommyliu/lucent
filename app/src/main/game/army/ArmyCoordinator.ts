@@ -142,11 +142,12 @@ export interface ArmyCoordinatorShape {
   readonly getLoopTauntSlot: (
     sessionId: string,
   ) => Effect.Effect<LoopTauntSlot | undefined>;
-  readonly join: (
-    config: ArmyConfigPayload,
+  readonly join: <E, R>(
+    configName: string,
+    load: Effect.Effect<ArmyConfigPayload, E, R>,
     playerName: string,
     participant: ArmyParticipant,
-  ) => Effect.Effect<ArmySessionPayload, ArmyCoordinatorError>;
+  ) => Effect.Effect<ArmySessionPayload, ArmyCoordinatorError | E, R>;
   readonly leave: (participantId: ArmyParticipantId) => Effect.Effect<void>;
   readonly onSessionEnded: (
     listener: (event: ArmySessionEndedEvent) => Effect.Effect<void, unknown>,
@@ -328,12 +329,37 @@ export const makeArmyCoordinator = (): Effect.Effect<
       );
 
     const join: ArmyCoordinatorShape["join"] = (
-      config,
+      configName,
+      load,
       playerName,
       participant,
     ) =>
       Effect.uninterruptibleMask((restore) =>
         Effect.gen(function* () {
+          const getConfig = Ref.get(stateRef).pipe(
+            Effect.map(
+              (state) =>
+                [...state.sessions.values()].find(
+                  (session) => session.config.configName === configName,
+                )?.config,
+            ),
+          );
+          const existing = yield* getConfig;
+          const config =
+            existing ??
+            (yield* restore(
+              load.pipe(
+                Effect.catch((error) =>
+                  getConfig.pipe(
+                    Effect.flatMap((config) =>
+                      config === undefined
+                        ? Effect.fail(error)
+                        : Effect.succeed(config),
+                    ),
+                  ),
+                ),
+              ),
+            ));
           const waiter = yield* Deferred.make<void, ArmyCoordinatorError>();
           const joined = yield* dispatch((state, nowMs) =>
             participant.isCurrent()

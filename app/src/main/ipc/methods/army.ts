@@ -26,8 +26,12 @@ export const start = makeDesktopIpcMethod({
   handler: Effect.fn("desktop.ipc.army.start")(function* (payload, sender) {
     const configs = yield* ArmyConfigRepository;
     const coordinator = yield* ArmyCoordinator;
-    const config = yield* configs.read(payload.configName);
-    return yield* coordinator.join(config, payload.playerName, sender.lifetime);
+    return yield* coordinator.join(
+      payload.configName,
+      configs.read(payload.configName),
+      payload.playerName,
+      sender.lifetime,
+    );
   }),
 });
 
