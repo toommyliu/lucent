@@ -181,6 +181,28 @@ export const nativeFileError = (
   });
 };
 
+export interface PathInfo {
+  readonly kind: "file" | "directory" | "symbolic-link" | "other";
+  readonly size: number;
+  readonly mode: number;
+}
+
+export const lstatPath = Effect.fnUntraced(function* (path: string) {
+  const info = yield* lstat(path).pipe(Effect.mapError(fileReadError(path)));
+  return {
+    kind: fileKind(info),
+    size: info.size,
+    mode: info.mode,
+  } satisfies PathInfo;
+});
+
+export const pathExists = Effect.fnUntraced(function* (path: string) {
+  return yield* lstatPath(path).pipe(
+    Effect.as(true),
+    Effect.catchTag("FileNotFound", () => Effect.succeed(false)),
+  );
+});
+
 export const lstat = (path: string) =>
   Effect.tryPromise({
     try: () => fs.lstat(path),

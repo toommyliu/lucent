@@ -1,3 +1,4 @@
+import { pathExists } from "../filesystem/BoundedFileSystem";
 import { basename, dirname, join, resolve } from "node:path";
 
 import * as Cause from "effect/Cause";
@@ -39,7 +40,6 @@ import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
 import {
   allocatePackageDirectory,
   packageDirectoryPath,
-  pathExists,
 } from "./ScriptPackageDirectories";
 import {
   ScriptPackageState,
@@ -314,15 +314,15 @@ export const layer = Layer.effect(
             }),
           ),
         );
-        const destinationExists = yield* Effect.tryPromise({
-          try: () => pathExists(destination),
-          catch: (cause) =>
+        const destinationExists = yield* pathExists(destination).pipe(
+          Effect.mapError((cause) =>
             managerError(
               "replace",
               "Failed to inspect the package destination.",
               cause,
             ),
-        });
+          ),
+        );
         yield* fileSystem
           .makeDirectory(dirname(destination), { recursive: true })
           .pipe(
@@ -610,39 +610,38 @@ export const layer = Layer.effect(
               const reservedDirectories = new Set(
                 (yield* state.getAll).map((entry) => entry.directory),
               );
-              const directory = yield* Effect.tryPromise({
-                try: async () => {
-                  if (savedPackage !== undefined) {
-                    return savedPackage.directory;
-                  }
-                  if (matchingPackage !== undefined) {
-                    return decodePackageDirectory(
-                      basename(matchingPackage.path),
-                    );
-                  }
-                  return allocatePackageDirectory(
-                    packagesDir,
-                    packageName,
-                    reservedDirectories,
-                  );
-                },
-                catch: (cause) =>
-                  managerError(
-                    "validate",
-                    "Failed to choose a package folder.",
-                    cause,
-                  ),
-              });
+              const folderError = (cause: unknown) =>
+                managerError(
+                  "validate",
+                  "Failed to choose a package folder.",
+                  cause,
+                );
+              const directory =
+                savedPackage !== undefined
+                  ? savedPackage.directory
+                  : matchingPackage !== undefined
+                    ? yield* Effect.try({
+                        try: () =>
+                          decodePackageDirectory(
+                            basename(matchingPackage.path),
+                          ),
+                        catch: folderError,
+                      })
+                    : yield* allocatePackageDirectory(
+                        packagesDir,
+                        packageName,
+                        reservedDirectories,
+                      ).pipe(Effect.mapError(folderError));
               const destination = packageDirectoryPath(packagesDir, directory);
-              const destinationExists = yield* Effect.tryPromise({
-                try: () => pathExists(destination),
-                catch: (cause) =>
+              const destinationExists = yield* pathExists(destination).pipe(
+                Effect.mapError((cause) =>
                   managerError(
                     "validate",
                     "Failed to inspect the package destination.",
                     cause,
                   ),
-              });
+                ),
+              );
               if (
                 destinationExists &&
                 savedPackage === undefined &&

@@ -23,7 +23,7 @@ import {
   ScriptPackageCatalog,
 } from "./ScriptPackageCatalog";
 import { hashDirectory } from "./ScriptPackageFileSystem";
-import { pathExists } from "./ScriptPackageDirectories";
+import { pathExists } from "../filesystem/BoundedFileSystem";
 import {
   layer as stateLayer,
   ScriptPackageState,
@@ -168,9 +168,7 @@ describe("bundled script packages", () => {
     Effect.gen(function* () {
       const fixture = yield* Effect.promise(makeFixture);
       expect((yield* fixture.start()).managed).toEqual([]);
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
 
       yield* Effect.promise(() => fixture.addPackage("a"));
       expect((yield* fixture.start()).managed).toMatchObject([{ name: "a" }]);
@@ -275,9 +273,7 @@ describe("bundled script packages", () => {
             fs.readFile(join(packages, "b", "index.js"), "utf8"),
           ),
         ).toContain('"3.0.0"');
-        expect(
-          yield* Effect.promise(() => pathExists(join(packages, "a"))),
-        ).toBe(false);
+        expect(yield* pathExists(join(packages, "a"))).toBe(false);
         expect(yield* Effect.promise(fixture.readHistory)).toEqual({
           version: 1,
           completed: ["a", "b", "c"],
@@ -484,9 +480,7 @@ describe("bundled script packages", () => {
       const fixture = yield* Effect.promise(makeFixture);
       yield* Effect.promise(() => fixture.addPackage("a"));
       yield* fixture.start(true);
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
       const file = join(fixture.workspace, "packages", "a", "index.js");
       yield* Effect.promise(async () => {
         await write(`${file}.tmp`, "user edits\n");
@@ -511,9 +505,7 @@ describe("bundled script packages", () => {
       const fixture = yield* Effect.promise(makeFixture);
       yield* Effect.promise(() => fixture.addPackage("a"));
       yield* fixture.start(true);
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
       yield* TestClock.setTime(1234567890000);
       const result = yield* fixture.start();
       expect(result.catalog.packages).toMatchObject([
@@ -572,9 +564,7 @@ describe("bundled script packages", () => {
             fs.readdir(join(fixture.workspace, "packages")),
           ),
         ).toEqual(["a-2"]);
-        expect(
-          yield* Effect.promise(() => pathExists(fixture.historyPath)),
-        ).toBe(false);
+        expect(yield* pathExists(fixture.historyPath)).toBe(false);
 
         const recovered = yield* fixture.start();
         expect(recovered.managed).toMatchObject([
@@ -789,19 +779,15 @@ describe("bundled script packages", () => {
         });
       yield* fixture.start();
       failure.mockRestore();
-      expect(yield* Effect.promise(() => pathExists(fixture.historyPath))).toBe(
-        false,
-      );
+      expect(yield* pathExists(fixture.historyPath)).toBe(false);
       expect(
         (yield* Effect.promise(() => fs.readdir(fixture.workspace))).filter(
           (name) => name.startsWith(".lucent-package-seed-"),
         ),
       ).toEqual([]);
-      expect(
-        yield* Effect.promise(() =>
-          pathExists(join(fixture.workspace, "packages", "a")),
-        ),
-      ).toBe(false);
+      expect(yield* pathExists(join(fixture.workspace, "packages", "a"))).toBe(
+        false,
+      );
       yield* Effect.promise(() => fixture.addPackage("a", "a", "2.0.0"));
       expect((yield* fixture.start()).catalog.packages).toMatchObject([
         { name: "a", version: "2.0.0", integrity: "verified" },

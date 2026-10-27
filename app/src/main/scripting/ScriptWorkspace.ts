@@ -1,5 +1,4 @@
-import { nativeCause } from "../filesystem/BoundedFileSystem";
-import { promises as fs } from "node:fs";
+import { lstat, nativeCause } from "../filesystem/BoundedFileSystem";
 import { join } from "node:path";
 
 import * as Context from "effect/Context";
@@ -103,10 +102,7 @@ export const layer = Layer.effect(
         yield* fileSystem
           .makeDirectory(path, { mode: 0o700, recursive: true })
           .pipe(Effect.mapError((cause) => nativeCause(cause)));
-        const info = yield* Effect.tryPromise({
-          try: () => fs.lstat(path),
-          catch: (cause) => cause,
-        });
+        const info = yield* lstat(path).pipe(Effect.mapError(nativeCause));
         if (!info.isDirectory())
           return yield* Effect.fail(
             new Error(`Expected a directory at ${path}.`),

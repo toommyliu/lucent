@@ -1,3 +1,4 @@
+import { pathExists } from "../filesystem/BoundedFileSystem";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -24,7 +25,6 @@ import { ScriptPackageCatalog } from "./ScriptPackageCatalog";
 import {
   allocatePackageDirectory,
   packageDirectoryPath,
-  pathExists,
 } from "./ScriptPackageDirectories";
 import { hashDirectory } from "./ScriptPackageFileSystem";
 import {
@@ -134,9 +134,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
           );
           const directory =
             existing?.directory ??
-            (yield* Effect.tryPromise(() =>
-              allocatePackageDirectory(packagesDir, name, reserved),
-            ));
+            (yield* allocatePackageDirectory(packagesDir, name, reserved));
           const subdirectory = yield* decodePackageSubdirectory(
             `script-packages/${sourceDirectory}`,
           );
@@ -179,7 +177,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
     );
   }, Effect.uninterruptible);
 
-  if (yield* Effect.tryPromise(() => pathExists(sourceRoot))) {
+  if (yield* pathExists(sourceRoot)) {
     const entries = yield* Effect.tryPromise(() =>
       fs.readdir(sourceRoot, { withFileTypes: true }),
     );

@@ -1,6 +1,6 @@
-import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import {
@@ -8,7 +8,7 @@ import {
   ScriptPackageNameSchema,
   type ScriptPackageDirectory,
 } from "@lucent/core/scriptPackages";
-import { isMissingFileError } from "../filesystem/BoundedFileSystem";
+import { pathExists } from "../filesystem/BoundedFileSystem";
 import { SCRIPT_PACKAGE_DIRECTORY_SLUG_MAX_BYTES } from "./ScriptLimits";
 
 const decodePackageDirectory = Schema.decodeUnknownSync(
@@ -16,15 +16,16 @@ const decodePackageDirectory = Schema.decodeUnknownSync(
 );
 const decodePackageName = Schema.decodeUnknownSync(ScriptPackageNameSchema);
 
-export const pathExists = async (path: string): Promise<boolean> => {
-  try {
-    await fs.lstat(path);
-    return true;
-  } catch (cause) {
-    if (isMissingFileError(cause)) return false;
-    throw cause;
+export class PackageFolderNamesExhausted extends Schema.TaggedError<PackageFolderNamesExhausted>()(
+  "PackageFolderNamesExhausted",
+  {
+    packageName: Schema.String,
+  },
+) {
+  override get message(): string {
+    return "Could not find an unused package folder name.";
   }
-};
+}
 
 const truncateUtf8 = (value: string, maxBytes: number): string => {
   let result = "";
@@ -72,21 +73,23 @@ export const packageDirectoryPath = (
   return path;
 };
 
-export const allocatePackageDirectory = async (
-  packagesDir: string,
-  packageName: string,
-  reservedDirectories: ReadonlySet<string>,
-): Promise<ScriptPackageDirectory> => {
-  const slug = scriptPackageDirectorySlug(packageName);
-  for (let index = 1; index <= 10_000; index += 1) {
-    const directory =
-      index === 1 ? slug : decodePackageDirectory(`${slug}-${index}`);
-    if (
-      !reservedDirectories.has(directory) &&
-      !(await pathExists(packageDirectoryPath(packagesDir, directory)))
-    ) {
-      return directory;
+export const allocatePackageDirectory = Effect.fn("allocatePackageDirectory")(
+  function* (
+    packagesDir: string,
+    packageName: string,
+    reservedDirectories: ReadonlySet<string>,
+  ) {
+    const slug = scriptPackageDirectorySlug(packageName);
+    for (let index = 1; index <= 10_000; index += 1) {
+      const directory =
+        index === 1 ? slug : decodePackageDirectory(`${slug}-${index}`);
+      if (
+        !reservedDirectories.has(directory) &&
+        !(yield* pathExists(packageDirectoryPath(packagesDir, directory)))
+      ) {
+        return directory;
+      }
     }
-  }
-  throw new Error("Could not find an unused package folder name.");
-};
+    return yield* new PackageFolderNamesExhausted({ packageName });
+  },
+);
