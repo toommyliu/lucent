@@ -19,7 +19,7 @@ import { DesktopEnvironment } from "../../app/DesktopEnvironment";
 import { FileSystem } from "effect/FileSystem";
 import { type JsonFileError, makeJsonFile } from "../../filesystem/JsonFile";
 import { makeSavedDocument } from "../../filesystem/SavedDocument";
-import { AccountsError } from "./AccountsError";
+import { type AccountsError, accountError } from "./AccountsError";
 
 const ACCOUNT_MANAGER_STORAGE_FILE = "accounts.json";
 const isStoredDocument = Schema.is(
@@ -28,10 +28,7 @@ const isStoredDocument = Schema.is(
 const isStoredArray = Schema.is(Schema.Array(Schema.Unknown));
 
 const wrapJsonError = (error: JsonFileError): AccountsError =>
-  new AccountsError({
-    detail: error.message,
-    cause: error,
-  });
+  accountError(error.message, error);
 
 export interface AccountRepositoryShape {
   readonly current: () => AccountManagerStorage | null;

@@ -44,6 +44,28 @@ afterEach(async () => {
   tempDirs.clear();
 });
 
+const windowUnavailable = Effect.fail(
+  new DesktopWindowError({ id: "game", detail: "Window unavailable" }),
+);
+
+const failStreamAt =
+  (unreadablePath: () => string | undefined) =>
+  (fileSystem: FileSystem): FileSystem =>
+    FileSystem.of({
+      ...fileSystem,
+      stream: (path, options) =>
+        path === unreadablePath()
+          ? Stream.fail(
+              PlatformError.systemError({
+                _tag: "PermissionDenied",
+                module: "FileSystem",
+                method: "stream",
+                pathOrDescriptor: path,
+              }),
+            )
+          : fileSystem.stream(path, options),
+    });
+
 interface HarnessOptions {
   readonly wrapFileSystem?: (fs: FileSystem) => FileSystem;
   readonly beforeSetName?: () => Effect.Effect<void, DesktopWindowError>;
@@ -189,21 +211,7 @@ describe("Accounts", () => {
     Effect.gen(function* () {
       let unreadablePath: string | undefined;
       const layer = yield* makeHarness({
-        wrapFileSystem: (fileSystem) =>
-          FileSystem.of({
-            ...fileSystem,
-            stream: (path, options) =>
-              path === unreadablePath
-                ? Stream.fail(
-                    PlatformError.systemError({
-                      _tag: "PermissionDenied",
-                      module: "FileSystem",
-                      method: "stream",
-                      pathOrDescriptor: path,
-                    }),
-                  )
-                : fileSystem.stream(path, options),
-          }),
+        wrapFileSystem: failStreamAt(() => unreadablePath),
       });
       return yield* Effect.gen(function* () {
         const accounts = yield* Accounts;
@@ -525,15 +533,7 @@ describe("Accounts", () => {
     Effect.gen(function* () {
       let failOpen = false;
       const layer = yield* makeHarness({
-        beforeOpen: () =>
-          failOpen
-            ? Effect.fail(
-                new DesktopWindowError({
-                  id: "game",
-                  detail: "Window unavailable",
-                }),
-              )
-            : Effect.void,
+        beforeOpen: () => (failOpen ? windowUnavailable : Effect.void),
       });
       return yield* Effect.gen(function* () {
         const accounts = yield* Accounts;
@@ -661,13 +661,7 @@ describe("Accounts", () => {
   it.effect("labels a window that fails to open as a launch failure", () =>
     Effect.gen(function* () {
       const layer = yield* makeHarness({
-        beforeOpen: () =>
-          Effect.fail(
-            new DesktopWindowError({
-              id: "game",
-              detail: "Window unavailable",
-            }),
-          ),
+        beforeOpen: () => windowUnavailable,
       });
       return yield* Effect.gen(function* () {
         const accounts = yield* Accounts;
@@ -684,64 +678,44 @@ describe("Accounts", () => {
     }),
   );
 
-  it.effect("labels a window that fails to reopen as a reopen failure", () =>
-    Effect.gen(function* () {
-      let failOpen = false;
-      const layer = yield* makeHarness({
-        beforeOpen: () =>
-          failOpen
-            ? Effect.fail(
-                new DesktopWindowError({
-                  id: "game",
-                  detail: "Window unavailable",
-                }),
-              )
-            : Effect.void,
-      });
-      return yield* Effect.gen(function* () {
-        const accounts = yield* Accounts;
-        const sessions = yield* AccountSessions.AccountSessions;
-        sessions.openWindow(77, 1, 1);
-        yield* accounts.createAccount({
-          username: "Alice",
-          password: "secret",
+  it.effect(
+    "labels a failed reopen of a deleted account as a reopen failure",
+    () =>
+      Effect.gen(function* () {
+        let failOpen = false;
+        const layer = yield* makeHarness({
+          beforeOpen: () => (failOpen ? windowUnavailable : Effect.void),
         });
-        const original = yield* accounts.launch({ username: "Alice" });
-        yield* accounts.closeGameWindows([original.gameWindowId]);
-        yield* accounts.deleteAccounts(["Alice"]);
-        failOpen = true;
-        const error = yield* Effect.flip(
-          accounts.reopenGameWindow({
-            id: original.gameWindowId,
-            gameWindowGroupId: 1,
-            windowTarget: { kind: "new" },
-          }),
-        );
-        expect(error._tag).toBe("AccountsError");
-        expect(error.message).toBe("Unable to reopen the tab. Try again.");
-      }).pipe(Effect.provide(layer));
-    }),
+        return yield* Effect.gen(function* () {
+          const accounts = yield* Accounts;
+          const sessions = yield* AccountSessions.AccountSessions;
+          sessions.openWindow(77, 1, 1);
+          yield* accounts.createAccount({
+            username: "Alice",
+            password: "secret",
+          });
+          const original = yield* accounts.launch({ username: "Alice" });
+          yield* accounts.closeGameWindows([original.gameWindowId]);
+          yield* accounts.deleteAccounts(["Alice"]);
+          failOpen = true;
+          const error = yield* Effect.flip(
+            accounts.reopenGameWindow({
+              id: original.gameWindowId,
+              gameWindowGroupId: 1,
+              windowTarget: { kind: "new" },
+            }),
+          );
+          expect(error._tag).toBe("AccountsError");
+          expect(error.message).toBe("Unable to reopen the tab. Try again.");
+        }).pipe(Effect.provide(layer));
+      }),
   );
 
   it.effect("reports unreadable storage from focus and close", () =>
     Effect.gen(function* () {
       let unreadablePath: string | undefined;
       const layer = yield* makeHarness({
-        wrapFileSystem: (fileSystem) =>
-          FileSystem.of({
-            ...fileSystem,
-            stream: (path, options) =>
-              path === unreadablePath
-                ? Stream.fail(
-                    PlatformError.systemError({
-                      _tag: "PermissionDenied",
-                      module: "FileSystem",
-                      method: "stream",
-                      pathOrDescriptor: path,
-                    }),
-                  )
-                : fileSystem.stream(path, options),
-          }),
+        wrapFileSystem: failStreamAt(() => unreadablePath),
       });
       return yield* Effect.gen(function* () {
         const accounts = yield* Accounts;
@@ -1006,14 +980,8 @@ describe("account profile retirement logging", () => {
               component: "accounts",
               data: { count: 2 },
               error: [
-                {
-                  message:
-                    "Failed to prepare isolated game partition: test-partition.",
-                },
-                {
-                  message:
-                    "Failed to prepare isolated game partition: test-partition.",
-                },
+                { cause: { message: "profile cleanup failed" } },
+                { cause: { message: "profile cleanup failed" } },
               ],
             },
           ]);
