@@ -158,6 +158,9 @@ layer(NodeFileSystem.layer)("script files", (it) => {
           status: "failed",
           path: oversizedPath,
           message: `Script file exceeds the 16 MiB limit: ${oversizedPath}.`,
+          detailsText: expect.stringContaining(
+            `File is larger than 16777216 bytes: ${oversizedPath}.`,
+          ),
         });
       }),
   );
