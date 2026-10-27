@@ -227,8 +227,13 @@ export const ScriptPackageSourceSchema = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("directory"),
     ...ScriptPackageRepositorySourceFields,
-    // Local bundled copies have an exact tree without a resolved remote commit.
-    resolvedCommit: Schema.optionalKey(Schema.String),
+    resolvedCommit: Schema.String,
+    resolvedTree: Schema.String,
+    subdirectory: ScriptPackageRepositorySubdirectorySchema,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("bundled"),
+    ...ScriptPackageRepositorySourceFields,
     resolvedTree: Schema.String,
     subdirectory: ScriptPackageRepositorySubdirectorySchema,
   }),

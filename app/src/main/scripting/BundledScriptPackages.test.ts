@@ -233,7 +233,7 @@ layer(desktopFileSystemLayer)("bundled script packages", (it) => {
             integrity: "verified",
             update: { status: "unchecked" },
             source: {
-              kind: "directory",
+              kind: "bundled",
               repositoryUrl: "https://github.com/toommyliu/lucent",
               subdirectory: "script-packages/farming",
             },

@@ -619,7 +619,7 @@ export const updateDiscoveredManagedPackage = (
     return {
       ...entry,
       source: managed.source,
-      update: managed.update ?? { status: "unchecked" },
+      update: managed.update,
     } satisfies ScriptPackageSummary;
   });
   return changed

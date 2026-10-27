@@ -161,7 +161,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
             installedAt: (yield* DateTime.nowAsDate).toISOString(),
             files: snapshot.files,
             source: {
-              kind: "directory",
+              kind: "bundled",
               repositoryUrl: appPackage.repository.url.replace(/\.git$/u, ""),
               subdirectory,
               resolvedTree: snapshot.tree,
