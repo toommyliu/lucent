@@ -775,6 +775,27 @@ layer(desktopFileSystemLayer)("bundled script packages", (it) => {
       }),
   );
 
+  it.effect("installs the other bundles when one hits a defect", () =>
+    Effect.gen(function* () {
+      const fixture = yield* Effect.promise(makeFixture);
+      yield* Effect.promise(() => fixture.addPackage("a"));
+      yield* Effect.promise(() => fixture.addPackage("b"));
+      const dyingPublication = fileSystemLayer((real) => ({
+        rename: (source, target) =>
+          source.endsWith("/package") && target.endsWith("/packages/a")
+            ? Effect.die(new Error("Unexpected failure while publishing"))
+            : real.rename(source, target),
+      }));
+      yield* fixture.start(false, dyingPublication);
+      expect(yield* pathExists(join(fixture.workspace, "packages", "a"))).toBe(
+        false,
+      );
+      expect(yield* pathExists(join(fixture.workspace, "packages", "b"))).toBe(
+        true,
+      );
+    }),
+  );
+
   it.effect("cleans failed staging and retries with the current bundle", () =>
     Effect.gen(function* () {
       const fixture = yield* Effect.promise(makeFixture);
