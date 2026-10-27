@@ -111,7 +111,10 @@ describe("AccountRepository", () => {
             Effect.succeed({ ...storage, groups: { Alts: [] } }),
           )
           .pipe(Effect.flip);
-        expect(error.operation).toBe("rename");
+        expect(error.cause).toMatchObject({
+          _tag: "JsonFileError",
+          operation: "rename",
+        });
         expect(repository.current()).toEqual({
           accounts: [],
           groups: { Raiders: [] },
@@ -432,7 +435,6 @@ it.effect(
             );
             expect(error).toMatchObject({
               _tag: "AccountsError",
-              operation: "read",
               cause: { _tag: "JsonFileError", operation: "read" },
             });
             expect(records).toEqual([]);
@@ -474,7 +476,6 @@ it.effect("rejects accounts above the read limit without replacing them", () =>
         );
         expect(error).toMatchObject({
           _tag: "AccountsError",
-          operation: "read",
           cause: {
             _tag: "JsonFileError",
             operation: "read",

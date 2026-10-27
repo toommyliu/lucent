@@ -36,11 +36,7 @@ import {
 } from "./AccountGameWindows";
 import { AccountRepository } from "./AccountRepository";
 import { AccountSessions, type PendingAccountLaunch } from "./AccountSessions";
-import {
-  AccountsError,
-  accountError,
-  type AccountOperation,
-} from "./AccountsError";
+import { AccountsError, accountError } from "./AccountsError";
 
 export interface AccountsShape {
   readonly getRecentlyClosed: (
@@ -104,11 +100,10 @@ export class Accounts extends Context.Service<Accounts, AccountsShape>()(
 const normalizeRequiredString = Effect.fnUntraced(function* (
   value: string,
   field: string,
-  operation: AccountOperation,
 ): Effect.fn.Return<string, AccountsError> {
   const normalized = value.trim();
   if (normalized === "") {
-    return yield* accountError(operation, `${field} is required`);
+    return yield* accountError(`${field} is required`);
   }
   return normalized;
 });
@@ -123,18 +118,9 @@ const normalizeOptionalString = (
 
 const normalizeAccountDraft = Effect.fnUntraced(function* (
   draft: ManagedAccountDraft,
-  operation: AccountOperation,
 ): Effect.fn.Return<ManagedAccount, AccountsError> {
-  const username = yield* normalizeRequiredString(
-    draft.username,
-    "username",
-    operation,
-  );
-  const password = yield* normalizeRequiredString(
-    draft.password,
-    "password",
-    operation,
-  );
+  const username = yield* normalizeRequiredString(draft.username, "username");
+  const password = yield* normalizeRequiredString(draft.password, "password");
   const label =
     draft.label !== undefined && draft.label.trim() !== ""
       ? draft.label.trim()
@@ -148,11 +134,7 @@ const normalizeAccountPatch = Effect.fnUntraced(function* (
   const output: Record<string, string> = {};
   for (const key of ["label", "username", "password"] as const) {
     if (patch[key] !== undefined) {
-      output[key] = yield* normalizeRequiredString(
-        patch[key],
-        key,
-        "update-account",
-      );
+      output[key] = yield* normalizeRequiredString(patch[key], key);
     }
   }
   return output;
@@ -197,7 +179,6 @@ const hasGroupName = (
 const normalizeGroupMembers = Effect.fnUntraced(function* (
   value: readonly string[],
   accounts: readonly ManagedAccount[],
-  operation: AccountOperation,
 ): Effect.fn.Return<readonly string[], AccountsError> {
   const accountUsernames = new Set(accounts.map((account) => account.username));
   const seen = new Set<string>();
@@ -206,17 +187,13 @@ const normalizeGroupMembers = Effect.fnUntraced(function* (
     const normalized = yield* normalizeRequiredString(
       username,
       "group username",
-      operation,
     );
     if (!accountUsernames.has(normalized)) {
-      return yield* accountError(operation, `Account not found: ${normalized}`);
+      return yield* accountError(`Account not found: ${normalized}`);
     }
     const key = normalized.toLowerCase();
     if (seen.has(key)) {
-      return yield* accountError(
-        operation,
-        `Duplicate group member: ${normalized}`,
-      );
+      return yield* accountError(`Duplicate group member: ${normalized}`);
     }
     seen.add(key);
     usernames.push(normalized);
@@ -228,16 +205,8 @@ const normalizeGroupDraft = Effect.fnUntraced(function* (
   draft: ManagedAccountGroupDraft,
   accounts: readonly ManagedAccount[],
 ): Effect.fn.Return<ManagedAccountGroupDraft, AccountsError> {
-  const name = yield* normalizeRequiredString(
-    draft.name,
-    "group name",
-    "create-group",
-  );
-  const usernames = yield* normalizeGroupMembers(
-    draft.usernames,
-    accounts,
-    "create-group",
-  );
+  const name = yield* normalizeRequiredString(draft.name, "group name");
+  const usernames = yield* normalizeGroupMembers(draft.usernames, accounts);
   return { name, usernames };
 });
 
@@ -249,20 +218,12 @@ const normalizeGroupPatch = Effect.fnUntraced(function* (
     ...(patch.name === undefined
       ? {}
       : {
-          name: yield* normalizeRequiredString(
-            patch.name,
-            "group name",
-            "update-group",
-          ),
+          name: yield* normalizeRequiredString(patch.name, "group name"),
         }),
     ...(patch.usernames === undefined
       ? {}
       : {
-          usernames: yield* normalizeGroupMembers(
-            patch.usernames,
-            accounts,
-            "update-group",
-          ),
+          usernames: yield* normalizeGroupMembers(patch.usernames, accounts),
         }),
   };
 });
@@ -397,25 +358,15 @@ const makeAccounts = Effect.gen(function* () {
         Effect.forEach(uniqueIds, closeWindowSession, { discard: true }),
       ),
       Effect.andThen(getState),
-      Effect.mapError((cause) =>
-        cause instanceof AccountsError
-          ? cause
-          : accountError(
-              "close-game-window",
-              "Failed to close game windows",
-              cause,
-            ),
-      ),
     );
   };
 
   const createAccount: AccountsShape["createAccount"] = (draft) =>
     updateStorage((storage) =>
       Effect.gen(function* () {
-        const account = yield* normalizeAccountDraft(draft, "create-account");
+        const account = yield* normalizeAccountDraft(draft);
         if (hasAccountUsername(storage.accounts, account.username)) {
           return yield* accountError(
-            "create-account",
             "An account with this username already exists",
           );
         }
@@ -428,10 +379,7 @@ const makeAccounts = Effect.gen(function* () {
       Effect.gen(function* () {
         const group = yield* normalizeGroupDraft(draft, storage.accounts);
         if (hasGroupName(storage.groups, group.name)) {
-          return yield* accountError(
-            "create-group",
-            "A group with this name already exists",
-          );
+          return yield* accountError("A group with this name already exists");
         }
         return {
           ...storage,
@@ -445,11 +393,7 @@ const makeAccounts = Effect.gen(function* () {
       const requestedUsernames = new Set<string>();
       for (const username of usernames) {
         requestedUsernames.add(
-          yield* normalizeRequiredString(
-            username,
-            "username",
-            "delete-account",
-          ),
+          yield* normalizeRequiredString(username, "username"),
         );
       }
 
@@ -466,10 +410,7 @@ const makeAccounts = Effect.gen(function* () {
             storage.accounts.length - accounts.length !==
             requestedUsernames.size
           ) {
-            return yield* accountError(
-              "delete-account",
-              "One or more accounts were not found",
-            );
+            return yield* accountError("One or more accounts were not found");
           }
           let groups = storage.groups;
           for (const username of requestedUsernames) {
@@ -485,14 +426,10 @@ const makeAccounts = Effect.gen(function* () {
   const deleteGroup: AccountsShape["deleteGroup"] = (name) =>
     updateStorage((storage) =>
       Effect.gen(function* () {
-        const groupName = yield* normalizeRequiredString(
-          name,
-          "group name",
-          "delete-group",
-        );
+        const groupName = yield* normalizeRequiredString(name, "group name");
         const existingName = findGroupName(storage.groups, groupName);
         if (existingName === undefined) {
-          return yield* accountError("delete-group", "Group not found");
+          return yield* accountError("Group not found");
         }
         const groups: Record<string, readonly string[]> = {};
         for (const [currentName, usernames] of Object.entries(storage.groups)) {
@@ -508,13 +445,6 @@ const makeAccounts = Effect.gen(function* () {
         revealed ? Effect.void : removeWindowSession(gameWindowId),
       ),
       Effect.flatMap(() => getState),
-      Effect.mapError((cause) =>
-        accountError(
-          "focus-game-window",
-          `Failed to focus game window: ${gameWindowId}`,
-          cause,
-        ),
-      ),
     );
 
   const getGameLaunch: AccountsShape["getGameLaunch"] = (gameWindowId) =>
@@ -525,14 +455,13 @@ const makeAccounts = Effect.gen(function* () {
       const username = yield* normalizeRequiredString(
         request.username,
         "username",
-        "launch",
       );
       const storage = yield* repository.get;
       const account = storage.accounts.find(
         (candidate) => candidate.username === username,
       );
       if (account === undefined) {
-        return yield* accountError("launch", "Account not found");
+        return yield* accountError("Account not found");
       }
       const launchServer = normalizeOptionalString(request.server);
       const pending: PendingAccountLaunch = {
@@ -595,10 +524,8 @@ const makeAccounts = Effect.gen(function* () {
       }
       return { gameWindowId: resolvedGameWindowId };
     }).pipe(
-      Effect.mapError((cause) =>
-        cause instanceof AccountsError
-          ? cause
-          : accountError("launch", "Failed to launch account", cause),
+      Effect.catchTag("DesktopWindowError", (cause) =>
+        Effect.fail(accountError("Failed to launch account", cause)),
       ),
     );
 
@@ -611,7 +538,6 @@ const makeAccounts = Effect.gen(function* () {
         .find((candidate) => candidate.id === id);
       if (entry === undefined || reopening.has(id)) {
         return yield* accountError(
-          "reopen-game-window",
           "This tab is no longer available to reopen.",
         );
       }
@@ -634,14 +560,8 @@ const makeAccounts = Effect.gen(function* () {
         return result;
       }).pipe(Effect.ensuring(Effect.sync(() => reopening.delete(id))));
     },
-    Effect.mapError((cause) =>
-      cause instanceof AccountsError
-        ? cause
-        : accountError(
-            "reopen-game-window",
-            "Unable to reopen the tab. Try again.",
-            cause,
-          ),
+    Effect.catchTag("DesktopWindowError", (cause) =>
+      Effect.fail(accountError("Unable to reopen the tab. Try again.", cause)),
     ),
   );
 
@@ -661,7 +581,6 @@ const makeAccounts = Effect.gen(function* () {
       const currentUsername = yield* normalizeRequiredString(
         username,
         "username",
-        "update-account",
       );
       const accountPatch = yield* normalizeAccountPatch(patch);
       const nextUsername = accountPatch.username ?? currentUsername;
@@ -673,7 +592,6 @@ const makeAccounts = Effect.gen(function* () {
             })
           ) {
             return yield* accountError(
-              "update-account",
               "An account with this username already exists",
             );
           }
@@ -688,7 +606,7 @@ const makeAccounts = Effect.gen(function* () {
             };
           });
           if (!found) {
-            return yield* accountError("update-account", "Account not found");
+            return yield* accountError("Account not found");
           }
           return {
             accounts,
@@ -709,14 +627,10 @@ const makeAccounts = Effect.gen(function* () {
   const updateGroup: AccountsShape["updateGroup"] = (name, patch) =>
     updateStorage((storage) =>
       Effect.gen(function* () {
-        const currentName = yield* normalizeRequiredString(
-          name,
-          "group name",
-          "update-group",
-        );
+        const currentName = yield* normalizeRequiredString(name, "group name");
         const existingName = findGroupName(storage.groups, currentName);
         if (existingName === undefined) {
-          return yield* accountError("update-group", "Group not found");
+          return yield* accountError("Group not found");
         }
         const groupPatch = yield* normalizeGroupPatch(patch, storage.accounts);
         const nextName = groupPatch.name ?? existingName;
@@ -725,10 +639,7 @@ const makeAccounts = Effect.gen(function* () {
             exceptName: existingName,
           })
         ) {
-          return yield* accountError(
-            "update-group",
-            "A group with this name already exists",
-          );
+          return yield* accountError("A group with this name already exists");
         }
         const groups: Record<string, readonly string[]> = {};
         for (const [groupName, usernames] of Object.entries(storage.groups)) {
