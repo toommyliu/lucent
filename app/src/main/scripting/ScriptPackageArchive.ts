@@ -58,11 +58,22 @@ const archivePath = (rawPath: string): readonly string[] => {
 };
 
 const tarError =
-  (method: string, path: string) =>
-  (cause: unknown): InvalidScriptPackage | FileReadError =>
-    cause instanceof Error && "syscall" in cause
-      ? fileReadError(path)(nativeFileError(method, path, cause))
-      : InvalidScriptPackage.fromUnknown(cause, "Archive validation failed.");
+  (fallbackPath: string) =>
+  (cause: unknown): InvalidScriptPackage | FileReadError => {
+    if (!(cause instanceof Error && "syscall" in cause)) {
+      return InvalidScriptPackage.fromUnknown(
+        cause,
+        "Archive validation failed.",
+      );
+    }
+    const path =
+      "path" in cause && typeof cause.path === "string"
+        ? cause.path
+        : fallbackPath;
+    return fileReadError(path)(
+      nativeFileError(String(cause.syscall), path, cause),
+    );
+  };
 
 export const validateScriptPackageArchive = Effect.fn(
   "validateScriptPackageArchive",
@@ -160,7 +171,7 @@ export const validateScriptPackageArchive = Effect.fn(
           }
         },
       }),
-    catch: tarError("read", path),
+    catch: tarError(path),
   });
   if (validationError !== undefined)
     return yield* InvalidScriptPackage.fromUnknown(
@@ -206,6 +217,6 @@ export const extractScriptPackageArchive = Effect.fn(
           subdirectory === undefined ? 1 : subdirectory.split("/").length + 1,
         unlink: true,
       }),
-    catch: tarError("write", targetPath),
+    catch: tarError(archivePath),
   });
 });
