@@ -37,7 +37,9 @@ body = """
 			{%- endif %}
 			{%- endif %}
 			{%- for footer in c.footers %}
+				{%- if footer.token | lower != "co-authored-by" %}
 				{{ "\n" }}  - {{ footer.token }}: {{ footer.value | trim | indent(prefix="    ", first=false) }}
+				{%- endif %}
 			{%- endfor %}
 		{%- endfor %}
 	{% endfor %}
