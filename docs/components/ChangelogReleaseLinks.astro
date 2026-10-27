@@ -1,0 +1,38 @@
+---
+import Icon from "blume/components/Icon.astro";
+---
+
+<lucent-changelog-release-links hidden>
+  <template>
+    <Icon aria-hidden="true" class="changelog-release-arrow" name="arrow-up-right" size={14} />
+  </template>
+</lucent-changelog-release-links>
+
+<script>
+  import { releasesUrl } from "./downloads.ts";
+
+  class LucentChangelogReleaseLinks extends HTMLElement {
+    connectedCallback(): void {
+      const arrow = this.querySelector("template")?.content;
+      for (const label of document.querySelectorAll<HTMLAnchorElement>(
+        "[data-blume-update] > header > a",
+      )) {
+        const tag = label.textContent?.trim();
+        if (!tag || label.target === "_blank") continue;
+
+        label.href = `${releasesUrl}/tag/${encodeURIComponent(tag)}`;
+        label.rel = "noreferrer";
+        label.target = "_blank";
+        label.classList.add("changelog-release-label");
+        if (arrow) label.append(arrow.cloneNode(true));
+      }
+    }
+  }
+
+  if (!customElements.get("lucent-changelog-release-links")) {
+    customElements.define(
+      "lucent-changelog-release-links",
+      LucentChangelogReleaseLinks,
+    );
+  }
+</script>
