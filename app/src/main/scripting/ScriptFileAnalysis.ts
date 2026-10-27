@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
 import * as Schedule from "effect/Schedule";
-import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
+import { FileSystem } from "effect/FileSystem";
 
 import {
   FileChangedWhileReading,
@@ -113,7 +113,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
           );
         },
       }),
-      Effect.provide(NodeFileSystem.layer),
     );
     const source = stable.contents.toString("utf8");
     const revision = createHash("sha256").update(stable.contents).digest("hex");
@@ -178,7 +177,7 @@ export const logScriptFileResolutionFailure = (
 
 export const resolveScriptFile = (
   path: string,
-): Effect.Effect<ScriptFileResolution> =>
+): Effect.Effect<ScriptFileResolution, never, FileSystem> =>
   analyzeScriptFile(path).pipe(
     Effect.map(
       (analysis): ScriptFileResolution => ({
@@ -212,5 +211,5 @@ export const resolveScriptFile = (
 
 export const readScriptFile = (
   path: string,
-): Effect.Effect<ScriptFile, ScriptFilesError> =>
+): Effect.Effect<ScriptFile, ScriptFilesError, FileSystem> =>
   analyzeScriptFile(path).pipe(Effect.map((analysis) => analysis.file));

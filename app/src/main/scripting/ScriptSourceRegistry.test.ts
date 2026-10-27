@@ -1,3 +1,4 @@
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -89,7 +90,10 @@ const makeLayer = (
   return Layer.effect(
     ScriptSourceRegistry,
     makeScriptSourceRegistry(limits, analyze),
-  ).pipe(Layer.provide(Layer.succeed(ScriptPackageCatalog, catalog)));
+  ).pipe(
+    Layer.provide(Layer.succeed(ScriptPackageCatalog, catalog)),
+    Layer.provide(NodeFileSystem.layer),
+  );
 };
 
 afterEach(async () => {

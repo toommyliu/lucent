@@ -156,6 +156,7 @@ export const layer = Layer.effect(
                 ),
               )
             : readScriptFile(entry.path).pipe(
+                Effect.provideService(FileSystem, fileSystem),
                 Effect.map((file) => ({
                   ...file,
                   name: entry.name,
@@ -238,6 +239,7 @@ export const layer = Layer.effect(
           reference?.kind === "package"
             ? yield* loadReference(reference)
             : yield* readScriptFile(path).pipe(
+                Effect.provideService(FileSystem, fileSystem),
                 Effect.map((file) =>
                   reference === undefined ? file : { ...file, reference },
                 ),

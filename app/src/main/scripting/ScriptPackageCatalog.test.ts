@@ -1,3 +1,4 @@
+import * as Context from "effect/Context";
 import * as FileSystem from "effect/FileSystem";
 import * as PlatformError from "effect/PlatformError";
 import { layer as nodeFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
@@ -699,6 +700,13 @@ describe("ScriptPackageCatalog", () => {
         );
         const registry = yield* makeScriptSourceRegistry().pipe(
           Effect.provideService(ScriptPackageCatalog, catalog),
+          Effect.provideService(
+            FileSystem.FileSystem,
+            Context.get(
+              yield* Layer.build(nodeFileSystemLayer),
+              FileSystem.FileSystem,
+            ),
+          ),
         );
         const read = registry.readReference({
           kind: "loose",

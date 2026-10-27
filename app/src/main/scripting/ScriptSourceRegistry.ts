@@ -3,6 +3,7 @@ import { extname, relative, resolve } from "node:path";
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import { FileSystem } from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
@@ -232,6 +233,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
     analyze: typeof analyzeScriptFile = analyzeScriptFile,
   ) {
     const catalog = yield* ScriptPackageCatalog;
+    const fileSystem = yield* FileSystem;
     const sourceCache = new Map<string, CachedSource>();
     let sourceCacheBytes = 0;
 
@@ -596,6 +598,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
           snapshot,
         } satisfies ScriptFile;
       },
+      Effect.provideService(FileSystem, fileSystem),
     );
 
     const readPath: ScriptSourceRegistryShape["readPath"] = (path) =>
@@ -624,6 +627,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
               )
             : readReference(reference),
         ),
+        Effect.provideService(FileSystem, fileSystem),
       );
 
     const resolveReference: ScriptSourceRegistryShape["resolveReference"] = (
@@ -658,6 +662,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
               ),
         ),
         Effect.catch((cause) => resolveFailure(displayPath, cause)),
+        Effect.provideService(FileSystem, fileSystem),
       );
     };
 
@@ -669,6 +674,7 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
             : resolveReference(reference),
         ),
         Effect.catch((cause) => resolveFailure(resolve(path), cause)),
+        Effect.provideService(FileSystem, fileSystem),
       );
 
     return ScriptSourceRegistry.of({
