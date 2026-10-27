@@ -848,9 +848,7 @@ export const layer = Layer.effect(
         }),
       );
 
-    const restore = (
-      input: Parameters<ScriptPackageManagerShape["restore"]>[0],
-    ) =>
+    const restore: ScriptPackageManagerShape["restore"] = (input) =>
       mutationGate.withPermits(1)(
         Effect.gen(function* () {
           const overview = yield* catalog.getOverview.pipe(
@@ -969,7 +967,7 @@ export const layer = Layer.effect(
                 .remove(temporaryRoot, { recursive: true, force: true })
                 .pipe(Effect.ignore),
           );
-        }),
+        }).pipe(Effect.provideService(FileSystem, fileSystem)),
       );
 
     const remove: ScriptPackageManagerShape["remove"] = (input) =>
@@ -1191,10 +1189,8 @@ export const layer = Layer.effect(
       checkUpdate,
       install,
       remove,
-      restore: (input) =>
-        restore(input).pipe(Effect.provideService(FileSystem, fileSystem)),
-      update: (input) =>
-        update(input).pipe(Effect.provideService(FileSystem, fileSystem)),
+      restore,
+      update,
     });
   }),
 );

@@ -654,7 +654,6 @@ export const makeScriptSourceRegistry = Effect.fn("makeScriptSourceRegistry")(
               ),
         ),
         Effect.catch((cause) => resolveFailure(displayPath, cause)),
-        Effect.provideService(FileSystem, fileSystem),
       );
     };
 
