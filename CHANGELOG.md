@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+# [0.1.0-beta.2](https://github.com/toommyliu/lucent/compare/v0.1.0-beta.1...v0.1.0-beta.2) - (2026-10-27)
+
+## Features
+
+- **game:** Add Smooth Motion (#481) ([add0301](https://github.com/toommyliu/lucent/commit/add0301ffbc1a5883b035dcf2120b6de65a85d44))
+
+
+## Documentation
+
+- Add a download page for every release build (#477) ([f5a56cd](https://github.com/toommyliu/lucent/commit/f5a56cdc45b926ca49041752a396bad1c053ac88))
+
+
 # [0.1.0-beta.1](https://github.com/toommyliu/lucent/compare/v0.0.4...v0.1.0-beta.1) - (2026-10-25)
 
 ## Bug Fixes
