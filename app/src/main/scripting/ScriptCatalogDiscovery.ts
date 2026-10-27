@@ -1,5 +1,4 @@
 import * as Effect from "effect/Effect";
-import * as Schema from "effect/Schema";
 import { isPlatformError } from "effect/PlatformError";
 import { basename, join, relative, resolve } from "node:path";
 
@@ -25,7 +24,7 @@ import {
   sha256Revision,
 } from "./ScriptPackageFileSystem";
 import {
-  FileNotFound,
+  isFileNotFound,
   nativeCause,
   readDirectoryEntries,
 } from "../filesystem/BoundedFileSystem";
@@ -399,7 +398,6 @@ export interface ScriptCatalogDiscoveryReport {
   readonly failures: readonly ScriptPackageInspectionFailure[];
 }
 
-const isFileNotFound = Schema.is(FileNotFound);
 const invalidPackage = (cause: unknown) =>
   new InvalidScriptPackage({
     detail:

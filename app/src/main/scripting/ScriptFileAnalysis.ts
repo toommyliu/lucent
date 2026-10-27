@@ -9,6 +9,7 @@ import { FileSystem } from "effect/FileSystem";
 
 import {
   FileChangedWhileReading,
+  isFileNotFound,
   nativeCause,
   readStableFile,
 } from "../filesystem/BoundedFileSystem";
@@ -31,7 +32,6 @@ export class ScriptFilesError extends Schema.TaggedError<ScriptFilesError>()(
   "ScriptFilesError",
   {
     path: Schema.String,
-    kind: Schema.Literals(["not-found", "failed"]),
     detail: Schema.String,
     cause: Schema.optionalKey(Schema.Defect()),
     failureCause: Schema.optionalKey(
@@ -68,7 +68,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
           Effect.fail(
             new ScriptFilesError({
               path,
-              kind: "not-found",
               detail: `Script file was not found at ${path}.`,
               cause,
             }),
@@ -77,7 +76,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
           Effect.fail(
             new ScriptFilesError({
               path,
-              kind: "failed",
               detail: `Script file exceeds the ${formatBytes(SCRIPT_FILE_MAX_BYTES)} limit: ${path}.`,
               cause,
             }),
@@ -86,7 +84,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
           Effect.fail(
             new ScriptFilesError({
               path,
-              kind: "failed",
               detail: `Script file changed while it was being read: ${path}.`,
               cause,
             }),
@@ -95,7 +92,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
           Effect.fail(
             new ScriptFilesError({
               path,
-              kind: "failed",
               detail: cause.message,
               cause,
             }),
@@ -105,7 +101,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
           return Effect.fail(
             new ScriptFilesError({
               path,
-              kind: "failed",
               detail: errorMessage(cause),
               cause,
               failureCause: Cause.fail(cause),
@@ -121,7 +116,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
         (cause) =>
           new ScriptFilesError({
             path,
-            kind: "failed",
             detail: cause.message,
             cause,
           }),
@@ -145,7 +139,6 @@ export const analyzeScriptFile = Effect.fnUntraced(function* (path: string) {
       return Effect.fail(
         new ScriptFilesError({
           path,
-          kind: "failed",
           detail: errorMessage(cause),
           cause,
           failureCause,
@@ -186,7 +179,7 @@ export const resolveScriptFile = (
       }),
     ),
     Effect.catch((error): Effect.Effect<ScriptFileResolution> => {
-      if (error.kind === "not-found") {
+      if (isFileNotFound(error.cause)) {
         return Effect.succeed({
           status: "missing" as const,
           path: error.path,

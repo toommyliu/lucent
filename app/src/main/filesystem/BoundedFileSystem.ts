@@ -57,7 +57,7 @@ export class NotRegularFile extends Schema.TaggedError<NotRegularFile>()(
 
 export type FileReadError = FileNotFound | PlatformError.PlatformError;
 
-const isFileNotFound = Schema.is(FileNotFound);
+export const isFileNotFound = Schema.is(FileNotFound);
 
 export function nativeCause(error: PlatformError.PlatformError): {};
 export function nativeCause(error: unknown): unknown;
