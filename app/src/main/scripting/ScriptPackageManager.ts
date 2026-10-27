@@ -748,8 +748,12 @@ export const layer = Layer.effect(
               ),
             );
           switch (installed.kind) {
-            case "absent":
             case "ambiguous":
+              return yield* managerError(
+                "update",
+                `More than one package folder declares the name ${JSON.stringify(input.packageName)}.`,
+              );
+            case "absent":
             case "invalid":
               return yield* managerError(
                 "update",
@@ -972,8 +976,12 @@ export const layer = Layer.effect(
               ),
             );
           switch (installed.kind) {
-            case "absent":
             case "ambiguous":
+              return yield* managerError(
+                "remove",
+                `More than one package folder declares the name ${JSON.stringify(input.packageName)}.`,
+              );
+            case "absent":
             case "invalid":
               return yield* managerError(
                 "remove",
