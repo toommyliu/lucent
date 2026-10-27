@@ -190,26 +190,30 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
     for (const entry of entries) {
       if (entry.kind !== "directory") continue;
       yield* install(entry.name).pipe(
-        Effect.catch((cause) =>
-          Effect.logWarning(
-            "Failed to install a bundled script package; setup will retry on the next launch.",
-            Cause.fail(cause),
-          ).pipe(
-            Effect.annotateLogs({
-              component: "bundled-script-packages",
-              data: { directory: entry.name },
-            }),
-          ),
+        Effect.catchCauseIf(
+          (cause) => !Cause.hasInterruptsOnly(cause),
+          (cause) =>
+            Effect.logWarning(
+              "Failed to install a bundled script package; setup will retry on the next launch.",
+              cause,
+            ).pipe(
+              Effect.annotateLogs({
+                component: "bundled-script-packages",
+                data: { directory: entry.name },
+              }),
+            ),
         ),
       );
     }
   }
   if (packagesChanged) yield* catalog.refresh;
 }).pipe(
-  Effect.catch((cause) =>
-    Effect.logWarning(
-      "Bundled package setup could not finish. Existing packages have been left alone.",
-      Cause.fail(cause),
-    ).pipe(Effect.annotateLogs({ component: "bundled-script-packages" })),
+  Effect.catchCauseIf(
+    (cause) => !Cause.hasInterruptsOnly(cause),
+    (cause) =>
+      Effect.logWarning(
+        "Bundled package setup could not finish. Existing packages have been left alone.",
+        cause,
+      ).pipe(Effect.annotateLogs({ component: "bundled-script-packages" })),
   ),
 );
