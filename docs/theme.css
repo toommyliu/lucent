@@ -1015,3 +1015,17 @@ html:has(.type-peek-dialog[open]) {
 .changelog-release-meta a:hover {
   color: var(--blume-foreground);
 }
+
+.changelog-release-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.changelog-release-arrow {
+  color: var(--blume-muted-foreground);
+}
+
+.changelog-release-label:hover .changelog-release-arrow {
+  color: currentColor;
+}
