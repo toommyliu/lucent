@@ -236,7 +236,11 @@ export const layer = Layer.effect(
                 ...(etag === undefined ? {} : { etag }),
               };
             },
-            catch: clientError,
+            catch: (cause) =>
+              unexpectedPayloadError(
+                "GitHub returned an invalid commit payload.",
+                cause,
+              ),
           });
         }).pipe(Effect.mapError(clientError));
       });
