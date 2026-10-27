@@ -130,18 +130,23 @@ const requestHeaders = (
   ...(options.etag === undefined ? {} : { "If-None-Match": options.etag }),
 });
 
+const httpClientErrorKinds: Record<
+  DesktopHttpClientError["kind"],
+  GitHubApiClientError["kind"]
+> = {
+  "invalid-url": "unexpected-response",
+  "redirect-failed": "unexpected-response",
+  "request-failed": "unavailable",
+  "response-too-large": "response-too-large",
+  timeout: "unavailable",
+};
+
 const httpClientError = (cause: DesktopHttpClientError): GitHubApiClientError =>
-  cause.kind === "response-too-large"
-    ? new GitHubApiClientError({
-        kind: "response-too-large",
-        detail: cause.message,
-        cause,
-      })
-    : new GitHubApiClientError({
-        kind: "unavailable",
-        detail: cause.message,
-        cause,
-      });
+  new GitHubApiClientError({
+    kind: httpClientErrorKinds[cause.kind],
+    detail: cause.message,
+    cause,
+  });
 
 const rateLimitError = (
   rateLimit: RateLimitState,

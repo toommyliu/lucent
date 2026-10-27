@@ -1,4 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
+import { createServer } from "node:http";
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
+import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -6,9 +9,11 @@ import * as Fiber from "effect/Fiber";
 import * as Random from "effect/Random";
 import * as Result from "effect/Result";
 import { TestClock } from "effect/testing";
+import { HttpClient, HttpClientRequest } from "effect/http";
 
 import {
   DesktopHttpClientError,
+  makeDesktopHttpClient,
   type DesktopHttpClientShape,
   type DesktopHttpResponse,
 } from "./DesktopHttpClient";
@@ -87,6 +92,110 @@ const makeHttpClient = (
 });
 
 describe("GitHubApiClient", () => {
+  it.effect("rejects a repository redirect without retrying", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        let requests = 0;
+        const server = yield* Effect.acquireRelease(
+          Effect.promise(
+            () =>
+              new Promise<ReturnType<typeof createServer>>(
+                (resolve, reject) => {
+                  const server = createServer((_request, response) => {
+                    requests += 1;
+                    response.writeHead(301, {
+                      Location: "https://api.github.com/repos/example/renamed",
+                    });
+                    response.end();
+                  });
+                  server.once("error", reject);
+                  server.listen(0, "127.0.0.1", () => resolve(server));
+                },
+              ),
+          ),
+          (server) =>
+            Effect.promise(
+              () =>
+                new Promise<void>((resolve) => {
+                  server.closeAllConnections();
+                  server.close(() => resolve());
+                }),
+            ),
+        );
+        const address = server.address();
+        if (address === null || typeof address === "string")
+          throw new Error("Expected a TCP server");
+        const transport = yield* HttpClient.HttpClient;
+        const http = yield* makeDesktopHttpClient.pipe(
+          Effect.provideService(
+            HttpClient.HttpClient,
+            transport.pipe(
+              HttpClient.mapRequest(
+                HttpClientRequest.setUrl(`http://127.0.0.1:${address.port}/`),
+              ),
+            ),
+          ),
+        );
+        const client = makeGitHubApiClient(http, "Lucent/test");
+        const error = yield* client
+          .get({ attempts: 3, url: API_URL })
+          .pipe(Effect.flip);
+
+        expect({ requests, kind: error.kind }).toEqual({
+          requests: 1,
+          kind: "unexpected-response",
+        });
+      }),
+    ).pipe(
+      Effect.provide(NodeHttpClient.layerNodeHttp),
+      Effect.provide(NodeFileSystem.layer),
+      TestClock.withLive,
+    ),
+  );
+
+  it.effect.each([
+    { kind: "invalid-url", expectedKind: "unexpected-response", requests: 1 },
+    {
+      kind: "redirect-failed",
+      expectedKind: "unexpected-response",
+      requests: 1,
+    },
+    {
+      kind: "response-too-large",
+      expectedKind: "response-too-large",
+      requests: 1,
+    },
+    { kind: "request-failed", expectedKind: "unavailable", requests: 3 },
+    { kind: "timeout", expectedKind: "unavailable", requests: 3 },
+  ] as const)(
+    "classifies and retries $kind appropriately",
+    ({ kind, expectedKind, requests }) =>
+      Effect.gen(function* () {
+        const requestCount = { value: 0 };
+        const failure = Effect.fail(
+          new DesktopHttpClientError({
+            kind,
+            detail: "Request failed.",
+            url: API_URL.href,
+          }),
+        );
+        const client = makeGitHubApiClient(
+          makeHttpClient([failure, failure, failure], requestCount),
+          "Lucent/test",
+        );
+        const pending = yield* client
+          .get({ attempts: 3, url: API_URL })
+          .pipe(Effect.flip, Effect.forkChild);
+        yield* TestClock.adjust("10 seconds");
+        const error = yield* Fiber.join(pending);
+
+        expect({ requests: requestCount.value, kind: error.kind }).toEqual({
+          requests,
+          kind: expectedKind,
+        });
+      }),
+  );
+
   it.effect(
     "pins response retry timestamps and cooldown admission to the clock",
     () =>
