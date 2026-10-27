@@ -113,7 +113,7 @@ export const layer = Layer.effect(
       timeToLive: ACCOUNT_SERVER_PING_CACHE_TTL_MS,
     });
 
-    const getCachedServers = Effect.fnUntraced(function* (force = false) {
+    const getCachedServers = Effect.fnUntraced(function* (force: boolean) {
       const timestamp = yield* Clock.currentTimeMillis;
       if (
         !force &&
@@ -171,11 +171,11 @@ export const layer = Layer.effect(
           : lastRefreshRequestTime + ACCOUNT_SERVER_REFRESH_COOLDOWN_MS,
     });
 
-    const get: AccountServersShape["get"] = getCachedServers().pipe(
+    const get: AccountServersShape["get"] = getCachedServers(false).pipe(
       Effect.map(toResult),
     );
 
-    const getPings: AccountServersShape["getPings"] = getCachedServers().pipe(
+    const getPings: AccountServersShape["getPings"] = getCachedServers(false).pipe(
       Effect.flatMap((servers) => Cache.get(pingCache, servers)),
     );
 
