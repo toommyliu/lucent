@@ -199,11 +199,17 @@ const resolutionFailureCause = (
     }),
   );
 
-const resolveFailure = (path: string, error: unknown) =>
-  logScriptFileResolutionFailure(
+const resolveFailure = (path: string, error: unknown) => {
+  const cause = isScriptSourceRegistryError(error) ? error.cause : error;
+  const fileCause = isScriptFilesError(cause) ? cause.cause : cause;
+  if (isMissingFileError(fileCause)) {
+    return Effect.succeed<ScriptFileResolution>({ status: "missing", path });
+  }
+  return logScriptFileResolutionFailure(
     path,
     resolutionFailureCause(Cause.fail(error)),
   ).pipe(Effect.as(failedResolution(path, error)));
+};
 
 const moduleFromAnalysis = (
   target: ModuleTarget,
