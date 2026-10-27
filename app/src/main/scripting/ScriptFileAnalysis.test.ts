@@ -7,7 +7,11 @@ import { vi } from "vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 
-import { analyzeScriptFile, ScriptFilesError } from "./ScriptFileAnalysis";
+import {
+  analyzeScriptFile,
+  resolveScriptFile,
+  ScriptFilesError,
+} from "./ScriptFileAnalysis";
 import * as ScriptSourceParser from "./ScriptSourceParser";
 
 const directories: string[] = [];
@@ -170,6 +174,28 @@ it.effect(
       });
       expect(result).not.toHaveProperty("failureCause");
     }),
+);
+
+it.effect("reports the CommonJS syntax error line and column", () =>
+  Effect.gen(function* () {
+    const root = yield* Effect.promise(() =>
+      fs.mkdtemp(join(tmpdir(), "lucent-analysis-")),
+    );
+    directories.push(root);
+    const path = join(root, "invalid.js");
+    yield* Effect.promise(() =>
+      fs.writeFile(
+        path,
+        "const await = 1;\nmodule.exports = function* run() {\n    ?\n};",
+      ),
+    );
+
+    expect(yield* resolveScriptFile(path)).toMatchObject({
+      status: "failed",
+      path,
+      message: "Script source could not be parsed: Unexpected token (3:4)",
+    });
+  }),
 );
 
 it.effect.each(["defect", "interrupt"] as const)(
