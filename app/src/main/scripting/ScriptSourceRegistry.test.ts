@@ -71,6 +71,8 @@ const makeLayer = (
         revision: discovery.catalog.revision,
         total: discovery.catalog.scripts.length,
       }),
+    locate: () =>
+      Effect.die("Unexpected package lookup in the source registry"),
     onChanged: () => Effect.void,
     referenceForPath: (path) => Effect.succeed(discovery.paths.get(path)),
     refresh: Effect.succeed(overview),

@@ -721,6 +721,39 @@ layer(desktopFileSystemLayer)("script package folders", (it) => {
       }),
   );
 
+  for (const operation of ["update", "remove"] as const) {
+    it.effect(`rejects duplicate package folders during ${operation}`, () =>
+      Effect.gen(function* () {
+        const { destination, managed, workspaceDir } = yield* installedPackage;
+        const harness = makeManagerHarness({
+          managed,
+          resolution: { commit: REMOTE_COMMIT },
+          workspaceDir,
+        });
+        const { manager, catalog, state } = yield* harness.services;
+        yield* Effect.promise(() =>
+          fs.cp(destination, join(dirname(destination), "example-old"), {
+            recursive: true,
+          }),
+        );
+        yield* catalog.refresh;
+        const error = yield* manager[operation]({
+          packageName: PACKAGE_NAME,
+        }).pipe(Effect.flip);
+        expect(error.operation).toBe(operation);
+        expect(yield* state.get(PACKAGE_NAME)).toEqual(managed);
+        expect(
+          yield* Effect.promise(() => fs.readdir(dirname(destination))),
+        ).toEqual(["example", "example-old"]);
+        expect(harness.requests).toEqual([]);
+        expect(harness.downloadCount()).toBe(0);
+        expect(error.message).toBe(
+          'More than one package folder declares the name "example".',
+        );
+      }),
+    );
+  }
+
   it.effect("removes a package from its saved folder", () =>
     Effect.gen(function* () {
       const root = yield* Effect.promise(makeDirectory);

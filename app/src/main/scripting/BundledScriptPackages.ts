@@ -12,6 +12,7 @@ import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 
 import {
+  type ScriptPackageDirectory,
   ScriptPackageNameSchema,
   ScriptPackageRepositorySubdirectorySchema,
 } from "@lucent/core/scriptPackages";
@@ -102,15 +103,28 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
     const name = yield* decodePackageName(manifest.name);
     if (history.completed.includes(name)) return;
     yield* catalog.refresh;
-    const current = yield* catalog.getDiscovery;
-    const existing = current.packages.get(name);
-    if (
-      current.catalog.packages.some((entry) => entry.name === name) &&
-      (existing === undefined ||
-        (yield* state.get(name))?.directory === existing.directory)
-    ) {
-      yield* finish(name);
-      return;
+    const installed = yield* catalog.locate(name);
+    let existing:
+      | { readonly root: string; readonly directory: ScriptPackageDirectory }
+      | undefined;
+    switch (installed.kind) {
+      case "ambiguous":
+      case "invalid":
+        yield* finish(name);
+        return;
+      case "managed":
+        if (installed.summary !== undefined) {
+          yield* finish(name);
+          return;
+        }
+        break;
+      case "unmanaged":
+        existing = installed;
+        break;
+      case "absent":
+        break;
+      default:
+        return installed satisfies never;
     }
 
     yield* Effect.acquireUseRelease(
@@ -124,7 +138,7 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
           const snapshot = yield* copyBundledScriptPackage(source, staged);
           yield* inspectScriptPackageDirectory(staged);
           if (existing !== undefined) {
-            const files = yield* hashDirectory(existing.rootPath).pipe(
+            const files = yield* hashDirectory(existing.root).pipe(
               Effect.orElseSucceed(() => undefined),
             );
             if (!isDeepStrictEqual(files, snapshot.files)) {
