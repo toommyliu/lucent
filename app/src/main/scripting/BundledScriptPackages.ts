@@ -16,7 +16,7 @@ import appPackage from "../../../package.json";
 import { DesktopEnvironment } from "../app/DesktopEnvironment";
 import { FileSystem } from "effect/FileSystem";
 import { makeJsonFile } from "../filesystem/JsonFile";
-import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
+import { copyBundledScriptPackage } from "./ScriptPackageFileSystem";
 import {
   inspectScriptPackageDirectory,
   readScriptPackageManifest,
@@ -57,7 +57,8 @@ class BundledScriptPackageSetupError extends Schema.TaggedError<BundledScriptPac
 
 export const initializeBundledScriptPackages = Effect.gen(function* () {
   const env = yield* DesktopEnvironment;
-  const jsonFile = makeJsonFile(yield* FileSystem);
+  const fileSystem = yield* FileSystem;
+  const jsonFile = makeJsonFile(fileSystem);
   const state = yield* ScriptPackageState;
   const catalog = yield* ScriptPackageCatalog;
   const sourceRoot = join(env.assetsDir, "..", "script-packages");
@@ -88,94 +89,94 @@ export const initializeBundledScriptPackages = Effect.gen(function* () {
     });
   }
 
-  const install = Effect.fn("BundledScriptPackages.install")(function* (
-    sourceDirectory: string,
-  ) {
-    const source = join(sourceRoot, sourceDirectory);
-    const manifest = yield* Effect.tryPromise(() =>
-      readScriptPackageManifest(join(source, "package.json")),
-    );
-    const name = yield* decodePackageName(manifest.name);
-    if (history.completed.includes(name)) return;
-    yield* catalog.refresh;
-    const current = yield* catalog.getDiscovery;
-    const existing = current.packages.get(name);
-    if (
-      current.catalog.packages.some((entry) => entry.name === name) &&
-      (existing === undefined ||
-        (yield* state.get(name))?.directory === existing.directory)
-    ) {
-      yield* finish(name);
-      return;
-    }
+  const install = Effect.fn("BundledScriptPackages.install")(
+    function* (sourceDirectory: string) {
+      const source = join(sourceRoot, sourceDirectory);
+      const manifest = yield* readScriptPackageManifest(
+        join(source, "package.json"),
+      );
+      const name = yield* decodePackageName(manifest.name);
+      if (history.completed.includes(name)) return;
+      yield* catalog.refresh;
+      const current = yield* catalog.getDiscovery;
+      const existing = current.packages.get(name);
+      if (
+        current.catalog.packages.some((entry) => entry.name === name) &&
+        (existing === undefined ||
+          (yield* state.get(name))?.directory === existing.directory)
+      ) {
+        yield* finish(name);
+        return;
+      }
 
-    yield* Effect.acquireUseRelease(
-      Effect.tryPromise(() =>
-        fs.mkdtemp(join(env.workspaceDir, ".lucent-package-seed-")),
-      ),
-      (stagingRoot) =>
-        Effect.gen(function* () {
-          const staged = join(stagingRoot, "package");
-          const snapshot = yield* Effect.tryPromise(() =>
-            copyBundledScriptPackage(source, staged),
-          );
-          yield* Effect.tryPromise(() => inspectScriptPackageDirectory(staged));
-          if (existing !== undefined) {
-            const files = yield* Effect.tryPromise(() =>
-              hashDirectory(existing.rootPath),
-            ).pipe(Effect.orElseSucceed(() => undefined));
-            if (!isDeepStrictEqual(files, snapshot.files)) {
-              yield* finish(name);
-              return;
-            }
-          }
-          const reserved = new Set(
-            (yield* state.getAll).map((entry) => entry.directory),
-          );
-          const directory =
-            existing?.directory ??
-            (yield* allocatePackageDirectory(packagesDir, name, reserved));
-          const subdirectory = yield* decodePackageSubdirectory(
-            `script-packages/${sourceDirectory}`,
-          );
-          const managed: ManagedScriptPackage = {
-            name,
-            directory,
-            installedAt: (yield* DateTime.nowAsDate).toISOString(),
-            files: snapshot.files,
-            source: {
-              kind: "directory",
-              repositoryUrl: appPackage.repository.url.replace(/\.git$/u, ""),
-              subdirectory,
-              resolvedTree: snapshot.tree,
-            },
-            update: { status: "unchecked" },
-          };
-          if (existing === undefined) {
-            yield* Effect.tryPromise(() =>
-              fs.rename(staged, packageDirectoryPath(packagesDir, directory)),
-            );
-            packagesChanged = true;
-          }
-          yield* state.save(managed);
-          packagesChanged = true;
-          yield* finish(name);
-        }),
-      (stagingRoot) =>
+      yield* Effect.acquireUseRelease(
         Effect.tryPromise(() =>
-          fs.rm(stagingRoot, { recursive: true, force: true }),
-        ).pipe(
-          Effect.catch((cause) =>
-            Effect.logWarning(
-              "Failed to clean bundled package staging.",
-              Cause.fail(cause),
-            ).pipe(
-              Effect.annotateLogs({ component: "bundled-script-packages" }),
+          fs.mkdtemp(join(env.workspaceDir, ".lucent-package-seed-")),
+        ),
+        (stagingRoot) =>
+          Effect.gen(function* () {
+            const staged = join(stagingRoot, "package");
+            const snapshot = yield* copyBundledScriptPackage(source, staged);
+            yield* inspectScriptPackageDirectory(staged);
+            if (existing !== undefined) {
+              const files = yield* hashDirectory(existing.rootPath).pipe(
+                Effect.orElseSucceed(() => undefined),
+              );
+              if (!isDeepStrictEqual(files, snapshot.files)) {
+                yield* finish(name);
+                return;
+              }
+            }
+            const reserved = new Set(
+              (yield* state.getAll).map((entry) => entry.directory),
+            );
+            const directory =
+              existing?.directory ??
+              (yield* allocatePackageDirectory(packagesDir, name, reserved));
+            const subdirectory = yield* decodePackageSubdirectory(
+              `script-packages/${sourceDirectory}`,
+            );
+            const managed: ManagedScriptPackage = {
+              name,
+              directory,
+              installedAt: (yield* DateTime.nowAsDate).toISOString(),
+              files: snapshot.files,
+              source: {
+                kind: "directory",
+                repositoryUrl: appPackage.repository.url.replace(/\.git$/u, ""),
+                subdirectory,
+                resolvedTree: snapshot.tree,
+              },
+              update: { status: "unchecked" },
+            };
+            if (existing === undefined) {
+              yield* Effect.tryPromise(() =>
+                fs.rename(staged, packageDirectoryPath(packagesDir, directory)),
+              );
+              packagesChanged = true;
+            }
+            yield* state.save(managed);
+            packagesChanged = true;
+            yield* finish(name);
+          }),
+        (stagingRoot) =>
+          Effect.tryPromise(() =>
+            fs.rm(stagingRoot, { recursive: true, force: true }),
+          ).pipe(
+            Effect.catch((cause) =>
+              Effect.logWarning(
+                "Failed to clean bundled package staging.",
+                Cause.fail(cause),
+              ).pipe(
+                Effect.annotateLogs({ component: "bundled-script-packages" }),
+              ),
             ),
           ),
-        ),
-    );
-  }, Effect.uninterruptible);
+      );
+    },
+    Effect.uninterruptible,
+    Effect.provideService(FileSystem, fileSystem),
+  );
 
   if (yield* pathExists(sourceRoot)) {
     const entries = yield* Effect.tryPromise(() =>

@@ -64,7 +64,8 @@ export const fileReadError =
   (error: PlatformError.PlatformError): FileReadError => {
     const cause = nativeCause(error);
     return Predicate.isTagged(error.reason, "NotFound") ||
-      isMissingFileError(cause)
+      (Predicate.hasProperty(cause, "code") &&
+        (cause.code === "ENOENT" || cause.code === "ENOTDIR"))
       ? new FileNotFound({ path, cause })
       : error;
   };
@@ -85,12 +86,6 @@ export const regularFileFingerprint = Effect.fnUntraced(function* (
 
 export const fileFingerprint = (stat: Stats): string =>
   [stat.dev, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs].join(":");
-
-export const isMissingFileError = (cause: unknown): boolean =>
-  typeof cause === "object" &&
-  cause !== null &&
-  "code" in cause &&
-  (cause.code === "ENOENT" || cause.code === "ENOTDIR");
 
 export const readFileBounded = Effect.fn("readFileBounded")(function* (
   fileSystem: FileSystem,
@@ -202,6 +197,22 @@ export const realPath = Effect.fnUntraced(function* (path: string) {
     catch: (cause) =>
       fileReadError(path)(nativeFileError("realpath", path, cause)),
   });
+});
+
+export interface DirectoryEntry {
+  readonly name: string;
+  readonly kind: PathInfo["kind"];
+}
+
+export const readDirectoryEntries = Effect.fnUntraced(function* (path: string) {
+  const entries = yield* Effect.tryPromise({
+    try: () => fs.readdir(path, { withFileTypes: true }),
+    catch: (cause) =>
+      fileReadError(path)(nativeFileError("readdir", path, cause)),
+  });
+  return entries.map(
+    (entry): DirectoryEntry => ({ name: entry.name, kind: fileKind(entry) }),
+  );
 });
 
 export const pathExists = Effect.fnUntraced(function* (path: string) {

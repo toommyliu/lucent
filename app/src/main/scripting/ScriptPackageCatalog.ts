@@ -35,7 +35,6 @@ import { isPathInside, portablePath } from "./ScriptPackageFileSystem";
 import {
   resolveLooseScriptReference,
   logScriptPackageInspectionFailures,
-  type ScriptPackageInspectionFailure,
 } from "./ScriptPackageInspection";
 import {
   ScriptPackageState,
@@ -109,7 +108,6 @@ export const layer = Layer.effect(
     );
     const scan = Effect.gen(function* () {
       const managedPackages = yield* state.getAll;
-      const failures: ScriptPackageInspectionFailure[] = [];
       yield* Effect.all(
         [
           fileSystem.makeDirectory(scriptsDir, { recursive: true }),
@@ -125,22 +123,23 @@ export const layer = Layer.effect(
             }),
         ),
       );
-      const discovery = yield* Effect.tryPromise({
-        try: () =>
-          discoverScriptCatalog({
-            currentVersion,
-            managedPackages,
-            packagesDir,
-            scriptsDir,
-            onInspectionFailure: (failure) => failures.push(failure),
-          }),
-        catch: (cause) =>
-          new ScriptPackageCatalogError({ operation: "scan", cause }),
-      });
-      if (failures.length > 0)
-        yield* logScriptPackageInspectionFailures(failures);
-      return discovery;
-    });
+      const report = yield* discoverScriptCatalog({
+        currentVersion,
+        managedPackages,
+        packagesDir,
+        scriptsDir,
+      }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ScriptPackageCatalogError({
+              operation: "scan",
+              cause: nativeCause(cause),
+            }),
+        ),
+      );
+      yield* logScriptPackageInspectionFailures(report.failures);
+      return report.discovery;
+    }).pipe(Effect.provideService(FileSystem, fileSystem));
     const discovery = yield* makeCommittedState({
       load: () => scan,
     });

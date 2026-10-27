@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect";
 import { FileSystem } from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import { isPlatformError } from "effect/PlatformError";
 
 import type {
   ScriptFile,
@@ -198,6 +199,7 @@ const resolutionFailureCause = (
       if (isFileNotFound(error)) {
         return [];
       }
+      if (isPlatformError(error)) return Cause.fail(nativeCause(error)).reasons;
       return [reason];
     }),
   );

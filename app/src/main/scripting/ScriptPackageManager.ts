@@ -31,12 +31,11 @@ import {
   inspectManagedPackageFolder,
   integrityFor,
   logScriptPackageInspectionFailures,
-  type ScriptPackageInspectionFailure,
 } from "./ScriptPackageInspection";
 import { ScriptPackageCatalog } from "./ScriptPackageCatalog";
 import type { ScriptPackageCatalogReplacement } from "./ScriptCatalogDiscovery";
 import { hashDirectory, isPathInside } from "./ScriptPackageFileSystem";
-import { copyBundledScriptPackage } from "./BundledScriptPackageSnapshot";
+import { copyBundledScriptPackage } from "./ScriptPackageFileSystem";
 import {
   allocatePackageDirectory,
   packageDirectoryPath,
@@ -206,41 +205,45 @@ export const layer = Layer.effect(
         ? managed
         : undefined;
 
-    const inspectIntegrity = Effect.fnUntraced(function* (
-      rootPath: string,
-      managed: ManagedScriptPackage | undefined,
-    ) {
-      const failures: ScriptPackageInspectionFailure[] = [];
-      const integrity = yield* Effect.promise(() =>
-        integrityFor(rootPath, managed, (failure) => failures.push(failure)),
-      );
-      if (failures.length > 0)
-        yield* logScriptPackageInspectionFailures(failures);
-      return integrity;
-    });
+    const inspectIntegrity = Effect.fnUntraced(
+      function* (rootPath: string, managed: ManagedScriptPackage | undefined) {
+        const check = yield* integrityFor(rootPath, managed);
+        if (check.failure !== undefined && managed !== undefined)
+          yield* logScriptPackageInspectionFailures([
+            { packageName: managed.name, error: check.failure },
+          ]);
+        return check.integrity;
+      },
+      Effect.provideService(FileSystem, fileSystem),
+    );
 
     const mapCatalogError = (cause: unknown) =>
       managerError("validate", "Failed to update the script catalog.", cause);
 
-    const refreshPackageIntegrity = Effect.fnUntraced(function* (
-      name: string,
-      rootPath: string,
-      integrity: ScriptPackageIntegrity,
-    ) {
-      const managed = yield* state.get(name);
-      if (managed === undefined) return yield* catalog.refresh;
-      const inspected = yield* Effect.tryPromise(() =>
-        inspectManagedPackageFolder(packagesDir, rootPath, managed),
-      ).pipe(Effect.orElseSucceed(() => undefined));
-      if (inspected === undefined) return yield* catalog.refresh;
-      return yield* catalog.replacePackage({
-        inspected,
-        integrity,
-        managed,
-        rootPath,
-        sourceRoot: rootPath,
-      });
-    });
+    const refreshPackageIntegrity = Effect.fnUntraced(
+      function* (
+        name: string,
+        rootPath: string,
+        integrity: ScriptPackageIntegrity,
+      ) {
+        const managed = yield* state.get(name);
+        if (managed === undefined) return yield* catalog.refresh;
+        const inspected = yield* inspectManagedPackageFolder(
+          packagesDir,
+          rootPath,
+          managed,
+        ).pipe(Effect.orElseSucceed(() => undefined));
+        if (inspected === undefined) return yield* catalog.refresh;
+        return yield* catalog.replacePackage({
+          inspected,
+          integrity,
+          managed,
+          rootPath,
+          sourceRoot: rootPath,
+        });
+      },
+      Effect.provideService(FileSystem, fileSystem),
+    );
 
     const resolveSource = Effect.fn("ScriptPackageManager.resolveSource")(
       function* (input: {
@@ -562,9 +565,10 @@ export const layer = Layer.effect(
                 ),
               );
 
-              const inspected = yield* Effect.tryPromise({
-                try: () => inspectScriptPackageDirectory(staging),
-                catch: (cause) =>
+              const inspected = yield* inspectScriptPackageDirectory(
+                staging,
+              ).pipe(
+                Effect.mapError((cause) =>
                   managerError(
                     "validate",
                     subdirectory === undefined
@@ -572,7 +576,8 @@ export const layer = Layer.effect(
                       : "The selected package directory is not a valid script package.",
                     cause,
                   ),
-              });
+                ),
+              );
               const packageName = inspected.manifest.name;
               if (
                 replacement !== undefined &&
@@ -660,15 +665,15 @@ export const layer = Layer.effect(
                 } satisfies ScriptPackageMutationResult;
               }
 
-              const files = yield* Effect.tryPromise({
-                try: () => hashDirectory(staging),
-                catch: (cause) =>
+              const files = yield* hashDirectory(staging).pipe(
+                Effect.mapError((cause) =>
                   managerError(
                     "validate",
                     "Failed to hash the staged package.",
                     cause,
                   ),
-              });
+                ),
+              );
               const installedAt = (yield* DateTime.nowAsDate).toISOString();
               const managed: ManagedScriptPackage =
                 resolvedSource.kind === "restore"
@@ -845,7 +850,9 @@ export const layer = Layer.effect(
         }),
       );
 
-    const restore: ScriptPackageManagerShape["restore"] = (input) =>
+    const restore = (
+      input: Parameters<ScriptPackageManagerShape["restore"]>[0],
+    ) =>
       mutationGate.withPermits(1)(
         Effect.gen(function* () {
           const overview = yield* catalog.getOverview.pipe(
@@ -919,21 +926,27 @@ export const layer = Layer.effect(
             (temporaryRoot) =>
               Effect.gen(function* () {
                 const staging = join(temporaryRoot, "package");
-                const snapshot = yield* Effect.tryPromise({
-                  try: () => copyBundledScriptPackage(bundledPath, staging),
-                  catch: (cause) => managerError("restore", unavailable, cause),
-                });
+                const snapshot = yield* copyBundledScriptPackage(
+                  bundledPath,
+                  staging,
+                ).pipe(
+                  Effect.mapError((cause) =>
+                    managerError("restore", unavailable, cause),
+                  ),
+                );
                 if (snapshot.tree !== source.resolvedTree)
                   return yield* managerError("restore", unavailable);
-                const inspected = yield* Effect.tryPromise({
-                  try: () => inspectScriptPackageDirectory(staging),
-                  catch: (cause) =>
+                const inspected = yield* inspectScriptPackageDirectory(
+                  staging,
+                ).pipe(
+                  Effect.mapError((cause) =>
                     managerError(
                       "restore",
                       "The bundled copy is not a valid script package.",
                       cause,
                     ),
-                });
+                  ),
+                );
                 if (inspected.manifest.name !== managed.name)
                   return yield* managerError("restore", unavailable);
                 const destination = packageDirectoryPath(
@@ -1180,8 +1193,10 @@ export const layer = Layer.effect(
       checkUpdate,
       install,
       remove,
-      restore,
-      update,
+      restore: (input) =>
+        restore(input).pipe(Effect.provideService(FileSystem, fileSystem)),
+      update: (input) =>
+        update(input).pipe(Effect.provideService(FileSystem, fileSystem)),
     });
   }),
 );

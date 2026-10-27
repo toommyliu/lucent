@@ -1,9 +1,10 @@
+import { fileSystemLayer } from "../filesystem/FileSystemTesting";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import { vi } from "vitest";
 import * as Deferred from "effect/Deferred";
@@ -59,32 +60,25 @@ const REMOTE_TREE = "4".repeat(40);
 const PACKAGE_NAME = "example";
 const PACKAGE_SUBDIRECTORY = "packages/example";
 
-const packageFileSystemLayer = Layer.effect(
-  FileSystem,
-  Effect.map(FileSystem, (fileSystem) => ({
-    ...fileSystem,
-    makeTempDirectory: (options) => {
-      const prefix = join(
-        options?.directory ?? tmpdir(),
-        options?.prefix ?? "",
-      );
-      return Effect.tryPromise({
-        try: () => fs.mkdtemp(prefix),
-        catch: (cause) => nativeFileError("makeTempDirectory", prefix, cause),
-      });
-    },
-    rename: (from, to) =>
-      Effect.tryPromise({
-        try: () => fs.rename(from, to),
-        catch: (cause) => nativeFileError("rename", from, cause),
-      }),
-    remove: (path, options) =>
-      Effect.tryPromise({
-        try: () => fs.rm(path, options),
-        catch: (cause) => nativeFileError("remove", path, cause),
-      }),
-  })),
-).pipe(Layer.provide(desktopFileSystemLayer));
+const packageFileSystemLayer = fileSystemLayer(() => ({
+  makeTempDirectory: (options) => {
+    const prefix = join(options?.directory ?? tmpdir(), options?.prefix ?? "");
+    return Effect.tryPromise({
+      try: () => fs.mkdtemp(prefix),
+      catch: (cause) => nativeFileError("makeTempDirectory", prefix, cause),
+    });
+  },
+  rename: (from, to) =>
+    Effect.tryPromise({
+      try: () => fs.rename(from, to),
+      catch: (cause) => nativeFileError("rename", from, cause),
+    }),
+  remove: (path, options) =>
+    Effect.tryPromise({
+      try: () => fs.rm(path, options),
+      catch: (cause) => nativeFileError("remove", path, cause),
+    }),
+}));
 
 const makeDirectory = async (): Promise<string> => {
   const path = await fs.mkdtemp(join(tmpdir(), "lucent-package-archive-"));
@@ -136,6 +130,7 @@ type CommitResolution = Effect.Success<
 
 const makeManagerHarness = (options: {
   readonly assetsDir?: string;
+  readonly fileSystemLayer?: Layer.Layer<FileSystem>;
   readonly archivePath?: string | ((ref: string | undefined) => string);
   readonly downloadError?: GitHubScriptPackageClientError;
   readonly directoryTree?: string | Effect.Effect<string>;
@@ -152,6 +147,7 @@ const makeManagerHarness = (options: {
     | Effect.Effect<CommitResolution, GitHubScriptPackageClientError>;
   readonly workspaceDir: string;
 }) => {
+  const providedFileSystem = options.fileSystemLayer ?? packageFileSystemLayer;
   let downloadCount = 0;
   const archiveRequests: Parameters<
     GitHubScriptPackageClientShape["downloadArchive"]
@@ -226,7 +222,7 @@ const makeManagerHarness = (options: {
   ).pipe(
     Layer.provide(
       scriptPackageStateLayer.pipe(
-        Layer.provide(Layer.mergeAll(environmentLayer, desktopFileSystemLayer)),
+        Layer.provide(Layer.mergeAll(environmentLayer, providedFileSystem)),
       ),
     ),
   );
@@ -234,7 +230,7 @@ const makeManagerHarness = (options: {
     Layer.provide(
       Layer.mergeAll(
         environmentLayer,
-        desktopFileSystemLayer,
+        providedFileSystem,
         stateLayer,
         Layer.succeed(
           ElectronApp,
@@ -252,7 +248,7 @@ const makeManagerHarness = (options: {
     ),
   );
   const layer = scriptPackageManagerLayer.pipe(
-    Layer.provide(packageFileSystemLayer),
+    Layer.provide(providedFileSystem),
     Layer.provideMerge(
       Layer.mergeAll(
         environmentLayer,
@@ -367,31 +363,34 @@ afterEach(async () => {
 const OLD_SOURCE = "module.exports = 'old';";
 const NEW_SOURCE = "module.exports = 'new';";
 
-const installedPackage = Effect.promise(async () => {
-  const root = await makeDirectory();
+const installedPackage = Effect.gen(function* () {
+  const root = yield* Effect.promise(() => makeDirectory());
   const workspaceDir = join(root, "workspace");
   const repository = join(root, "source", "repository-commit");
   const destination = join(workspaceDir, "packages", PACKAGE_NAME);
-  await Promise.all([
-    write(
-      join(repository, "package.json"),
-      JSON.stringify({ name: PACKAGE_NAME }),
-    ),
-    write(join(repository, "index.js"), NEW_SOURCE),
-    write(
-      join(destination, "package.json"),
-      JSON.stringify({ name: PACKAGE_NAME }),
-    ),
-    write(join(destination, "index.js"), OLD_SOURCE),
-  ]);
+  yield* Effect.promise(() =>
+    Promise.all([
+      write(
+        join(repository, "package.json"),
+        JSON.stringify({ name: PACKAGE_NAME }),
+      ),
+      write(join(repository, "index.js"), NEW_SOURCE),
+      write(
+        join(destination, "package.json"),
+        JSON.stringify({ name: PACKAGE_NAME }),
+      ),
+      write(join(destination, "index.js"), OLD_SOURCE),
+    ]),
+  );
   const archivePath = join(root, "package.tgz");
-  await createTar(
-    { cwd: join(root, "source"), file: archivePath, gzip: true },
-    ["repository-commit"],
+  yield* Effect.promise(() =>
+    createTar({ cwd: join(root, "source"), file: archivePath, gzip: true }, [
+      "repository-commit",
+    ]),
   );
   const managed: ManagedScriptPackage = {
     directory: PACKAGE_NAME,
-    files: await hashDirectory(destination),
+    files: yield* hashDirectory(destination),
     installedAt: "2026-08-01T00:00:00.000Z",
     name: PACKAGE_NAME,
     source: {
@@ -403,7 +402,7 @@ const installedPackage = Effect.promise(async () => {
   return { archivePath, destination, managed, workspaceDir };
 });
 
-describe("script package folders", () => {
+layer(desktopFileSystemLayer)("script package folders", (it) => {
   it.effect(
     "removes staging when interrupted immediately after its creation",
     () =>
@@ -740,7 +739,7 @@ describe("script package folders", () => {
       const harness = makeManagerHarness({
         managed: {
           directory,
-          files: yield* Effect.promise(() => hashDirectory(packageRoot)),
+          files: yield* hashDirectory(packageRoot),
           installedAt: "2026-08-01T00:00:00.000Z",
           name: PACKAGE_NAME,
           source: {
@@ -774,7 +773,7 @@ describe("script package folders", () => {
   );
 });
 
-describe("script package updates", () => {
+layer(desktopFileSystemLayer)("script package updates", (it) => {
   it.effect(
     "does not download when the remote commit is already installed",
     () =>
@@ -1096,7 +1095,7 @@ describe("script package updates", () => {
         directoryTree: REMOTE_TREE,
         managed: {
           directory: PACKAGE_NAME,
-          files: yield* Effect.promise(() => hashDirectory(destination)),
+          files: yield* hashDirectory(destination),
           installedAt: "2026-08-01T00:00:00.000Z",
           name: PACKAGE_NAME,
           source: {
@@ -1152,7 +1151,7 @@ describe("script package updates", () => {
   );
 });
 
-describe("script package replacement failures", () => {
+layer(desktopFileSystemLayer)("script package replacement failures", (it) => {
   it.effect("keeps the package in place when moving it aside fails", () =>
     Effect.gen(function* () {
       const { archivePath, destination, managed, workspaceDir } =
@@ -1252,9 +1251,9 @@ describe("script package replacement failures", () => {
           findFiles(workspaceDir, OLD_SOURCE),
         );
         expect(copies).toHaveLength(1);
-        expect(
-          yield* Effect.promise(() => hashDirectory(dirname(copies[0] ?? ""))),
-        ).toEqual(managed.files);
+        expect(yield* hashDirectory(dirname(copies[0] ?? ""))).toEqual(
+          managed.files,
+        );
         expect(failure.message).toBe(
           `Failed to replace the package. The previous package remains at ${dirname(copies[0] ?? "")}. Check ${destination}.`,
         );
@@ -1596,7 +1595,7 @@ describe("script package replacement failures", () => {
   );
 });
 
-describe("script package local modifications", () => {
+layer(desktopFileSystemLayer)("script package local modifications", (it) => {
   const EDITED_SOURCE = "module.exports = 'edited';";
   const localModifications = {
     status: "confirmation-required",
@@ -1693,7 +1692,7 @@ describe("script package local modifications", () => {
   );
 });
 
-describe("script package update check races", () => {
+layer(desktopFileSystemLayer)("script package update check races", (it) => {
   it.effect.each(["update", "remove"] as const)(
     "logs inspection and fallback scan failures during %s",
     (operation) =>
@@ -2088,7 +2087,7 @@ describe("script package update check races", () => {
 
       expect(updated.status).toBe("completed");
       expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
-        files: yield* Effect.promise(() => hashDirectory(destination)),
+        files: yield* hashDirectory(destination),
         source: { resolvedCommit: REMOTE_COMMIT },
         update: { status: "current" },
       });
@@ -2346,7 +2345,7 @@ describe("script package update check races", () => {
   );
 });
 
-describe("script package removal failures", () => {
+layer(desktopFileSystemLayer)("script package removal failures", (it) => {
   const failStateRemoval = () =>
     Effect.fail(
       new ScriptPackageStateError({
@@ -2467,7 +2466,7 @@ describe("script package removal failures", () => {
   );
 });
 
-describe("script package integrity rows", () => {
+layer(desktopFileSystemLayer)("script package integrity rows", (it) => {
   it.effect(
     "marks reverted edits verified on update without scanning packages again",
     () =>
@@ -2592,7 +2591,7 @@ describe("script package integrity rows", () => {
   );
 });
 
-describe("script package restore", () => {
+layer(desktopFileSystemLayer)("script package restore", (it) => {
   it.effect(
     "restores the installed commit after the tracked branch moves",
     () =>
@@ -2813,7 +2812,7 @@ describe("script package restore", () => {
   );
 });
 
-describe("bundled package restore", () => {
+layer(desktopFileSystemLayer)("bundled package restore", (it) => {
   it.effect("restores the seeded bundled copy offline", () =>
     Effect.gen(function* () {
       const { manager, state, catalog, harness, destination, managed } =

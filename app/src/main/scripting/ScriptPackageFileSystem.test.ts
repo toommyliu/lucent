@@ -1,13 +1,15 @@
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
+import * as Effect from "effect/Effect";
 import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "@effect/vitest";
+import { afterEach, expect, layer } from "@effect/vitest";
 import { vi } from "vitest";
 
 import {
   listRegularFilePaths,
-  readStableFile,
+  readPackageFile,
 } from "./ScriptPackageFileSystem";
 
 const directories: string[] = [];
@@ -21,112 +23,149 @@ afterEach(async () => {
   );
 });
 
-describe("readStableFile", () => {
-  it("retries changed files up to three attempts", async () => {
-    const root = await fs.mkdtemp(join(tmpdir(), "lucent-stable-file-"));
-    directories.push(root);
-    const path = join(root, "value.js");
-    await fs.writeFile(path, "initial");
-    const stat = fs.stat;
-    let checks = 0;
-    vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
-      checks += 1;
-      if (checks === 2) await fs.writeFile(path, "second");
-      if (checks === 4) await fs.writeFile(path, "third");
-      return stat(...args);
-    });
+layer(NodeFileSystem.layer)("readPackageFile", (it) => {
+  it.effect("retries changed files up to three attempts", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() =>
+        fs.mkdtemp(join(tmpdir(), "lucent-stable-file-")),
+      );
+      directories.push(root);
+      const path = join(root, "value.js");
+      yield* Effect.promise(() => fs.writeFile(path, "initial"));
+      const stat = fs.stat;
+      let checks = 0;
+      vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
+        checks += 1;
+        if (checks === 2) await fs.writeFile(path, "second");
+        if (checks === 4) await fs.writeFile(path, "third");
+        return stat(...args);
+      });
 
-    expect((await readStableFile(path, 16)).toString("utf8")).toBe("third");
-    expect(checks).toBe(6);
-  });
+      expect((yield* readPackageFile(path, 16)).toString("utf8")).toBe("third");
+      expect(checks).toBe(6);
+    }),
+  );
 
-  it("fails after three changed reads without a fourth attempt", async () => {
-    const root = await fs.mkdtemp(join(tmpdir(), "lucent-stable-file-"));
-    directories.push(root);
-    const path = join(root, "value.js");
-    await fs.writeFile(path, "initial");
-    const stat = fs.stat;
-    let checks = 0;
-    vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
-      checks += 1;
-      if (checks % 2 === 0) await fs.appendFile(path, "!");
-      return stat(...args);
-    });
+  it.effect("fails after three changed reads without a fourth attempt", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() =>
+        fs.mkdtemp(join(tmpdir(), "lucent-stable-file-")),
+      );
+      directories.push(root);
+      const path = join(root, "value.js");
+      yield* Effect.promise(() => fs.writeFile(path, "initial"));
+      const stat = fs.stat;
+      let checks = 0;
+      vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
+        checks += 1;
+        if (checks % 2 === 0) await fs.appendFile(path, "!");
+        return stat(...args);
+      });
 
-    await expect(readStableFile(path, 16)).rejects.toThrow(
-      `File changed while it was being read: ${path}.`,
-    );
-    expect(await fs.readFile(path, "utf8")).toBe("initial!!!");
-    expect(checks).toBe(6);
-  });
+      expect(
+        (yield* readPackageFile(path, 16).pipe(Effect.flip)).message,
+      ).toContain(`File changed while it was being read: ${path}.`);
+      expect(yield* Effect.promise(() => fs.readFile(path, "utf8"))).toBe(
+        "initial!!!",
+      );
+      expect(checks).toBe(6);
+    }),
+  );
 
-  it("does not retry a file that exceeds the bound while being read", async () => {
-    const root = await fs.mkdtemp(join(tmpdir(), "lucent-stable-file-"));
-    directories.push(root);
-    const path = join(root, "value.js");
-    await fs.writeFile(path, "1234");
-    const stat = fs.stat;
-    let checks = 0;
-    vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
-      checks += 1;
-      const info = await stat(...args);
-      await fs.appendFile(path, "56789");
-      return info;
-    });
+  it.effect(
+    "does not retry a file that exceeds the bound while being read",
+    () =>
+      Effect.gen(function* () {
+        const root = yield* Effect.promise(() =>
+          fs.mkdtemp(join(tmpdir(), "lucent-stable-file-")),
+        );
+        directories.push(root);
+        const path = join(root, "value.js");
+        yield* Effect.promise(() => fs.writeFile(path, "1234"));
+        const stat = fs.stat;
+        let checks = 0;
+        vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
+          checks += 1;
+          const info = await stat(...args);
+          await fs.appendFile(path, "56789");
+          return info;
+        });
 
-    await expect(readStableFile(path, 8)).rejects.toThrow(
-      `File exceeds the 8 bytes limit: ${path}.`,
-    );
-    expect(await fs.readFile(path, "utf8")).toBe("123456789");
-    expect(checks).toBe(1);
-  });
+        expect(
+          (yield* readPackageFile(path, 8).pipe(Effect.flip)).message,
+        ).toContain(`File exceeds the 8 bytes limit: ${path}.`);
+        expect(yield* Effect.promise(() => fs.readFile(path, "utf8"))).toBe(
+          "123456789",
+        );
+        expect(checks).toBe(1);
+      }),
+  );
 
-  it("rejects directories before reading", async () => {
-    const root = await fs.mkdtemp(join(tmpdir(), "lucent-stable-file-"));
-    directories.push(root);
-    await expect(readStableFile(root, 16)).rejects.toThrow(
-      `Expected a regular file: ${root}.`,
-    );
-  });
+  it.effect("rejects directories before reading", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() =>
+        fs.mkdtemp(join(tmpdir(), "lucent-stable-file-")),
+      );
+      directories.push(root);
+      expect(
+        (yield* readPackageFile(root, 16).pipe(Effect.flip)).message,
+      ).toContain(`Expected a regular file: ${root}.`);
+    }),
+  );
 
-  it("does not retry when the file disappears after reading", async () => {
-    const root = await fs.mkdtemp(join(tmpdir(), "lucent-stable-file-"));
-    directories.push(root);
-    const path = join(root, "value.js");
-    await fs.writeFile(path, "initial");
-    const stat = fs.stat;
-    let checks = 0;
-    vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
-      checks += 1;
-      if (checks === 2) {
-        throw Object.assign(new Error("File disappeared"), { code: "ENOENT" });
-      }
-      return stat(...args);
-    });
+  it.effect("does not retry when the file disappears after reading", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() =>
+        fs.mkdtemp(join(tmpdir(), "lucent-stable-file-")),
+      );
+      directories.push(root);
+      const path = join(root, "value.js");
+      yield* Effect.promise(() => fs.writeFile(path, "initial"));
+      const stat = fs.stat;
+      let checks = 0;
+      vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
+        checks += 1;
+        if (checks === 2) {
+          throw Object.assign(new Error("File disappeared"), {
+            code: "ENOENT",
+          });
+        }
+        return stat(...args);
+      });
 
-    await expect(readStableFile(path, 16)).rejects.toThrow("File disappeared");
-    expect(checks).toBe(2);
-  });
+      expect(
+        (yield* readPackageFile(path, 16).pipe(Effect.flip)).message,
+      ).toContain("File disappeared");
+      expect(checks).toBe(2);
+    }),
+  );
 });
 
-describe("listRegularFilePaths", () => {
-  it("applies file limits only when the caller requests one", async () => {
-    const root = await fs.mkdtemp(join(tmpdir(), "lucent-file-inventory-"));
-    directories.push(root);
-    await Promise.all(
-      ["one.js", "two.js", "three.js"].map((name) =>
-        fs.writeFile(join(root, name), "", "utf8"),
-      ),
-    );
+layer(NodeFileSystem.layer)("listRegularFilePaths", (it) => {
+  it.effect("applies file limits only when the caller requests one", () =>
+    Effect.gen(function* () {
+      const root = yield* Effect.promise(() =>
+        fs.mkdtemp(join(tmpdir(), "lucent-file-inventory-")),
+      );
+      directories.push(root);
+      yield* Effect.promise(() =>
+        Promise.all(
+          ["one.js", "two.js", "three.js"].map((name) =>
+            fs.writeFile(join(root, name), "", "utf8"),
+          ),
+        ),
+      );
 
-    const paths = await listRegularFilePaths(root);
-    expect(paths).toHaveLength(3);
-    expect(paths[0]).toEqual({
-      absolutePath: join(root, "one.js"),
-      relativePath: "one.js",
-    });
-    await expect(listRegularFilePaths(root, { maxFiles: 2 })).rejects.toThrow(
-      "Directory contains more than 2 files",
-    );
-  });
+      const paths = yield* listRegularFilePaths(root);
+      expect(paths).toHaveLength(3);
+      expect(paths[0]).toEqual({
+        absolutePath: join(root, "one.js"),
+        relativePath: "one.js",
+      });
+      expect(
+        (yield* listRegularFilePaths(root, { maxFiles: 2 }).pipe(Effect.flip))
+          .message,
+      ).toContain("Directory contains more than 2 files");
+    }),
+  );
 });
