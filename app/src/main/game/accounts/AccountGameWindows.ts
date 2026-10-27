@@ -33,9 +33,7 @@ export interface AccountGameWindowsShape {
     readonly gameViewLayout?: "grid";
     readonly managedProfileKey?: string;
     readonly name?: string;
-    readonly onCreated?: (
-      event: AccountGameWindowEvent,
-    ) => Effect.Effect<void>;
+    readonly onCreated?: (event: AccountGameWindowEvent) => Effect.Effect<void>;
     readonly windowTarget?: AccountLaunchWindowTarget;
   }) => Effect.Effect<number, DesktopWindowError>;
   readonly reveal: (gameWindowId: number) => Effect.Effect<boolean>;
