@@ -526,6 +526,53 @@ describe("script package folders", () => {
     }),
   );
 
+  it.effect("removes a renamed package folder after confirmation", () =>
+    Effect.gen(function* () {
+      const { archivePath, destination, workspaceDir } =
+        yield* installedPackage;
+      yield* Effect.promise(() => fs.rm(destination, { recursive: true }));
+      const harness = makeManagerHarness({
+        archivePath,
+        resolution: { commit: REMOTE_COMMIT },
+        workspaceDir,
+      });
+      const { manager, catalog, state } = yield* harness.services;
+      expect(
+        (yield* manager.install({
+          repositoryUrl: "https://github.com/example/package",
+        })).status,
+      ).toBe("completed");
+      expect(yield* state.get(PACKAGE_NAME)).toMatchObject({
+        directory: "example",
+      });
+
+      const moved = join(dirname(destination), "example-old");
+      yield* Effect.promise(() => fs.rename(destination, moved));
+      expect((yield* catalog.refresh).packages).toMatchObject([
+        {
+          status: "valid",
+          name: "example",
+          path: moved,
+          integrity: "unmanaged",
+        },
+      ]);
+
+      const result = yield* manager.remove({
+        packageName: PACKAGE_NAME,
+        confirmModified: true,
+      });
+      expect(result).toMatchObject({
+        status: "completed",
+        packageName: "example",
+        catalog: { packages: [] },
+      });
+      expect(
+        yield* Effect.promise(() => fs.readdir(dirname(destination))),
+      ).toEqual([]);
+      expect(yield* state.getAll).toEqual([]);
+    }),
+  );
+
   it.effect("removes a package from its saved folder", () =>
     Effect.gen(function* () {
       const root = yield* Effect.promise(makeDirectory);
