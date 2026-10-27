@@ -22,6 +22,7 @@ import type {
   AccountManagerState,
 } from "@lucent/core/accounts";
 import { DesktopEnvironment } from "../../app/DesktopEnvironment";
+import { DesktopWindowError } from "../../window/DesktopWindows";
 import { layer as desktopFileSystemLayer } from "@effect/platform-node/NodeFileSystem";
 import {
   AccountGameWindows,
@@ -642,6 +643,102 @@ describe("Accounts", () => {
         ]);
         expect(yield* accounts.getGameLaunch(reopened.gameWindowId)).toBeNull();
         expect(yield* accounts.getRecentlyClosed(1)).toEqual([]);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect("labels a window that fails to open as a launch failure", () =>
+    Effect.gen(function* () {
+      const layer = yield* makeHarness({
+        beforeOpen: () =>
+          Effect.fail(
+            new DesktopWindowError({ id: "game", detail: "Window unavailable" }),
+          ),
+      });
+      return yield* Effect.gen(function* () {
+        const accounts = yield* Accounts;
+        yield* accounts.createAccount({ username: "Alice", password: "secret" });
+        const error = yield* Effect.flip(accounts.launch({ username: "Alice" }));
+        expect(error._tag).toBe("AccountsError");
+        expect(error.message).toBe("Failed to launch account");
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect("labels a window that fails to reopen as a reopen failure", () =>
+    Effect.gen(function* () {
+      let failOpen = false;
+      const layer = yield* makeHarness({
+        beforeOpen: () =>
+          failOpen
+            ? Effect.fail(
+                new DesktopWindowError({
+                  id: "game",
+                  detail: "Window unavailable",
+                }),
+              )
+            : Effect.void,
+      });
+      return yield* Effect.gen(function* () {
+        const accounts = yield* Accounts;
+        const sessions = yield* AccountSessions.AccountSessions;
+        sessions.openWindow(77, 1, 1);
+        yield* accounts.createAccount({ username: "Alice", password: "secret" });
+        const original = yield* accounts.launch({ username: "Alice" });
+        yield* accounts.closeGameWindows([original.gameWindowId]);
+        yield* accounts.deleteAccounts(["Alice"]);
+        failOpen = true;
+        const error = yield* Effect.flip(
+          accounts.reopenGameWindow({
+            id: original.gameWindowId,
+            gameWindowGroupId: 1,
+            windowTarget: { kind: "new" },
+          }),
+        );
+        expect(error._tag).toBe("AccountsError");
+        expect(error.message).toBe("Unable to reopen the tab. Try again.");
+      }).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect("reports unreadable storage from focus and close", () =>
+    Effect.gen(function* () {
+      let unreadablePath: string | undefined;
+      const layer = yield* makeHarness({
+        wrapFileSystem: (fileSystem) =>
+          FileSystem.of({
+            ...fileSystem,
+            stream: (path, options) =>
+              path === unreadablePath
+                ? Stream.fail(
+                    PlatformError.systemError({
+                      _tag: "PermissionDenied",
+                      module: "FileSystem",
+                      method: "stream",
+                      pathOrDescriptor: path,
+                    }),
+                  )
+                : fileSystem.stream(path, options),
+          }),
+      });
+      return yield* Effect.gen(function* () {
+        const accounts = yield* Accounts;
+        const gameWindows = yield* AccountGameWindows;
+        const repository = yield* AccountRepository.AccountRepository;
+        yield* Effect.promise(() =>
+          writeFile(repository.path, '{"accounts":[],"groups":{}}'),
+        );
+        unreadablePath = repository.path;
+        const gameWindowId = yield* gameWindows.open();
+        const storageError = yield* Effect.flip(accounts.getState);
+
+        expect(
+          (yield* Effect.flip(accounts.focusGameWindow(gameWindowId))).message,
+        ).toBe(`Failed to focus game window: ${gameWindowId}`);
+        expect(
+          (yield* Effect.flip(accounts.closeGameWindows([gameWindowId])))
+            .message,
+        ).toBe(storageError.message);
       }).pipe(Effect.provide(layer));
     }),
   );
