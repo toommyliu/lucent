@@ -114,7 +114,7 @@ export function MenuRadioItem({
       className={cn(popup.item, popup.indicatorItem, className)}
     >
       <BaseMenu.RadioItemIndicator className={popup.indicator}>
-        <span className={styles.radioDot} />
+        <Icon icon="check" size="md" />
       </BaseMenu.RadioItemIndicator>
       {children}
     </BaseMenu.RadioItem>
