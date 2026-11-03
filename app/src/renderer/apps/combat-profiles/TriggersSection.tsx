@@ -6,6 +6,8 @@ import {
   Icon,
   IconButton,
   Input,
+  ListGroup,
+  ListGroupItem,
   Select,
   SelectContent,
   SelectItem,
@@ -157,7 +159,7 @@ export function TriggersSection({
           Trigger
         </Button>
       </header>
-      <div className="cp-group__card cp-builder cp-trigger-card">
+      <ListGroup className="cp-builder cp-trigger-card">
         {triggers.length === 0 ? (
           <p className="cp-builder-empty cp-trigger-empty">
             <span className="cp-builder-empty__title">No message triggers</span>
@@ -247,7 +249,7 @@ export function TriggersSection({
             })}
           </div>
         )}
-      </div>
+      </ListGroup>
     </section>
   );
 }
@@ -310,7 +312,7 @@ function TriggerEditor({
         role="group"
       >
         <div className="cp-settings">
-          <div className="cp-settings__row cp-settings__row--rules">
+          <ListGroupItem className="cp-settings__row cp-settings__row--rules">
             <span className="cp-settings__label">Message</span>
             <Field invalid={invalid}>
               <Input
@@ -329,8 +331,8 @@ function TriggerEditor({
                 <FieldError match>Enter text to match</FieldError>
               ) : null}
             </Field>
-          </div>
-          <div className="cp-settings__row">
+          </ListGroupItem>
+          <ListGroupItem className="cp-settings__row">
             <span className="cp-settings__label">Source</span>
             <Select
               items={TRIGGER_SOURCES}
@@ -358,8 +360,8 @@ function TriggerEditor({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="cp-settings__row">
+          </ListGroupItem>
+          <ListGroupItem className="cp-settings__row">
             <span className="cp-settings__label">Skill</span>
             <SkillSelect
               aria-label="Skill"
@@ -367,8 +369,8 @@ function TriggerEditor({
               onValueChange={(skill) => onChange({ ...trigger, skill })}
               value={trigger.skill}
             />
-          </div>
-          <div className="cp-settings__row">
+          </ListGroupItem>
+          <ListGroupItem className="cp-settings__row">
             <span className="cp-settings__label">
               Cooldown
               <HelpTip label="Cooldown" text={TRIGGER_COOLDOWN_HELP} />
@@ -384,7 +386,7 @@ function TriggerEditor({
               unit="ms"
               value={trigger.cooldownMs}
             />
-          </div>
+          </ListGroupItem>
         </div>
       </div>
     </>

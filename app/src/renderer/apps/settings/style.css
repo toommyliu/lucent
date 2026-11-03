@@ -97,34 +97,6 @@
   margin: 0;
 }
 
-.settings-group__card {
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-raised);
-}
-
-.settings-group__card > * + * {
-  position: relative;
-}
-
-.settings-group__card > * + *::before {
-  border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
-  content: "";
-  inset-inline: calc(var(--spacing) * 4);
-  position: absolute;
-  top: 0;
-}
-
-.settings-row {
-  align-items: center;
-  box-sizing: border-box;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  min-height: 2.5rem;
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-}
-
 .settings-row__text {
   display: flex;
   flex: 1 1 10rem;
@@ -260,8 +232,8 @@
   column-gap: 0.75rem;
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(2, max-content);
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-  row-gap: 0.5rem;
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 4);
+  row-gap: calc(var(--spacing) * 2);
 }
 
 .color-grid__row {
@@ -291,14 +263,9 @@
 }
 
 .hotkey-row {
-  align-items: center;
-  box-sizing: border-box;
-  column-gap: 0.75rem;
-  display: flex;
-  flex-wrap: wrap;
-  min-height: 2.5rem;
-  padding: 0.5rem calc(var(--spacing) * 2.5) 0.5rem calc(var(--spacing) * 4);
-  row-gap: 0.25rem;
+  column-gap: calc(var(--spacing) * 3);
+  padding-inline-end: calc(var(--spacing) * 2.5);
+  row-gap: var(--spacing);
 }
 
 .hotkey-row__label {
