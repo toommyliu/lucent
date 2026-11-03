@@ -153,16 +153,38 @@ describe("theme contrast", () => {
   it("keeps the default dark text steps", () => {
     const { background, foreground } = DEFAULT_THEME_COLORS.dark;
 
-    expect(resolveTextMixFloor(background, foreground)).toBeLessThan(57);
+    expect(
+      resolveTextMixFloor({ background, foreground, variant: "dark" }),
+    ).toBeLessThan(57);
   });
 
   it("lifts secondary text for a low-contrast pair", () => {
-    expect(resolveTextMixFloor([245, 240, 228], [70, 70, 70])).toBeGreaterThan(
-      67,
-    );
+    expect(
+      resolveTextMixFloor({
+        background: [245, 240, 228],
+        foreground: [70, 70, 70],
+        variant: "light",
+      }),
+    ).toBeGreaterThan(67);
   });
 
   it("uses the text color when no mix reaches the contrast target", () => {
-    expect(resolveTextMixFloor([120, 120, 120], [160, 160, 160])).toBe(100);
+    expect(
+      resolveTextMixFloor({
+        background: [120, 120, 120],
+        foreground: [160, 160, 160],
+        variant: "dark",
+      }),
+    ).toBe(100);
+  });
+
+  it("keeps secondary text off the light card color when the background is dark", () => {
+    expect(
+      resolveTextMixFloor({
+        background: [0, 0, 0],
+        foreground: [255, 255, 255],
+        variant: "light",
+      }),
+    ).toBe(100);
   });
 });

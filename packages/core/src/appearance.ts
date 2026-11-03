@@ -184,19 +184,41 @@ const mixOklab = (from: ThemeRgb, to: ThemeRgb, amount: number): ThemeRgb => {
 
 const MINIMUM_TEXT_CONTRAST = 4.5;
 const RAISED_SURFACE_TINT = 0.06;
+const WHITE: ThemeRgb = [255, 255, 255];
+// Mirrors --gray-1 in packages/ui-react/src/styles/tokens.css, the light card surface.
+const LIGHT_CARD_WHITE_MIX = 0.67;
 
-export const resolveTextMixFloor = (
-  background: ThemeRgb,
-  foreground: ThemeRgb,
-): number => {
-  const raisedSurface = mixOklab(background, foreground, RAISED_SURFACE_TINT);
-  for (let percent = 0; percent < 100; percent += 1) {
+export const resolveTextMixFloor = ({
+  background,
+  foreground,
+  variant,
+}: {
+  readonly background: ThemeRgb;
+  readonly foreground: ThemeRgb;
+  readonly variant: ThemeVariant;
+}): number => {
+  const surfaces = [
+    mixOklab(background, foreground, RAISED_SURFACE_TINT),
+    ...(variant === "light"
+      ? [mixOklab(background, WHITE, LIGHT_CARD_WHITE_MIX)]
+      : []),
+  ];
+  let bestPercent = 100;
+  let bestContrast = 0;
+  for (let percent = 0; percent <= 100; percent += 1) {
     const text = mixOklab(background, foreground, percent / 100);
-    if (contrastRatio(text, raisedSurface) >= MINIMUM_TEXT_CONTRAST) {
+    const contrast = Math.min(
+      ...surfaces.map((surface) => contrastRatio(text, surface)),
+    );
+    if (contrast >= MINIMUM_TEXT_CONTRAST) {
       return percent;
     }
+    if (contrast > bestContrast) {
+      bestPercent = percent;
+      bestContrast = contrast;
+    }
   }
-  return 100;
+  return bestPercent;
 };
 
 const apcaLuminance = (rgb: ThemeRgb): number => {

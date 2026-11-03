@@ -142,7 +142,11 @@ export const applyAppearanceSnapshotToDocument = (
   );
   style.setProperty(
     "--text-mix-floor",
-    `${resolveTextMixFloor(colors.background, colors.foreground)}%`,
+    `${resolveTextMixFloor({
+      background: colors.background,
+      foreground: colors.foreground,
+      variant: snapshot.variant,
+    })}%`,
   );
   style.setProperty("--font-size-base", `${snapshot.sansFontSize}px`);
   style.setProperty("--font-size-mono", `${snapshot.monoFontSize}px`);
