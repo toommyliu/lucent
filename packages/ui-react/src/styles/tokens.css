@@ -11,16 +11,16 @@
     --radius-scale: 1;
     --cursor-interactive: default;
 
-    --font-size-caption: round(calc(var(--font-size-base) * 11 / 13), 1px);
-    --font-size-small: round(calc(var(--font-size-base) * 12 / 13), 1px);
+    --font-size-caption: round(calc(var(--font-size-base) * 11 / 14), 1px);
+    --font-size-small: round(calc(var(--font-size-base) * 12 / 14), 1px);
     --font-size-body: var(--font-size-base);
-    --font-size-title: round(calc(var(--font-size-base) * 15 / 13), 1px);
+    --font-size-title: round(calc(var(--font-size-base) * 16 / 14), 1px);
 
     --spacing: calc(var(--font-size-base) * 4 / 14);
 
-    --control-height-sm: round(calc(var(--font-size-base) * 24 / 13), 1px);
-    --control-height-md: round(calc(var(--font-size-base) * 28 / 13), 1px);
-    --control-height-lg: round(calc(var(--font-size-base) * 32 / 13), 1px);
+    --control-height-sm: round(calc(var(--spacing) * 6), 1px);
+    --control-height-md: round(calc(var(--spacing) * 7), 1px);
+    --control-height-lg: round(calc(var(--spacing) * 8), 1px);
 
     --radius-tag: calc(var(--spacing) * 1.25 * var(--radius-scale));
     --radius-control: calc(var(--spacing) * 2 * var(--radius-scale));
