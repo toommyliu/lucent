@@ -10,6 +10,8 @@ import {
   AlertDialogTrigger,
   Button,
   Icon,
+  ListGroup,
+  ListGroupItem,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -70,7 +72,7 @@ export function SettingsGroup({
           {action}
         </header>
       )}
-      <div className="settings-group__card">{children}</div>
+      <ListGroup className="settings-group__card">{children}</ListGroup>
     </section>
   );
 }
@@ -87,7 +89,7 @@ export function SettingsRow({
   const labelId = useId();
   const descriptionId = useId();
   return (
-    <div className="settings-row">
+    <ListGroupItem>
       <div className="settings-row__text">
         <span className="settings-row__label" id={labelId}>
           {label}
@@ -105,7 +107,7 @@ export function SettingsRow({
           "aria-labelledby": labelId,
         })}
       </div>
-    </div>
+    </ListGroupItem>
   );
 }
 

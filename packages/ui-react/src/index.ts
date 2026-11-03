@@ -215,6 +215,12 @@ export {
 } from "./components/kbd/Kbd";
 export { Label, type LabelProps } from "./components/label/Label";
 export {
+  ListGroup,
+  ListGroupItem,
+  type ListGroupItemProps,
+  type ListGroupProps,
+} from "./components/list-group/ListGroup";
+export {
   createMenuHandle,
   Menu,
   MenuCheckboxItem,

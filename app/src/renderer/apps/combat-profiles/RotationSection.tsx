@@ -3,6 +3,7 @@ import {
   Button,
   Icon,
   IconButton,
+  ListGroup,
   Menu,
   MenuContent,
   MenuItem,
@@ -374,7 +375,7 @@ export function RotationSection({
         </div>
         <AddKeyMenu onAdd={add} />
       </header>
-      <div className="cp-group__card cp-builder">
+      <ListGroup className="cp-builder">
         <div className="cp-builder-tray">
           <div
             className="cp-builder-keys"
@@ -488,7 +489,7 @@ export function RotationSection({
             step={step}
           />
         )}
-      </div>
+      </ListGroup>
       {drag === null || dragged === undefined ? null : (
         <div
           aria-hidden

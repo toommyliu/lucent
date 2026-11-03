@@ -4,6 +4,7 @@ import {
   Icon,
   Kbd,
   KbdGroup,
+  ListGroupItem,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -101,7 +102,10 @@ function HotkeyRow({
   const parts = formatHotkeyDisplayParts(value, platform);
 
   return (
-    <div className="hotkey-row" data-recording={recording ? "" : undefined}>
+    <ListGroupItem
+      className="hotkey-row"
+      data-recording={recording ? "" : undefined}
+    >
       <div className="hotkey-row__label">
         <span>{command.label}</span>
         {conflicts.length > 0 ? <ConflictBadge labels={conflicts} /> : null}
@@ -152,7 +156,7 @@ function HotkeyRow({
           {notice}
         </p>
       )}
-    </div>
+    </ListGroupItem>
   );
 }
 

@@ -3,6 +3,8 @@ import {
   Button,
   Icon,
   Input,
+  ListGroup,
+  ListGroupItem,
   Menu,
   MenuContent,
   MenuItem,
@@ -492,7 +494,7 @@ export function StepSettings({
 
   return (
     <div className="cp-settings">
-      <div className="cp-settings__row cp-settings__row--rules">
+      <ListGroupItem className="cp-settings__row cp-settings__row--rules">
         <span className="cp-settings__label">Rules</span>
         <div className="cp-settings__rules" ref={rules}>
           {step.conditions.map((condition, conditionIndex) => (
@@ -532,16 +534,16 @@ export function StepSettings({
             }}
           />
         </div>
-      </div>
-      <div className="cp-settings__row">
+      </ListGroupItem>
+      <ListGroupItem className="cp-settings__row">
         <span className="cp-settings__label">Cooldown</span>
         <StepCooldownSelect
           className="cp-settings__select"
           onChange={(next) => onChange(next)}
           step={step}
         />
-      </div>
-      <div className="cp-settings__row">
+      </ListGroupItem>
+      <ListGroupItem className="cp-settings__row">
         <span className="cp-settings__label">Delay</span>
         <NumberField
           aria-label="Delay after this skill"
@@ -552,8 +554,8 @@ export function StepSettings({
           unit="ms"
           value={step.waitMs}
         />
-      </div>
-      <div className="cp-settings__row">
+      </ListGroupItem>
+      <ListGroupItem className="cp-settings__row">
         <span className="cp-settings__label">
           Priority
           <HelpTip label="Priority" text={PRIORITY_HELP} />
@@ -566,7 +568,7 @@ export function StepSettings({
           }
           size="sm"
         />
-      </div>
+      </ListGroupItem>
     </div>
   );
 }
@@ -850,7 +852,7 @@ export function Group({
           </h2>
         </div>
       </header>
-      <div className="cp-group__card">{children}</div>
+      <ListGroup>{children}</ListGroup>
     </section>
   );
 }
@@ -866,7 +868,7 @@ function Row({
 }) {
   const labelId = useId();
   return (
-    <div className="cp-row">
+    <ListGroupItem>
       <div className="cp-row__text">
         <span className="cp-row__label">
           <span id={labelId}>{label}</span>
@@ -874,7 +876,7 @@ function Row({
         </span>
       </div>
       <div className="cp-row__control">{children(labelId)}</div>
-    </div>
+    </ListGroupItem>
   );
 }
 
