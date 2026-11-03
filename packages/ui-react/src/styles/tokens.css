@@ -17,6 +17,7 @@
     --font-size-title: round(calc(var(--font-size-base) * 16 / 14), 1px);
 
     --spacing: calc(var(--font-size-base) * 4 / 14);
+    --window-inset: calc(var(--spacing) * 6);
 
     --control-height-sm: round(calc(var(--spacing) * 6), 1px);
     --control-height-md: round(calc(var(--spacing) * 7), 1px);

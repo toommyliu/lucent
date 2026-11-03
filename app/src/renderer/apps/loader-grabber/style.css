@@ -1,7 +1,6 @@
 :root {
   --lg-ac-fill: color-mix(in oklab, #c9952a 16%, transparent);
   --lg-ac-gold: #805a0c;
-  --lg-hairline: color-mix(in srgb, var(--color-text) 8%, transparent);
   --lg-mark-bg: oklch(0.9 0.16 98 / 0.75);
 }
 
@@ -53,7 +52,7 @@
   align-items: center;
   display: inline-flex;
   flex: none;
-  gap: 0.25rem;
+  gap: var(--spacing);
 }
 
 .lg-empty {
@@ -69,9 +68,9 @@
   color: var(--color-danger-text);
   display: flex;
   font-size: var(--font-size-small);
-  gap: 0.5rem;
-  margin: 0.5rem 1rem 0;
-  padding: 0.5rem 0.75rem;
+  gap: calc(var(--spacing) * 2);
+  margin: calc(var(--spacing) * 2) calc(var(--spacing) * 3.5) 0;
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 2.5);
 }
 
 .lg-inline-error > svg {
@@ -190,7 +189,7 @@
 }
 
 .lg-card {
-  border-block: 1px solid var(--lg-hairline);
+  border-block: 1px solid var(--color-separator-subtle);
   margin: 0;
   min-width: 0;
 }
@@ -200,7 +199,7 @@
 }
 
 .lg-card > * + *::before {
-  border-top: 1px solid var(--lg-hairline);
+  border-top: 1px solid var(--color-separator-subtle);
   content: "";
   inset-inline: 0;
   position: absolute;
@@ -568,7 +567,7 @@
   cursor: var(--cursor-interactive);
   display: flex;
   font: inherit;
-  gap: 0.25rem;
+  gap: var(--spacing);
   height: var(--control-height-md);
   padding: 0 calc(var(--spacing) * 2.5);
   text-align: start;
@@ -610,11 +609,11 @@
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
+  gap: calc(var(--spacing) * 2) calc(var(--spacing) * 2.5);
   grid-area: toolbar;
   min-height: 3.5rem;
   min-width: 0;
-  padding: 0.5rem 1rem;
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3.5);
 }
 
 .lg-library-toolbar__title {
@@ -685,7 +684,7 @@
   align-items: center;
   display: flex;
   flex: 1000 1 0;
-  gap: 0.25rem;
+  gap: var(--spacing);
   justify-content: flex-end;
   margin-inline-start: auto;
   max-width: max-content;
@@ -693,7 +692,7 @@
 
 .lg-library-search {
   flex: 0 1 14rem;
-  margin-inline-start: 0.25rem;
+  margin-inline-start: var(--spacing);
   min-width: 5rem;
 }
 
@@ -736,7 +735,7 @@
 
 .lg-filter-menu__count {
   flex: none;
-  padding-inline-start: 1rem;
+  padding-inline-start: calc(var(--spacing) * 3.5);
 }
 
 .lg-library-main {
