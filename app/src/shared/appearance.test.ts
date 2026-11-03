@@ -235,4 +235,28 @@ describe("appearance bootstrap", () => {
       "--accent": "32, 32, 34",
     });
   });
+
+  it("raises the text mix floor for a low-contrast custom theme", () => {
+    const settings = normalizeAppSettings({
+      version: 2,
+      appearance: {
+        themeMode: "light",
+        themes: {
+          light: {
+            colors: { background: [245, 240, 228], foreground: [70, 70, 70] },
+          },
+        },
+      },
+    });
+    const { root, properties } = makeRoot();
+
+    applyAppearanceSnapshotToDocument(
+      root,
+      createAppearanceSnapshot(settings, false),
+    );
+
+    expect(
+      Number.parseFloat(properties.get("--text-mix-floor") ?? ""),
+    ).toBeGreaterThan(67);
+  });
 });

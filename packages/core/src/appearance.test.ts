@@ -3,6 +3,8 @@ import { describe, expect, it } from "@effect/vitest";
 import {
   createAppearanceSnapshot,
   hexToRgb,
+  pickOnAccentColor,
+  resolveTextMixFloor,
   resolveThemeColors,
   readAppearanceSnapshotArgument,
   rgbEquals,
@@ -10,7 +12,11 @@ import {
   rgbToHex,
   serializeAppearanceSnapshotArgument,
 } from "./appearance";
-import { DEFAULT_APP_SETTINGS, normalizeAppSettings } from "./settings";
+import {
+  DEFAULT_APP_SETTINGS,
+  DEFAULT_THEME_COLORS,
+  normalizeAppSettings,
+} from "./settings";
 
 describe("appearance bootstrap", () => {
   it("creates a dark fallback snapshot", () => {
@@ -125,5 +131,38 @@ describe("appearance bootstrap", () => {
         )}`,
       ]),
     ).toBeNull();
+  });
+});
+
+describe("theme contrast", () => {
+  const white = [255, 255, 255];
+  const nearBlack = [25, 25, 28];
+
+  it("puts white text on saturated mid-tone accents", () => {
+    expect(pickOnAccentColor([59, 130, 246])).toEqual(white);
+    expect(pickOnAccentColor([239, 68, 68])).toEqual(white);
+    expect(pickOnAccentColor([25, 25, 28])).toEqual(white);
+  });
+
+  it("puts dark text on light accents", () => {
+    expect(pickOnAccentColor([34, 197, 94])).toEqual(nearBlack);
+    expect(pickOnAccentColor([255, 255, 0])).toEqual(nearBlack);
+    expect(pickOnAccentColor([243, 243, 245])).toEqual(nearBlack);
+  });
+
+  it("keeps the default dark text steps", () => {
+    const { background, foreground } = DEFAULT_THEME_COLORS.dark;
+
+    expect(resolveTextMixFloor(background, foreground)).toBeLessThan(57);
+  });
+
+  it("lifts secondary text for a low-contrast pair", () => {
+    expect(resolveTextMixFloor([245, 240, 228], [70, 70, 70])).toBeGreaterThan(
+      67,
+    );
+  });
+
+  it("uses the text color when no mix reaches the contrast target", () => {
+    expect(resolveTextMixFloor([120, 120, 120], [160, 160, 160])).toBe(100);
   });
 });

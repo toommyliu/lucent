@@ -9,6 +9,7 @@
     --font-size-base: 14px;
     --font-size-mono: 12px;
     --radius-scale: 1;
+    --text-mix-floor: 0%;
     --cursor-interactive: default;
 
     --font-size-caption: round(calc(var(--font-size-base) * 11 / 14), 1px);
@@ -86,8 +87,16 @@
     --gray-7: color-mix(in oklab, var(--color-bg), var(--color-text) 15%);
     --gray-8: color-mix(in oklab, var(--color-bg), var(--color-text) 23%);
     --gray-9: color-mix(in oklab, var(--color-bg), var(--color-text) 47%);
-    --gray-10: color-mix(in oklab, var(--color-bg), var(--color-text) 56%);
-    --gray-11: color-mix(in oklab, var(--color-bg), var(--color-text) 67%);
+    --gray-10: color-mix(
+      in oklab,
+      var(--color-bg),
+      var(--color-text) max(56%, var(--text-mix-floor))
+    );
+    --gray-11: color-mix(
+      in oklab,
+      var(--color-bg),
+      var(--color-text) max(67%, var(--text-mix-floor))
+    );
     --gray-12: var(--color-text);
 
     --red-3: oklch(0.968 0.014 25);
@@ -173,8 +182,16 @@
     --gray-7: color-mix(in oklab, var(--color-bg), var(--color-text) 22%);
     --gray-8: color-mix(in oklab, var(--color-bg), var(--color-text) 32%);
     --gray-9: color-mix(in oklab, var(--color-bg), var(--color-text) 48%);
-    --gray-10: color-mix(in oklab, var(--color-bg), var(--color-text) 57%);
-    --gray-11: color-mix(in oklab, var(--color-bg), var(--color-text) 76%);
+    --gray-10: color-mix(
+      in oklab,
+      var(--color-bg),
+      var(--color-text) max(57%, var(--text-mix-floor))
+    );
+    --gray-11: color-mix(
+      in oklab,
+      var(--color-bg),
+      var(--color-text) max(76%, var(--text-mix-floor))
+    );
     --gray-12: var(--color-text);
 
     --red-3: oklch(0.235 0.04 25);
